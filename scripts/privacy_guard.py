@@ -49,6 +49,8 @@ ALLOWED_EMAIL_DOMAINS = {
     "example.net",
 }
 ALLOWED_EMAIL_TLDS = {"example", "invalid", "test", "localhost"}
+# Bot addresses GitHub puts into commit trailers (Dependabot "Signed-off-by").
+ALLOWED_EMAILS = {"support@github.com"}
 
 FORBIDDEN_SUFFIXES = {
     ".har",
@@ -119,7 +121,7 @@ def email_allowed(local: str, domain: str) -> bool:
     """Return True for noreply, example and reserved test addresses."""
     local = local.lower()
     domain = domain.lower()
-    if local in ALLOWED_EMAIL_LOCALPARTS:
+    if local in ALLOWED_EMAIL_LOCALPARTS or f"{local}@{domain}" in ALLOWED_EMAILS:
         return True
     if domain in ALLOWED_EMAIL_DOMAINS or domain.endswith(".users.noreply.github.com"):
         return True

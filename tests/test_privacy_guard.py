@@ -48,6 +48,7 @@ def test_metering_point_real_vs_synthetic() -> None:
         "user@example.com",
         "noreply@anthropic.com",
         "123+someone@users.noreply.github.com",
+        "support@github.com",
     ],
 )
 def test_allowed_emails(addr: str) -> None:
