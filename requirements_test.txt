@@ -1,0 +1,7 @@
+# Test dependencies.
+# pytest-homeassistant-custom-component pins an exact Home Assistant version.
+# Target: Home Assistant 2026.11. As of 2026-11-07 the newest plugin release
+# (0.13.375) pins homeassistant==2026.10.4; no 2026.11 build has been published
+# yet. Bump this pin once a release with homeassistant==2026.11.x is out
+# (Dependabot opens the PR).
+pytest-homeassistant-custom-component==0.13.375

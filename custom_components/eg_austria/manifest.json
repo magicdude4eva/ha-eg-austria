@@ -1,0 +1,11 @@
+{
+  "domain": "eg_austria",
+  "name": "EG Austria (unofficial)",
+  "codeowners": ["@magicdude4eva"],
+  "documentation": "https://github.com/magicdude4eva/ha-eg-austria",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/magicdude4eva/ha-eg-austria/issues",
+  "requirements": [],
+  "version": "0.0.0"
+}

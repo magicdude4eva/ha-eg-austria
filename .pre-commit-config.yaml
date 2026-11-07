@@ -1,0 +1,25 @@
+# Install with:  pre-commit install
+# (default_install_hook_types installs both pre-commit and commit-msg hooks)
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.4
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: privacy-guard
+        name: privacy guard (files)
+        entry: python3 scripts/privacy_guard.py
+        language: system
+        types: [file]
+        stages: [pre-commit]
+      - id: privacy-guard-commit-msg
+        name: privacy guard (commit message)
+        entry: python3 scripts/privacy_guard.py --commit-msg
+        language: system
+        stages: [commit-msg]

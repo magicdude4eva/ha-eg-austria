@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+
+# Home Assistant test artefacts
+config/
+home-assistant_v2.db*
+*.log
+
+# Never commit private material (the privacy guard also blocks these)
+secrets.yaml
+.env
+*.har
+*.pdf
+*.sqlite
+*.sqlite3
+*.db
+denylist.txt
+analysis.md
+private/
+/*.csv
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
