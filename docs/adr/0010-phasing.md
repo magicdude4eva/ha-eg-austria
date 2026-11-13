@@ -1,8 +1,8 @@
 # 0010: Phasing
 
 - Status: accepted
-- Date: 2026-11-07
-- Depends on: EG Austria's view on publishing (forum 1140/32); store rules at submission time
+- Date: 2026-11-07, updated 2026-11-13
+- Depends on: store rules at submission time. EG Austria staff are fine with publishing the integration and asked for a link (1140/33*); they don't promise a fully stable `analysis-data` API, which ADR 0006 already assumes.
 
 ## Context
 
