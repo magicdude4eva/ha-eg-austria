@@ -59,8 +59,8 @@ earlier, Home Assistant asks you to re-authenticate instead.
 The portal answered in a format the integration does not know, or said the
 client is out of date. Nothing is written until a run passes the checks
 again, so your statistics stay correct. Please download the diagnostics of the
-entry (three-dot menu > Download diagnostics; tokens, ids, names and values
-are removed) and attach them to an
+entry or its device (three-dot menu > Download diagnostics; tokens, ids, names
+and values are removed) and attach them to an
 [issue](https://github.com/magicdude4eva/ha-eg-austria/issues).
 
 ### Held data

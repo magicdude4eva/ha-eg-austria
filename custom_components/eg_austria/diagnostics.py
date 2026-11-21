@@ -1,4 +1,4 @@
-"""Config entry diagnostics (spec 06 "Diagnostics").
+"""Config entry and device diagnostics (spec 06 "Diagnostics").
 
 Everything goes through ``redact_tree()`` at the end: key-based redaction
 with ``TO_REDACT`` plus ``redact_text()`` (tokens, metering point numbers,
@@ -17,6 +17,7 @@ from homeassistant.components.recorder.db_schema import Statistics, StatisticsMe
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.util import dt as dt_util
 from sqlalchemy import func, select
 
@@ -230,3 +231,15 @@ async def async_get_config_entry_diagnostics(
     # Section names are ours (one is called "token"); redact inside them.
     sensitive = _sensitive(entry)
     return {k: redact_tree(v, sensitive) for k, v in result.items()}
+
+
+async def async_get_device_diagnostics(
+    hass: HomeAssistant, entry: ConfigEntry, device: DeviceEntry
+) -> dict[str, Any]:
+    """Return the entry diagnostics for its one service device.
+
+    Lets the device page offer "Download diagnostics" too; the entry has one
+    device, so the content is the same.
+    """
+
+    return await async_get_config_entry_diagnostics(hass, entry)
