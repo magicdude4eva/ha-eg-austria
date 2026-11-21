@@ -1,0 +1,175 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EG Austria token",
+        "description": "Paste a **personal access token** (`ecapi_…`, valid about a year; recommended). How to create one: {readme_url}\n\nFallback: the session cookie `portal.jwtToken` from your browser's developer tools (Application → Cookies → portal.eg-austria.at) after logging in to the member portal. It is valid for about a month.\n\nThe token is stored in Home Assistant and never shown again. This integration only reads data.",
+        "data": {
+          "token": "Token"
+        },
+        "data_description": {
+          "token": "Personal token or session cookie value. Surrounding quotes and `portal.jwtToken=` are removed automatically."
+        }
+      },
+      "token_expiry": {
+        "title": "Personal token expiry",
+        "description": "The integration can't read the expiry of a personal token. Enter the date you chose when creating it (the portal default is one year). You get a repair warning 30 days before.",
+        "data": {
+          "token_expires": "Token valid until"
+        }
+      },
+      "expiring_soon": {
+        "title": "Session token expires soon",
+        "description": "This session token expires in {days} days. Setup continues, but you will have to paste a new token soon. A personal token avoids this."
+      },
+      "member": {
+        "title": "Member",
+        "description": "This login can act for several members. Choose the one to add.",
+        "data": {
+          "member": "Member"
+        }
+      },
+      "accept_terms": {
+        "title": "Portal terms",
+        "description": "The portal reports that the terms of use for this member have not been accepted yet. Log in to the member portal in a browser and accept them, or the data requests may fail."
+      },
+      "location": {
+        "title": "Location",
+        "description": "Choose the location (site) for this entry. Add another entry for another location.",
+        "data": {
+          "location": "Location"
+        }
+      },
+      "site": {
+        "title": "Metering points",
+        "description": "Choose the metering points of this site. The site slug is part of the statistic ids (for example `eg_austria:home_consumption` for the slug `home`) and can't be changed later.",
+        "data": {
+          "metering_points": "Metering points",
+          "site_slug": "Site slug"
+        },
+        "data_description": {
+          "site_slug": "Lower case letters, digits and `_`, starting with a letter, at most 20 characters. The statistics are shown as \"Home\"."
+        }
+      },
+      "communities": {
+        "title": "Energy communities",
+        "description": "Communities of the selected metering points (name as the portal returns it, type, member since):\n\n{communities}\n\nThe slugs become part of the statistic ids and **can't be changed later**.",
+        "data": {
+          "include_1": "Import community 1",
+          "slug_1": "Slug of community 1",
+          "include_2": "Import community 2",
+          "slug_2": "Slug of community 2",
+          "include_3": "Import community 3",
+          "slug_3": "Slug of community 3",
+          "include_4": "Import community 4",
+          "slug_4": "Slug of community 4",
+          "include_5": "Import community 5",
+          "slug_5": "Slug of community 5",
+          "include_6": "Import community 6",
+          "slug_6": "Slug of community 6",
+          "include_7": "Import community 7",
+          "slug_7": "Slug of community 7",
+          "include_8": "Import community 8",
+          "slug_8": "Slug of community 8",
+          "include_9": "Import community 9",
+          "slug_9": "Slug of community 9"
+        }
+      },
+      "reauth_confirm": {
+        "title": "New EG Austria token",
+        "description": "The stored token was rejected or has expired. Paste a new personal token (recommended, see {readme_url}) or session cookie of the same member.",
+        "data": {
+          "token": "Token"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure EG Austria",
+        "description": "Optionally paste a new token before the current one expires (see {readme_url}). Leave empty to keep the stored token. Next you can change the metering points and add communities.",
+        "data": {
+          "token": "New token (optional)"
+        }
+      },
+      "reconfigure_location": {
+        "title": "Location changed",
+        "description": "The stored location is no longer returned by the portal (its id may have changed). Choose the location this site belongs to; statistic ids stay the same.",
+        "data": {
+          "location": "Location"
+        }
+      },
+      "reconfigure_site": {
+        "title": "Metering points",
+        "description": "Site slug: `{site_slug}` (can't be changed).",
+        "data": {
+          "metering_points": "Metering points"
+        }
+      },
+      "reconfigure_communities": {
+        "title": "Energy communities",
+        "description": "Kept (slugs can't be changed):\n{kept}\n\nNo longer returned by the portal:\n{orphans}\n\nRetired slugs: {retired}\n\nNew communities:\n{new}\n\nTo keep the history of a community whose portal id changed, enter its old slug for the new row. Old slugs not reused are retired.",
+        "data": {
+          "include_1": "Import community 1",
+          "slug_1": "Slug of community 1",
+          "include_2": "Import community 2",
+          "slug_2": "Slug of community 2",
+          "include_3": "Import community 3",
+          "slug_3": "Slug of community 3",
+          "include_4": "Import community 4",
+          "slug_4": "Slug of community 4",
+          "include_5": "Import community 5",
+          "slug_5": "Slug of community 5",
+          "include_6": "Import community 6",
+          "slug_6": "Slug of community 6",
+          "include_7": "Import community 7",
+          "slug_7": "Slug of community 7",
+          "include_8": "Import community 8",
+          "slug_8": "Slug of community 8",
+          "include_9": "Import community 9",
+          "slug_9": "Slug of community 9"
+        }
+      }
+    },
+    "error": {
+      "invalid_token_format": "This is neither a personal token (`ecapi_…`) nor a session token (JWT).",
+      "token_expired": "The token has already expired.",
+      "invalid_date": "Invalid date.",
+      "invalid_auth": "The portal rejected the token.",
+      "wrong_account": "This token belongs to a different member.",
+      "terms_not_accepted": "The portal rejected the request. Accept the terms of use in the member portal first.",
+      "no_member": "No member is linked to this login.",
+      "cannot_connect": "The portal can't be reached right now. Try again later.",
+      "api_changed": "The portal answered in an unexpected format. Please report an issue.",
+      "unknown": "Unexpected error.",
+      "no_metering_point": "Select at least one metering point.",
+      "no_community": "The selected metering points are in no energy community (or none is selected).",
+      "invalid_slug": "Use 1-20 lower case letters, digits or `_`, starting with a letter.",
+      "slug_in_use": "This site slug is already used by another entry.",
+      "duplicate_slug": "This slug is already used in this entry."
+    },
+    "abort": {
+      "already_configured": "This member and location are already configured.",
+      "no_location": "The portal returned no location for this member.",
+      "no_metering_points": "The location has no metering points.",
+      "too_many_communities": "More energy communities than this version supports.",
+      "reauth_successful": "The token was updated.",
+      "reconfigure_successful": "The entry was updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EG Austria options",
+        "data": {
+          "max_hourly_kwh": "Plausibility limit per hour (kWh)",
+          "daily_window_days": "Daily refetch window (days)",
+          "long_refetch_months": "Monthly refetch window (months)",
+          "import_history": "Import history from the first activation"
+        },
+        "data_description": {
+          "max_hourly_kwh": "Hourly values above this are held back as implausible.",
+          "daily_window_days": "The last days fetched again on every daily run.",
+          "long_refetch_months": "Months fetched again by the monthly run (late corrections)."
+        }
+      }
+    }
+  }
+}

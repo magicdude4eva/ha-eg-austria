@@ -12,7 +12,7 @@ Each slice is one small, reviewable subsession ending in one PR against the publ
 | # | Slice | Owns | Depends on | Done when |
 |---|---|---|---|---|
 | S1 | Models, fixtures generator, API client | `models.py`, `api.py`, `exceptions.py`, `token.py` (kind + JWT `exp` only), `redact.py` (`redact_text()` only), `tests/fixtures/*`, `tests/conftest.py`, `test_api.py`, `test_models.py`, `test_fixtures.py` | P0, G1 | Test cases 1-12 pass; whitelist test present |
-| S2 | Token parsing and config flow (user, site, communities, reauth, reconfigure, options), translations | `config_flow.py`, `token.py`, `strings.json`, `translations/*`, `test_config_flow.py` | S1 | Cases 31-36 pass |
+| S2 | Token parsing and config flow (user, site, communities, reauth, reconfigure, options), translations | `config_flow.py`, `token.py`, `strings.json`, `translations/*`, `test_config_flow.py`; additive: `const.py` (entry keys, option defaults), `manifest.json` (`config_flow: true`), `__init__.py` (no-op `async_setup_entry`/`async_unload_entry` until S5) | S1 | Cases 31-36 pass |
 | S3 | Validation rules | `validation.py`, `test_validation.py` | S1 | Cases 13-15 pass |
 | S4 | Statistics writer (ids, metadata, series building, sums, stored-row rule) | `statistics.py`, `test_statistics.py` | S1 (models only) | Cases 16-21 pass |
 | S5 | Coordinator, scheduler, store, services | `coordinator.py`, `importer.py`, `__init__.py`, `services.yaml`, `test_coordinator.py`, `test_init.py` | S2, S3, S4 | Cases 22-30, 40-41 pass |

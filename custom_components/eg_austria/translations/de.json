@@ -1,0 +1,175 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EG-Austria-Token",
+        "description": "Füge einen **persönlichen Zugangstoken** ein (`ecapi_…`, etwa ein Jahr gültig; empfohlen). So erstellst du einen: {readme_url}\n\nAlternative: das Sitzungs-Cookie `portal.jwtToken` aus den Entwicklerwerkzeugen des Browsers (Anwendung → Cookies → portal.eg-austria.at) nach dem Anmelden im Mitgliederportal. Es ist etwa einen Monat gültig.\n\nDer Token wird in Home Assistant gespeichert und nie wieder angezeigt. Diese Integration liest nur Daten.",
+        "data": {
+          "token": "Token"
+        },
+        "data_description": {
+          "token": "Persönlicher Token oder Wert des Sitzungs-Cookies. Anführungszeichen und `portal.jwtToken=` werden automatisch entfernt."
+        }
+      },
+      "token_expiry": {
+        "title": "Ablauf des persönlichen Tokens",
+        "description": "Die Integration kann das Ablaufdatum eines persönlichen Tokens nicht auslesen. Gib das Datum an, das du beim Erstellen gewählt hast (im Portal standardmäßig ein Jahr). 30 Tage vorher erscheint eine Reparaturwarnung.",
+        "data": {
+          "token_expires": "Token gültig bis"
+        }
+      },
+      "expiring_soon": {
+        "title": "Sitzungstoken läuft bald ab",
+        "description": "Dieser Sitzungstoken läuft in {days} Tagen ab. Die Einrichtung geht weiter, aber du musst bald einen neuen Token einfügen. Ein persönlicher Token vermeidet das."
+      },
+      "member": {
+        "title": "Mitglied",
+        "description": "Diese Anmeldung kann für mehrere Mitglieder handeln. Wähle das Mitglied, das hinzugefügt werden soll.",
+        "data": {
+          "member": "Mitglied"
+        }
+      },
+      "accept_terms": {
+        "title": "Nutzungsbedingungen",
+        "description": "Laut Portal wurden die Nutzungsbedingungen für dieses Mitglied noch nicht akzeptiert. Melde dich im Browser im Mitgliederportal an und akzeptiere sie, sonst können die Datenabfragen fehlschlagen."
+      },
+      "location": {
+        "title": "Standort",
+        "description": "Wähle den Standort für diesen Eintrag. Für einen weiteren Standort legst du einen weiteren Eintrag an.",
+        "data": {
+          "location": "Standort"
+        }
+      },
+      "site": {
+        "title": "Zählpunkte",
+        "description": "Wähle die Zählpunkte dieses Standorts. Das Standort-Kürzel wird Teil der Statistik-IDs (zum Beispiel `eg_austria:home_consumption` für das Kürzel `home`) und kann später nicht geändert werden.",
+        "data": {
+          "metering_points": "Zählpunkte",
+          "site_slug": "Standort-Kürzel"
+        },
+        "data_description": {
+          "site_slug": "Kleinbuchstaben, Ziffern und `_`, beginnend mit einem Buchstaben, höchstens 20 Zeichen. Die Statistiken heißen \"Home\"."
+        }
+      },
+      "communities": {
+        "title": "Energiegemeinschaften",
+        "description": "Gemeinschaften der gewählten Zählpunkte (Name wie vom Portal geliefert, Art, Mitglied seit):\n\n{communities}\n\nDie Kürzel werden Teil der Statistik-IDs und **können später nicht geändert werden**.",
+        "data": {
+          "include_1": "Gemeinschaft 1 importieren",
+          "slug_1": "Kürzel der Gemeinschaft 1",
+          "include_2": "Gemeinschaft 2 importieren",
+          "slug_2": "Kürzel der Gemeinschaft 2",
+          "include_3": "Gemeinschaft 3 importieren",
+          "slug_3": "Kürzel der Gemeinschaft 3",
+          "include_4": "Gemeinschaft 4 importieren",
+          "slug_4": "Kürzel der Gemeinschaft 4",
+          "include_5": "Gemeinschaft 5 importieren",
+          "slug_5": "Kürzel der Gemeinschaft 5",
+          "include_6": "Gemeinschaft 6 importieren",
+          "slug_6": "Kürzel der Gemeinschaft 6",
+          "include_7": "Gemeinschaft 7 importieren",
+          "slug_7": "Kürzel der Gemeinschaft 7",
+          "include_8": "Gemeinschaft 8 importieren",
+          "slug_8": "Kürzel der Gemeinschaft 8",
+          "include_9": "Gemeinschaft 9 importieren",
+          "slug_9": "Kürzel der Gemeinschaft 9"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Neuer EG-Austria-Token",
+        "description": "Der gespeicherte Token wurde abgelehnt oder ist abgelaufen. Füge einen neuen persönlichen Token (empfohlen, siehe {readme_url}) oder ein Sitzungs-Cookie desselben Mitglieds ein.",
+        "data": {
+          "token": "Token"
+        }
+      },
+      "reconfigure": {
+        "title": "EG Austria neu konfigurieren",
+        "description": "Optional einen neuen Token einfügen, bevor der aktuelle abläuft (siehe {readme_url}). Leer lassen, um den gespeicherten Token zu behalten. Danach kannst du die Zählpunkte ändern und Gemeinschaften hinzufügen.",
+        "data": {
+          "token": "Neuer Token (optional)"
+        }
+      },
+      "reconfigure_location": {
+        "title": "Standort geändert",
+        "description": "Der gespeicherte Standort wird vom Portal nicht mehr geliefert (vielleicht hat sich seine ID geändert). Wähle den Standort, zu dem dieser Eintrag gehört; die Statistik-IDs bleiben gleich.",
+        "data": {
+          "location": "Standort"
+        }
+      },
+      "reconfigure_site": {
+        "title": "Zählpunkte",
+        "description": "Standort-Kürzel: `{site_slug}` (nicht änderbar).",
+        "data": {
+          "metering_points": "Zählpunkte"
+        }
+      },
+      "reconfigure_communities": {
+        "title": "Energiegemeinschaften",
+        "description": "Beibehalten (Kürzel nicht änderbar):\n{kept}\n\nNicht mehr vom Portal geliefert:\n{orphans}\n\nStillgelegte Kürzel: {retired}\n\nNeue Gemeinschaften:\n{new}\n\nUm die Historie einer Gemeinschaft zu behalten, deren Portal-ID sich geändert hat, gib ihr altes Kürzel in der neuen Zeile ein. Nicht wiederverwendete alte Kürzel werden stillgelegt.",
+        "data": {
+          "include_1": "Gemeinschaft 1 importieren",
+          "slug_1": "Kürzel der Gemeinschaft 1",
+          "include_2": "Gemeinschaft 2 importieren",
+          "slug_2": "Kürzel der Gemeinschaft 2",
+          "include_3": "Gemeinschaft 3 importieren",
+          "slug_3": "Kürzel der Gemeinschaft 3",
+          "include_4": "Gemeinschaft 4 importieren",
+          "slug_4": "Kürzel der Gemeinschaft 4",
+          "include_5": "Gemeinschaft 5 importieren",
+          "slug_5": "Kürzel der Gemeinschaft 5",
+          "include_6": "Gemeinschaft 6 importieren",
+          "slug_6": "Kürzel der Gemeinschaft 6",
+          "include_7": "Gemeinschaft 7 importieren",
+          "slug_7": "Kürzel der Gemeinschaft 7",
+          "include_8": "Gemeinschaft 8 importieren",
+          "slug_8": "Kürzel der Gemeinschaft 8",
+          "include_9": "Gemeinschaft 9 importieren",
+          "slug_9": "Kürzel der Gemeinschaft 9"
+        }
+      }
+    },
+    "error": {
+      "invalid_token_format": "Das ist weder ein persönlicher Token (`ecapi_…`) noch ein Sitzungstoken (JWT).",
+      "token_expired": "Der Token ist bereits abgelaufen.",
+      "invalid_date": "Ungültiges Datum.",
+      "invalid_auth": "Das Portal hat den Token abgelehnt.",
+      "wrong_account": "Dieser Token gehört zu einem anderen Mitglied.",
+      "terms_not_accepted": "Das Portal hat die Anfrage abgelehnt. Akzeptiere zuerst die Nutzungsbedingungen im Mitgliederportal.",
+      "no_member": "Mit dieser Anmeldung ist kein Mitglied verknüpft.",
+      "cannot_connect": "Das Portal ist gerade nicht erreichbar. Versuche es später noch einmal.",
+      "api_changed": "Das Portal hat in einem unerwarteten Format geantwortet. Bitte melde ein Problem.",
+      "unknown": "Unerwarteter Fehler.",
+      "no_metering_point": "Wähle mindestens einen Zählpunkt.",
+      "no_community": "Die gewählten Zählpunkte sind in keiner Energiegemeinschaft (oder keine ist ausgewählt).",
+      "invalid_slug": "Verwende 1-20 Kleinbuchstaben, Ziffern oder `_`, beginnend mit einem Buchstaben.",
+      "slug_in_use": "Dieses Standort-Kürzel verwendet bereits ein anderer Eintrag.",
+      "duplicate_slug": "Dieses Kürzel wird in diesem Eintrag bereits verwendet."
+    },
+    "abort": {
+      "already_configured": "Dieses Mitglied und dieser Standort sind bereits eingerichtet.",
+      "no_location": "Das Portal hat für dieses Mitglied keinen Standort geliefert.",
+      "no_metering_points": "Der Standort hat keine Zählpunkte.",
+      "too_many_communities": "Mehr Energiegemeinschaften, als diese Version unterstützt.",
+      "reauth_successful": "Der Token wurde aktualisiert.",
+      "reconfigure_successful": "Der Eintrag wurde aktualisiert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EG-Austria-Optionen",
+        "data": {
+          "max_hourly_kwh": "Plausibilitätsgrenze pro Stunde (kWh)",
+          "daily_window_days": "Tägliches Nachladefenster (Tage)",
+          "long_refetch_months": "Monatliches Nachladefenster (Monate)",
+          "import_history": "Historie ab der ersten Aktivierung importieren"
+        },
+        "data_description": {
+          "max_hourly_kwh": "Stundenwerte darüber werden als unplausibel zurückgehalten.",
+          "daily_window_days": "Die letzten Tage, die bei jedem täglichen Lauf neu geladen werden.",
+          "long_refetch_months": "Monate, die der monatliche Lauf neu lädt (späte Korrekturen)."
+        }
+      }
+    }
+  }
+}

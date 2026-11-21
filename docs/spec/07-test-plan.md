@@ -117,8 +117,8 @@ Recorder tests use `recorder_mock` with a module-level `mock_recorder_before_has
 32. Errors: bad format, expired, invalid auth, cannot connect, api changed.
 33. Single location auto-selected; two locations → select; metering point multi-select; slug validation and uniqueness.
 34. Duplicate entry aborts.
-35. Reauth success updates token, kind and expiry and clears `token_expiring` (session → personal switch included); wrong account error; revoked-token 401 starts reauth.
-36. Reconfigure adds a community, existing slugs read-only.
+35. Reauth success updates token, kind and expiry and clears `token_expiring` (session → personal switch included); wrong account error (member missing, or 403); a revoked token (401) in the reauth form shows `invalid_auth`. That a 401 during a run starts reauth (`ConfigEntryAuthFailed`) is tested with the coordinator in S5 (case 22-30 range).
+36. Reconfigure adds a community, existing slugs read-only; a changed community id is remapped to its old slug, an unmapped one is retired; the location can be remapped; a new token is checked like reauth.
 
 ### Repairs, entities, diagnostics (`test_repairs.py`, `test_sensor.py`, `test_diagnostics.py`)
 
