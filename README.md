@@ -47,3 +47,27 @@ python3 scripts/privacy_guard.py --all
 ## License
 
 [MIT](LICENSE)
+
+## AI attribution
+
+This project is written with the help of AI (Claude, by Anthropic), and it is
+**not "AI slop"**:
+
+- **Human-led:** a human maintainer sets the design, reviews every change and
+  decides what gets merged. Architecture decisions and specifications are written
+  down first ([`docs/adr`](docs/adr/README.md), [`docs/spec`](docs/spec/README.md));
+  the code follows them in small, reviewed pull requests.
+- **Tested:** every change runs through automated tests with synthetic data,
+  linting, Home Assistant's `hassfest`, store validation and a privacy guard in CI.
+  Each release also runs on the maintainer's own Home Assistant installation
+  against a real portal account first.
+- **Actively maintained:** it is built and used for the maintainer's own setup
+  (one site with generation and consumption, a citizen energy community (BEG), a
+  regional renewable energy community (EEG) and the Zero tariff option), so it is
+  tested against that setup first. Other setups are supported as far as people
+  with those setups help.
+- **Community:** feedback, bug reports, fixes and enhancements from other users
+  and contributors are welcome; see [CONTRIBUTING](CONTRIBUTING.md).
+
+Commits and pull requests made with AI help end with:
+"🤖 Generated / Supported with ❤️ Claudia, the better AI companion".
