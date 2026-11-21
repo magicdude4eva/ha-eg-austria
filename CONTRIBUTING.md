@@ -57,3 +57,24 @@ python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements_dev.txt
 pre-commit install
 ```
+
+## Development
+
+```bash
+pytest
+ruff check . && ruff format --check .
+python3 scripts/privacy_guard.py --all
+```
+
+Decisions are recorded in [`docs/adr`](docs/adr/README.md), specifications in
+[`docs/spec`](docs/spec/README.md). Work follows the slices in
+[`docs/spec/08-slices.md`](docs/spec/08-slices.md).
+
+## Documentation
+
+`README.md` is the integration's documentation page (the manifest's
+`documentation` URL) and `README.de.md` its German translation: change both
+together. The repairs (`repairs.py`) and the config flow (`#token`) link to
+README anchors, so keep the headings "Token", "Token expiry", "Portal
+changed", "Held data" and "Portal unreachable". Field names, options, defaults
+and error texts must match `translations/en.json` and `de.json`.
