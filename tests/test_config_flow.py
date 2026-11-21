@@ -11,6 +11,7 @@ import copy
 from datetime import timedelta
 import json
 from pathlib import Path
+import re
 import secrets
 import string
 from typing import Any
@@ -1089,6 +1090,8 @@ def test_translations_match_strings() -> None:
     for key, text in flat_en.items():
         assert _placeholders(text) == _placeholders(flat_de[key]), key
         assert "http" not in text, key  # URLs go through placeholders
+        assert not re.search(r"<[A-Za-z/]", text), key  # hassfest: no HTML
+        assert not re.search(r"<[A-Za-z/]", flat_de[key]), key
 
 
 def test_strings_cover_flow_steps_and_errors() -> None:

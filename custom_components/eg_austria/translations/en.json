@@ -42,7 +42,7 @@
       },
       "site": {
         "title": "Metering points",
-        "description": "Choose the metering points of this site. The site slug is part of the statistic ids (`eg_austria:<site>_consumption` ...) and can't be changed later.",
+        "description": "Choose the metering points of this site. The site slug is part of the statistic ids (for example `eg_austria:home_consumption` for the slug `home`) and can't be changed later.",
         "data": {
           "metering_points": "Metering points",
           "site_slug": "Site slug"

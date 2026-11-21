@@ -42,7 +42,7 @@
       },
       "site": {
         "title": "Zählpunkte",
-        "description": "Wähle die Zählpunkte dieses Standorts. Das Standort-Kürzel wird Teil der Statistik-IDs (`eg_austria:<standort>_consumption` ...) und kann später nicht geändert werden.",
+        "description": "Wähle die Zählpunkte dieses Standorts. Das Standort-Kürzel wird Teil der Statistik-IDs (zum Beispiel `eg_austria:home_consumption` für das Kürzel `home`) und kann später nicht geändert werden.",
         "data": {
           "metering_points": "Zählpunkte",
           "site_slug": "Standort-Kürzel"
