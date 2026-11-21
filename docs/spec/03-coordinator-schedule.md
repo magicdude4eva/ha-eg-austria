@@ -17,7 +17,11 @@ Only one run per entry at a time (an `asyncio.Lock`); a scheduled trigger during
 
 ### Startup
 
-After Home Assistant has started (`async_at_started`), at most one run, 60-300 s later (random): the initial import if pending, else a catch-up run if the last success is older than 26 h (it becomes a long run when one is due). No startup run if any run was attempted in the last hour, so a restart loop can't become a request storm. Setup itself never fetches.
+After Home Assistant has started (`async_at_started`), at most one run, 60-300 s later (random): the initial import if pending, else a catch-up run if the last success is older than 26 h (it becomes a long run when one is due). No startup run if any run was attempted in the last hour, so a restart loop can't become a request storm.
+
+### Setup check
+
+Setup fetches nothing for the import, but checks the portal once (ADR 0013, issue #36): after the stored-expiry check, one `get_metering_points(member)` within 30 s. `AuthError` (401/403) → `ConfigEntryAuthFailed` (reauth); `PortalUnavailableError`, `RateLimitedError` or the 30 s passing → `ConfigEntryNotReady` (Home Assistant retries the setup); a non-JSON answer → one `get_maintenance()`, and an active window (± 30 min) → `ConfigEntryNotReady` too. Any other error (changed API, schema) lets setup go on, so the run can raise `api_changed`. The exceptions carry translation keys (`auth_failed`, `portal_unavailable`, `portal_maintenance`); nothing is logged before raising.
 
 ## Daily window
 
@@ -77,9 +81,11 @@ No energy values are cached; statistics are the store of record. `held_days` ins
 | `AuthError` | abort, status `auth_failed` | `ConfigEntryAuthFailed` → `entry.async_start_reauth()` |
 | `ApiChangedError`, `SchemaError`, shape rule | abort, no writes, status `api_changed` | repair `api_changed` |
 | `RateLimitedError` | abort, status `rate_limited` | next run (any type) with doubled request spacing, then back to normal |
-| `PortalUnavailableError` | abort, status `unavailable` | `consecutive_failure_days += 1` once per calendar day; at 3, repair `portal_unreachable` |
+| `PortalUnavailableError` | abort, status `unavailable` | `consecutive_failure_days += 1` once per calendar day; at 3, repair `portal_unreachable`; logged once (below) |
 | Plausibility or history failure | partial, status `partial` | repair `implausible_data`, affected statistic and chunk (or day) held |
 | Maintenance | skipped, status `skipped_maintenance` | one-shot run at end + 30 min |
+
+An unreachable portal is logged once at info when a run first finds it so ("EG Austria portal is unreachable") and once at info on the next successful run ("EG Austria portal is reachable again"); the per-run summary of an `unavailable` run is logged at debug, not as a warning each time (issue #36).
 
 After `exp` has passed, no request is made: setup raises `ConfigEntryAuthFailed`, and a run that finds the expiry passed starts reauth without a request. Error texts in the summary are redacted (`redact_text()` with member, location, metering point and community ids).
 

@@ -139,7 +139,7 @@ S6 tests set up a real entry with the client factory patched to `FakeClient` (`c
 ### Integration (`test_init.py`)
 
 40. Setup → initial import → statistics present → unload cleanly (the portal session is not closed, issue #17) → reload.
-41. Services `refetch` (range, defaults, refusals, busy) and `release_held` (H1 hold, release, not held again). Also: expired token at setup → reauth; unload during a run stops it without writes; translated statistic names.
+41. Services `refetch` (range, defaults, refusals, busy) and `release_held` (H1 hold, release, not held again). Also: expired token at setup → reauth; setup check (ADR 0013): portal down, 5xx, 429 or timeout → setup retry, 401/403 → reauth, non-JSON answer in an announced window → setup retry, changed API → loaded; an unreachable portal logged once at info on loss and once on recovery; unload during a run stops it without writes; translated statistic names.
 
 ## Private acceptance on the development box (not in CI, not in the repo)
 

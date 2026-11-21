@@ -256,6 +256,9 @@
     }
   },
   "exceptions": {
+    "auth_failed": {
+      "message": "The EG Austria portal rejected the token. Reauthenticate the entry."
+    },
     "entry_not_found": {
       "message": "No EG Austria entry with this id."
     },
@@ -264,6 +267,12 @@
     },
     "invalid_range": {
       "message": "The start date must not be after the end date, and the end date must not be in the future."
+    },
+    "portal_maintenance": {
+      "message": "The EG Austria portal is in an announced maintenance window. Setup is retried later."
+    },
+    "portal_unavailable": {
+      "message": "The EG Austria portal is unreachable. Setup is retried later."
     },
     "range_too_long": {
       "message": "A re-fetch covers at most {days} days."

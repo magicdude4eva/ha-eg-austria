@@ -316,6 +316,8 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         # Last portal answers kept for diagnostics (S6); no energy values.
         self.portal_version: PortalVersion | None = None
         self.site: SiteInfo | None = None
+        # Log-once state for an unreachable portal (issue #36).
+        self._portal_lost = False
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -760,6 +762,15 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         level = logging.INFO if summary.success else logging.WARNING
         if summary.status is RunStatus.SKIPPED_MAINTENANCE:
             level = logging.INFO
+        if summary.status is RunStatus.UNAVAILABLE:
+            # Logged once at info below, not as a warning on every run.
+            level = logging.DEBUG
+            if not self._portal_lost:
+                self._portal_lost = True
+                _LOGGER.info("EG Austria portal is unreachable")
+        elif summary.success and self._portal_lost:
+            self._portal_lost = False
+            _LOGGER.info("EG Austria portal is reachable again")
         _LOGGER.log(
             level,
             "%s run %s: window %s, %d chunk(s), %d request(s)%s",

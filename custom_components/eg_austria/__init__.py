@@ -8,6 +8,7 @@ registered once in ``async_setup``, independent of entries.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, timedelta
 import logging
 from typing import Final
@@ -17,6 +18,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
     HomeAssistantError,
     ServiceValidationError,
 )
@@ -27,8 +29,26 @@ from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
 from .api import EgAustriaClient, get_portal_session
-from .const import CONF_TOKEN, CONF_TOKEN_EXP, CONF_TOKEN_KIND, DOMAIN
-from .coordinator import EgAustriaCoordinator, RunRequest, entry_store
+from .const import (
+    CONF_MEMBER_NUMBER,
+    CONF_TOKEN,
+    CONF_TOKEN_EXP,
+    CONF_TOKEN_KIND,
+    DOMAIN,
+)
+from .coordinator import (
+    MAINTENANCE_MARGIN,
+    EgAustriaCoordinator,
+    RunRequest,
+    entry_store,
+)
+from .exceptions import (
+    ApiChangedError,
+    AuthError,
+    EgAustriaError,
+    PortalUnavailableError,
+    RateLimitedError,
+)
 from .importer import MAX_MANUAL_DAYS, RunType, local_today
 from .repairs import EntryRepairs, async_delete_all
 from .token import TokenKind
@@ -61,6 +81,9 @@ RELEASE_SCHEMA: Final = vol.Schema(
     }
 )
 LABEL_PREFIX: Final = f"component.{DOMAIN}.selector.statistic_name.options."
+# Upper bound for the setup check (ADR 0013); the client alone may take two
+# 60 s attempts.
+SETUP_CHECK_TIMEOUT: Final = 30.0
 
 type EgAustriaConfigEntry = ConfigEntry[EgAustriaCoordinator]
 
@@ -80,8 +103,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) -> bool:
     """Set up an entry: client, store, coordinator, schedule.
 
-    Nothing is fetched here; the first run starts in the background after
-    Home Assistant has started (spec 03).
+    One request checks the portal and the token (ADR 0013); the import
+    itself starts in the background after Home Assistant has started
+    (spec 03).
     """
 
     exp = entry.data.get(CONF_TOKEN_EXP)
@@ -95,6 +119,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) ->
         TokenKind(entry.data[CONF_TOKEN_KIND]),
         token_exp=exp,
     )
+    await _async_check_portal(client, str(entry.data[CONF_MEMBER_NUMBER]))
     coordinator = EgAustriaCoordinator(
         hass, entry, client, entry_store(hass, entry.entry_id)
     )
@@ -127,6 +152,48 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
     async_delete_all(hass, entry.entry_id)
     await entry_store(hass, entry.entry_id).async_remove()
+
+
+async def _async_check_portal(client: EgAustriaClient, member: str) -> None:
+    """Test before setup (ADR 0013): one GET of the member's metering points.
+
+    Unreachable, 5xx, 429 or an announced maintenance → ``ConfigEntryNotReady``
+    (Home Assistant retries the setup); 401/403 → ``ConfigEntryAuthFailed``
+    (reauth). Any other answer (changed API, schema) lets setup go on: the
+    run reports it as ``api_changed`` with a repair, which a setup retry
+    could not.
+    """
+
+    try:
+        async with asyncio.timeout(SETUP_CHECK_TIMEOUT):
+            try:
+                await client.get_metering_points(member)
+            except ApiChangedError as err:
+                if err.status is not None:
+                    raise
+                # Non-JSON body: an HTML maintenance page if a window is
+                # announced (spec 01 "Errors"), else a changed API.
+                now = dt_util.utcnow()
+                margin = MAINTENANCE_MARGIN.total_seconds()
+                if any(
+                    w.active_at(now, margin) for w in await client.get_maintenance()
+                ):
+                    raise ConfigEntryNotReady(
+                        translation_domain=DOMAIN,
+                        translation_key="portal_maintenance",
+                    ) from err
+                raise
+    except AuthError as err:
+        raise ConfigEntryAuthFailed(
+            translation_domain=DOMAIN, translation_key="auth_failed"
+        ) from err
+    except (PortalUnavailableError, RateLimitedError, TimeoutError) as err:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN, translation_key="portal_unavailable"
+        ) from err
+    except EgAustriaError:
+        # Changed API or schema: the run raises the api_changed repair.
+        return
 
 
 async def _async_load_labels(

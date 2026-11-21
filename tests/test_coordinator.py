@@ -11,6 +11,7 @@ from collections.abc import Iterator
 import copy
 from datetime import UTC, date, datetime, timedelta
 import itertools
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -674,6 +675,41 @@ async def test_unavailable_three_days_raises_repair_hint(
     assert summary is not None
     assert summary.issues.portal_unreachable is False
     assert coordinator.state.consecutive_failure_days == 0
+
+
+@pytest.mark.usefixtures("no_writes")
+async def test_unreachable_logged_once_and_recovery(
+    hass: HomeAssistant, env: Any, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Loss and recovery are logged once each at info, no warnings (#36)."""
+
+    coordinator, _, client = make(hass)
+    caplog.set_level(logging.DEBUG, logger="custom_components.eg_austria")
+    client.errors["get_maintenance"] = PortalUnavailableError("HTTP 503", status=503)
+    for _ in range(3):
+        summary = await coordinator.async_run(RunRequest(RunType.DAILY))
+        assert summary is not None
+        assert summary.status is RunStatus.UNAVAILABLE
+    del client.errors["get_maintenance"]
+    for _ in range(2):
+        summary = await coordinator.async_run(RunRequest(RunType.DAILY))
+        assert summary is not None
+        assert summary.success
+
+    def messages(level: int) -> list[str]:
+        return [
+            r.getMessage()
+            for r in caplog.records
+            if r.name.startswith("custom_components.eg_austria") and r.levelno == level
+        ]
+
+    assert not messages(logging.WARNING)
+    info = messages(logging.INFO)
+    assert info.count("EG Austria portal is unreachable") == 1
+    assert info.count("EG Austria portal is reachable again") == 1
+    assert info.index("EG Austria portal is unreachable") < info.index(
+        "EG Austria portal is reachable again"
+    )
 
 
 @pytest.mark.usefixtures("no_writes")
