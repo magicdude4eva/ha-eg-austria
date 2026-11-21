@@ -61,7 +61,7 @@ For each statistic and each hour `h` (UTC start, from `dateTimeFrom`) in the win
 
 ### Autumn DST gap
 
-On the day clocks go back, `Hour` has no point for the first local 02:00 hour (00:00 UTC), while the `Day` value includes it (spec 01). Once that day is complete for the statistic's side, the importer requests `Day` for that one date (per community) and sets the 00:00 UTC hour to `Day − sum of the day's 24 hourly values` for each mapped field, if that residual is ≥ 0 (else unknown, logged once). Before the day is complete the hour stays unknown. Proposed in G1; the reviewer confirms this rule in the G1 docs PR (the alternative is to leave the hour unknown and accept that the day's sum is about one hour short).
+On the day clocks go back, `Hour` has no point for the first local 02:00 hour (00:00 UTC), while the `Day` value includes it (spec 01). Once that day is complete for the statistic's side, the importer requests `Day` for that one date (per community) and sets the 00:00 UTC hour to `Day − sum of the day's 24 hourly values` for each mapped field, if that residual is ≥ 0 (else unknown, logged once). Before the day is complete the hour stays unknown. Decided 2026-11-21 (G1 review) over leaving the hour unknown, so the day's sum matches the portal's `Day` value.
 
 Unknown hours produce no new row (ADR 0005); an hour that already has a stored row keeps it (see "Stored rows win over unknown" below).
 
