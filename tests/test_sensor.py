@@ -149,3 +149,29 @@ async def test_portal_version_value(hass: HomeAssistant, loaded: LoadedEntry) ->
     commit = loaded.coordinator.state.portal_git_commit
     assert commit
     assert sensor.native_value == commit[:7]
+
+
+async def test_stored_values_right_after_setup(
+    hass: HomeAssistant, recorder_mock: Any, freezer: FrozenDateTimeFactory
+) -> None:
+    """After a restart the sensors show the stored dates before any run (#26)."""
+
+    freezer.move_to(NOW)
+    await hass.config.async_set_time_zone("Europe/Vienna")
+    last_success = datetime(2026, 6, 7, 3, 30, tzinfo=UTC)
+    loaded = await async_setup_fake_entry(
+        hass,
+        token_exp=EXP,
+        store={
+            "initial_done": True,
+            "last_attempt": NOW.isoformat(),
+            "last_success": last_success.isoformat(),
+            "complete_until": "2026-06-05",
+        },
+    )
+    ids = entity_ids(hass, loaded)
+    assert not loaded.client.calls  # no run: the values come from the store
+    assert hass.states.get(ids["data_complete_until"]).state == "2026-06-05"
+    assert hass.states.get(ids["last_import"]).state == last_success.isoformat()
+    # No run since the restart: the status stays unknown.
+    assert hass.states.get(ids["last_run_status"]).state == STATE_UNKNOWN

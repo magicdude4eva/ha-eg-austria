@@ -99,6 +99,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) ->
         hass, entry, client, entry_store(hass, entry.entry_id)
     )
     await _async_load_labels(hass, coordinator)
+    # Stored dates first: the sensors read them when they are added (#26).
+    await coordinator.async_load()
     entry.runtime_data = coordinator
     entry.async_on_unload(EntryRepairs(hass, entry, coordinator).async_start())
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

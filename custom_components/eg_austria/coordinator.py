@@ -292,6 +292,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         self.client = client
         self._store = store
         self.state = StoreData()
+        self._loaded = False
         self._lock = asyncio.Lock()
         self._unsubs: list[CALLBACK_TYPE] = []
         self._maintenance_unsub: CALLBACK_TYPE | None = None
@@ -307,10 +308,17 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
     # ------------------------------------------------------------------
     # Lifecycle
 
-    async def async_start(self) -> None:
-        """Load the store, register the daily listener and the startup run."""
+    async def async_load(self) -> None:
+        """Load the store (before the platforms, so sensors start with it, #26)."""
 
         self.state = StoreData.from_dict(await self._store.async_load())
+        self._loaded = True
+
+    async def async_start(self) -> None:
+        """Register the daily listener and the startup run (store loaded first)."""
+
+        if not self._loaded:
+            await self.async_load()
         minute = int(self.config_entry.data.get(CONF_RUN_MINUTE, 240))
         self._unsubs.append(
             async_track_time_change(
