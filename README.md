@@ -50,8 +50,7 @@ python3 scripts/privacy_guard.py --all
 
 ## AI attribution
 
-This project is written with the help of AI (Claude, by Anthropic), and it is
-**not "AI slop"**:
+This project is written with the help of AI tools, and it is **not "AI slop"**:
 
 - **Human-led:** a human maintainer sets the design, reviews every change and
   decides what gets merged. Architecture decisions and specifications are written
