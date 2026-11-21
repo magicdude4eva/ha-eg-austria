@@ -46,7 +46,7 @@ from homeassistant.helpers.selector import (
 from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
-from .api import REPO_URL, EgAustriaClient, create_portal_session
+from .api import REPO_URL, EgAustriaClient, get_portal_session
 from .const import (
     CONF_COMMUNITIES,
     CONF_DAILY_WINDOW_DAYS,
@@ -162,13 +162,9 @@ def _error_key(err: Exception) -> str:
 async def _portal_client(
     hass: HomeAssistant, token: str, kind: TokenKind, token_exp: int | None
 ) -> AsyncIterator[EgAustriaClient]:
-    """Yield a client on its own short-lived session, closed afterwards."""
+    """Yield a client on the shared portal session (HA owns and closes it)."""
 
-    session = create_portal_session(hass)
-    try:
-        yield EgAustriaClient(session, token, kind, token_exp=token_exp)
-    finally:
-        await session.close()
+    yield EgAustriaClient(get_portal_session(hass), token, kind, token_exp=token_exp)
 
 
 def _is_active(mp: MeteringPoint, today: date) -> bool:

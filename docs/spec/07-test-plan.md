@@ -112,8 +112,11 @@ S5 tests use `FakeClient` (`tests/conftest.py`): the client's public methods, wi
 28. Error paths: auth → `ConfigEntryAuthFailed`; schema → no writes at all; plausibility → partial writes; unavailable 3 days → repair.
 29. Expired `exp` → no HTTP request, reauth.
 30. Concurrent triggers → one run.
+30a. Communities with different activations (issue #16; BEG from 2026-01-01, EEG from 2026-04-16, dates from 2026 on because of the privacy denylist): `site_info()` keeps a merged range per community; `plan_chunks()` cuts at `begin` and `end` + 1, drops chunks without an active selected community and sets `all_communities` per chunk (false where an unselected community is active); `request_count(plan)`; an initial run over both starts is `ok` and requests the EEG only from its `begin`; site statistics are written before the EEG starts (EEG first in entry order: meter and residual from the first active community), the site community sum before the start equals the BEG value and after it BEG + EEG, community + residual = meter on both sides (P4). `FakeClient` answers a request outside the community's activation with the reduced body (no `totalConsumption`) and subtracts only active communities from the residual, so the old planning fails these tests with `api_changed`.
 
 ### Config flow (`test_config_flow.py`)
+
+The flow uses the shared portal session and never closes it (issue #17); `test_api.py` checks that `get_portal_session()` returns the same session until Home Assistant has closed it.
 
 31. Token parsing variants: personal token (with whitespace, quotes), JWT raw, `portal.jwtToken=...; Path=/`, quotes, whitespace; kind detection; personal token requires a future `token_expires`.
 32. Errors: bad format, expired, invalid auth, cannot connect, api changed.
@@ -132,7 +135,7 @@ S6 tests set up a real entry with the client factory patched to `FakeClient` (`c
 
 ### Integration (`test_init.py`)
 
-40. Setup → initial import → statistics present → unload cleanly → reload.
+40. Setup → initial import → statistics present → unload cleanly (the portal session is not closed, issue #17) → reload.
 41. Services `refetch` (range, defaults, refusals, busy) and `release_held` (H1 hold, release, not held again). Also: expired token at setup → reauth; unload during a run stops it without writes; translated statistic names.
 
 ## Private acceptance on the development box (not in CI, not in the repo)

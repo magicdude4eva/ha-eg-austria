@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 import re
 import secrets
+from types import SimpleNamespace
 
 import aiohttp
 import jwt
@@ -26,7 +27,7 @@ from custom_components.eg_austria.api import (
     USER_AGENT,
     WHITELIST,
     EgAustriaClient,
-    create_portal_session,
+    get_portal_session,
 )
 from custom_components.eg_austria.const import VERSION
 from custom_components.eg_austria.exceptions import (
@@ -303,8 +304,25 @@ async def test_expired_token_sends_nothing(
 async def test_portal_session_has_no_cookie_jar(hass) -> None:
     """The HA-created session ignores Set-Cookie (DummyCookieJar)."""
 
-    session = create_portal_session(hass)
+    session = get_portal_session(hass)
     assert isinstance(session.cookie_jar, aiohttp.DummyCookieJar)
+
+
+async def test_portal_session_shared_and_never_closed(hass) -> None:
+    """One session per HA instance, reused by entries and flows (issue #17).
+
+    Home Assistant owns sessions from ``async_create_clientsession``; a
+    closed one (only after HA closed it) is replaced.
+    """
+
+    first = get_portal_session(hass)
+    assert get_portal_session(hass) is first
+    # Closing it here would trip HA's frame check; stand in a closed one.
+    hass.data[api_module._SESSION_KEY] = SimpleNamespace(closed=True)
+    second = get_portal_session(hass)
+    assert second is not first
+    assert not second.closed
+    assert get_portal_session(hass) is second
 
 
 def test_user_agent_has_no_personal_data() -> None:

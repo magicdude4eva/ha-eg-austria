@@ -83,9 +83,7 @@ def patched(client: FakeClient, session: MagicMock) -> Iterator[MagicMock]:
         patch(
             "custom_components.eg_austria.EgAustriaClient", return_value=client
         ) as factory,
-        patch(
-            "custom_components.eg_austria.create_portal_session", return_value=session
-        ),
+        patch("custom_components.eg_austria.get_portal_session", return_value=session),
     ):
         yield factory
 
@@ -205,7 +203,7 @@ async def test_setup_initial_import_unload_reload(
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.NOT_LOADED
-    session.close.assert_awaited_once()
+    session.close.assert_not_called()  # HA owns the session (issue #17)
     saved = await entry_store(hass, entry.entry_id).async_load()
     assert saved is not None
     assert saved["initial_done"] is True

@@ -26,7 +26,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
-from .api import EgAustriaClient, create_portal_session
+from .api import EgAustriaClient, get_portal_session
 from .const import CONF_TOKEN, CONF_TOKEN_EXP, CONF_TOKEN_KIND, DOMAIN
 from .coordinator import EgAustriaCoordinator, RunRequest, entry_store
 from .importer import MAX_MANUAL_DAYS, RunType, local_today
@@ -89,15 +89,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) ->
         # ADR 0007: past the stored expiry nothing is sent; start reauth.
         raise ConfigEntryAuthFailed("token expired")
 
-    session = create_portal_session(hass)
     client = EgAustriaClient(
-        session,
+        get_portal_session(hass),
         entry.data[CONF_TOKEN],
         TokenKind(entry.data[CONF_TOKEN_KIND]),
         token_exp=exp,
     )
     coordinator = EgAustriaCoordinator(
-        hass, entry, client, entry_store(hass, entry.entry_id), session=session
+        hass, entry, client, entry_store(hass, entry.entry_id)
     )
     await _async_load_labels(hass, coordinator)
     entry.runtime_data = coordinator
@@ -108,15 +107,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) ->
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) -> bool:
-    """Stop the schedule, let a running import stop, close the session."""
+    """Stop the schedule and let a running import stop.
+
+    The portal session stays open: Home Assistant owns it (issue #17).
+    """
 
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
     coordinator = entry.runtime_data
     await coordinator.async_stop()
     await coordinator.async_flush()
-    if coordinator.session is not None:
-        await coordinator.session.close()
     return True
 
 

@@ -164,7 +164,7 @@ async def test_token_expiring_cleared_by_new_token(
             "custom_components.eg_austria.EgAustriaClient", return_value=loaded.client
         ),
         patch(
-            "custom_components.eg_austria.create_portal_session",
+            "custom_components.eg_austria.get_portal_session",
             return_value=MagicMock(close=AsyncMock()),
         ),
     ):

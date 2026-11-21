@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Iterator
+import copy
 from datetime import UTC, date, datetime, timedelta
 import itertools
 from typing import Any
@@ -47,17 +48,26 @@ from custom_components.eg_austria.exceptions import (
     RateLimitedError,
 )
 from custom_components.eg_austria.importer import (
+    CommunityConf,
+    EntrySetup,
     RunStatus,
     RunType,
+    SiteInfo,
     add_months,
     autumn_dst_days,
     chunk_window,
     complete_until,
     daily_window_start,
     first_incomplete,
+    plan_chunks,
     request_count,
+    site_info,
 )
-from custom_components.eg_austria.models import DayCompleteness, parse_day_completeness
+from custom_components.eg_austria.models import (
+    DayCompleteness,
+    parse_day_completeness,
+    parse_metering_points,
+)
 from custom_components.eg_austria.statistics import local_day_start
 
 from .conftest import FakeClient, entry_data, load_fixture
@@ -766,3 +776,202 @@ def test_store_round_trip() -> None:
     )
     assert broken == StoreData()
     assert StoreData.from_dict(None) == StoreData()
+
+
+# ---------------------------------------------------------------------------
+# Issue #16: communities with different activation dates
+
+EEG_BEGIN = date(2026, 4, 16)
+
+
+def _two_start_mp(eeg_end: str | None = None) -> list[dict[str, Any]]:
+    """BEG active from 2026-01-01, EEG from ``EEG_BEGIN`` (both metering points)."""
+
+    gen = FakeClient().gen
+    acts = [
+        gen.activation(gen.BEG, "2026-01-01"),
+        gen.activation(gen.EEG, EEG_BEGIN.isoformat(), eeg_end),
+    ]
+    return [
+        gen.location(
+            gen.LOCATION,
+            "Example street",
+            "1",
+            [
+                gen.metering_point(
+                    gen.MP_CONSUMPTION, "Consumption", gen.LOCATION, copy.deepcopy(acts)
+                ),
+                gen.metering_point(
+                    gen.MP_GENERATION, "Generation", gen.LOCATION, copy.deepcopy(acts)
+                ),
+            ],
+        )
+    ]
+
+
+def _site(mp_raw: Any, community_ids: tuple[int, ...] = (2001, 2002)) -> SiteInfo:
+    return site_info(parse_metering_points(mp_raw), "5001", (1001, 1002), community_ids)
+
+
+def _setup(*slugs: str) -> EntrySetup:
+    ids = {"beg": 2001, "eeg": 2002}
+    return EntrySetup(
+        member="9000001",
+        location_id="5001",
+        site_slug="home",
+        mp_ids=(1001, 1002),
+        communities=tuple(CommunityConf(ids[s], s, s) for s in slugs),
+        max_hourly_kwh=50.0,
+    )
+
+
+def test_site_info_activation_ranges() -> None:
+    """Per-community ranges, merged over the metering points; floor = earliest."""
+
+    site = _site(_two_start_mp("2026-05-20"))
+    assert site.earliest_activation == date(2026, 1, 1)
+    assert site.activations == {
+        2001: ((date(2026, 1, 1), None),),
+        2002: ((EEG_BEGIN, date(2026, 5, 20)),),
+    }
+    assert site.all_communities
+    assert site.active_on(2002, EEG_BEGIN)
+    assert not site.active_on(2002, EEG_BEGIN - timedelta(days=1))
+    assert not site.active_on(2002, date(2026, 5, 21))
+    # Only the BEG selected: the EEG still counts for P4 where it is active.
+    assert not _site(_two_start_mp(), (2001,)).all_communities
+
+
+def test_plan_chunks_cut_at_activation() -> None:
+    """Chunks are cut at begin and end + 1; each community only inside its range."""
+
+    site = _site(_two_start_mp("2026-05-20"))
+    plan = plan_chunks(_setup("beg", "eeg"), site, date(2026, 3, 20), TODAY)
+    assert [(c.first, c.last, c.slugs) for c in plan] == [
+        (date(2026, 3, 20), date(2026, 3, 31), ["beg"]),
+        (date(2026, 4, 1), date(2026, 4, 15), ["beg"]),
+        (EEG_BEGIN, date(2026, 4, 30), ["beg", "eeg"]),
+        (date(2026, 5, 1), date(2026, 5, 20), ["beg", "eeg"]),
+        (date(2026, 5, 21), date(2026, 5, 31), ["beg"]),
+        (date(2026, 6, 1), TODAY, ["beg"]),
+    ]
+    assert all(c.all_communities for c in plan)
+    # 4 fixed + 6 BEG + 2 EEG Hour requests.
+    assert request_count(plan) == 12
+
+    # Only the EEG selected: nothing before its begin or after its end, and
+    # P4 is one-sided because the unselected BEG is active there too.
+    eeg_only = plan_chunks(
+        _setup("eeg"),
+        _site(_two_start_mp("2026-05-20"), (2002,)),
+        date(2026, 1, 1),
+        TODAY,
+    )
+    assert [(c.first, c.last) for c in eeg_only] == [
+        (EEG_BEGIN, date(2026, 4, 30)),
+        (date(2026, 5, 1), date(2026, 5, 20)),
+    ]
+    assert not any(c.all_communities for c in eeg_only)
+
+    # An autumn DST day adds one Day request per community active on it.
+    autumn = plan_chunks(
+        _setup("beg", "eeg"),
+        _site(_two_start_mp()),
+        date(2026, 10, 1),
+        date(2026, 10, 31),
+    )
+    assert request_count(autumn) == 4 + 2 * 2
+
+
+@pytest.mark.usefixtures("no_writes")
+async def test_initial_run_communities_start_on_different_dates(
+    hass: HomeAssistant, env: Any
+) -> None:
+    """Initial window from the BEG start; the EEG is asked only from its begin.
+
+    Before issue #16 the EEG was requested from 2026-01-01, got the reduced
+    body and the whole run ended as ``api_changed``.
+    """
+
+    client = FakeClient()
+    client.mp_raw = _two_start_mp()
+    coordinator, _, _ = make(hass, client, initial_done=False)
+    summary = await coordinator.async_run(RunRequest(RunType.INITIAL))
+    assert summary is not None
+    assert summary.status is RunStatus.OK, summary.error
+    assert summary.window == (date(2026, 1, 1), TODAY)
+    assert coordinator.state.initial_done
+    hour_calls = client.analysis_calls("Hour")
+    eeg = [(c[2], c[3]) for c in hour_calls if tuple(c[4]) == (2002,)]
+    beg = [(c[2], c[3]) for c in hour_calls if tuple(c[4]) == (2001,)]
+    assert eeg == [
+        (EEG_BEGIN, date(2026, 4, 30)),
+        (date(2026, 5, 1), date(2026, 5, 31)),
+        (date(2026, 6, 1), TODAY),
+    ]
+    assert beg[0] == (date(2026, 1, 1), date(2026, 1, 31))
+    assert (date(2026, 4, 1), date(2026, 4, 15)) in beg
+    assert (EEG_BEGIN, date(2026, 4, 30)) in beg
+    assert len(beg) == summary.chunks == 7
+    assert summary.requests == 4 + 7 + 3 == client.request_count
+
+
+async def test_site_totals_before_second_activation(
+    hass: HomeAssistant, env: Any
+) -> None:
+    """Site statistics are written before the EEG starts; EEG rows start at begin.
+
+    The EEG is first in entry order, so the site meter and residual must come
+    from the first community active on a day, and the site community sums
+    count only the communities active on it. P4 passes on both sides of the
+    begin (the residual subtracts only active communities).
+    """
+
+    client = FakeClient()
+    client.mp_raw = _two_start_mp()
+    coordinator, entry, _ = make(hass, client)
+    hass.config_entries.async_update_entry(
+        entry,
+        data={
+            **entry.data,
+            CONF_COMMUNITIES: list(reversed(entry.data[CONF_COMMUNITIES])),
+        },
+    )
+    summary = await coordinator.async_run(
+        RunRequest(RunType.MANUAL, date(2026, 4, 14), date(2026, 4, 17))
+    )
+    assert summary is not None
+    assert summary.status is RunStatus.OK, summary.error
+    assert [(c[2], c[3], tuple(c[4])) for c in client.analysis_calls("Hour")] == [
+        (date(2026, 4, 14), date(2026, 4, 15), (2001,)),
+        (EEG_BEGIN, date(2026, 4, 17), (2002,)),
+        (EEG_BEGIN, date(2026, 4, 17), (2001,)),
+    ]
+
+    begin = local_day_start(EEG_BEGIN)
+    site = {_hour(r): r["state"] for r in await stored(hass, "home_consumption")}
+    assert len(site) == 4 * 24
+    assert min(site) == local_day_start(date(2026, 4, 14))
+    eeg_rows = await stored(hass, "home_eeg_consumption_from_community")
+    assert min(_hour(r) for r in eeg_rows) == begin
+    assert len(eeg_rows) == 2 * 24
+    beg = {
+        _hour(r): r["state"]
+        for r in await stored(hass, "home_beg_consumption_from_community")
+    }
+    eeg = {_hour(r): r["state"] for r in eeg_rows}
+    total = {
+        _hour(r): r["state"]
+        for r in await stored(hass, "home_consumption_from_community")
+    }
+    assert len(total) == 4 * 24
+    before = begin - timedelta(hours=5)
+    after = begin + timedelta(hours=19)
+    assert total[before] == pytest.approx(beg[before])
+    assert total[after] == pytest.approx(beg[after] + eeg[after])
+    supplier = {
+        _hour(r): r["state"]
+        for r in await stored(hass, "home_consumption_from_supplier")
+    }
+    for h in (before, after):
+        assert total[h] + supplier[h] == pytest.approx(site[h], abs=0.01)

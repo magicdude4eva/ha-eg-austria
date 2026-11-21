@@ -189,6 +189,12 @@ class FakeClient:
     * ``mutate``: ``fn(raw, aggregation, start, end, community_id)`` returning
       the raw response to parse (for bad-data cases);
     * ``before``: awaited before every request (concurrency/unload tests).
+
+    Like the portal, a request for a community outside its activation (any
+    day before ``begin`` or after ``end`` of every selected metering point)
+    gets a reduced body without ``totalConsumption`` (issue #16), and the
+    residual only subtracts the communities active on the request's first
+    day.
     """
 
     def __init__(self) -> None:
@@ -253,6 +259,24 @@ class FakeClient:
         raw = self.gen.completeness(start, end, self.incomplete, self.future_from)
         return parse_day_completeness(raw)
 
+    def _members(self, mps: Any) -> Any:
+        """Return ``day -> communities any of mps is active in`` (``mp_raw``)."""
+
+        acts = [
+            act
+            for mp, act in parse_metering_points(self.mp_raw).iter_activations()
+            if mp.id in mps
+        ]
+
+        def on(day: Any) -> frozenset[int]:
+            return frozenset(
+                a.community_id
+                for a in acts
+                if a.active_from <= day and (a.active_to is None or day <= a.active_to)
+            )
+
+        return on
+
     async def get_analysis(
         self, member: str, aggregation: Any, start: Any, end: Any, cids: Any, mps: Any
     ) -> Any:
@@ -260,6 +284,7 @@ class FakeClient:
 
         await self._call("get_analysis", member, str(aggregation), start, end, cids)
         assert len(cids) == 1, "one community per request (spec 03)"
+        members = self._members(mps)
         scenario = self.gen.Scenario(
             start,
             end,
@@ -267,8 +292,11 @@ class FakeClient:
             aggregation=str(aggregation),
             community_incomplete=set(self.incomplete),
             meter_missing=set(self.meter_missing),
+            members=members(start),
         )
         raw = self.gen.analysis(scenario)
+        if not all(cids[0] in members(d) for d in self.gen.days(start, end)):
+            raw.pop("totalConsumption", None)  # reduced body (issue #16)
         if self.mutate is not None:
             raw = self.mutate(raw, str(aggregation), start, end, cids[0])
         return parse_analysis(raw)
@@ -363,9 +391,7 @@ async def async_setup_fake_entry(
     )
     with (
         patch("custom_components.eg_austria.EgAustriaClient", return_value=client),
-        patch(
-            "custom_components.eg_austria.create_portal_session", return_value=session
-        ),
+        patch("custom_components.eg_austria.get_portal_session", return_value=session),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
