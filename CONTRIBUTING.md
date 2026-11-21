@@ -44,6 +44,9 @@ via the repository secret `PRIVACY_DENYLIST`.
 - Work on a branch and open a pull request against `main`.
 - One slice (see `docs/spec/08-slices.md`) per pull request, with tests.
 - `pytest`, `ruff check`, `ruff format --check` and the privacy guard must pass.
+- Coverage: `config_flow.py` stays at 100% and every other module above 95%.
+  CI runs `pytest --cov`, then `coverage json` and `scripts/check_coverage.py`.
+  Every config-flow error needs a test that recovers and finishes the flow.
 - Read-only: the API client may only issue GET requests to whitelisted
   endpoints (ADR 0002). Pull requests adding anything else will be declined.
 

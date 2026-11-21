@@ -51,3 +51,7 @@ addopts = "-ra --strict-markers"
 
 [tool.coverage.run]
 source = ["custom_components.eg_austria"]
+
+[tool.coverage.report]
+# Total; per module (>95%, config_flow.py 100%) see scripts/check_coverage.py.
+fail_under = 95

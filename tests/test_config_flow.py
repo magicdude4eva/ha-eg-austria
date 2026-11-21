@@ -50,6 +50,7 @@ from custom_components.eg_austria.exceptions import (
     PortalUnavailableError,
     RateLimitedError,
     SchemaError,
+    TokenExpiredError,
 )
 from custom_components.eg_austria.models import parse_metering_points, parse_session
 from custom_components.eg_austria.token import (
@@ -246,6 +247,23 @@ async def run_to_entry(hass: HomeAssistant, token: str | None = None):
     )
     assert result["step_id"] == "communities"
     return await submit(hass, result, communities=["2001", "2002"])
+
+
+def assert_created(result: dict[str, Any], location: str = "5001") -> None:
+    """Assert the flow created the entry with the member/location unique id."""
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["result"].unique_id == cf.entry_unique_id(MEMBER, location)
+
+
+async def finish_from_site(hass: HomeAssistant, result: dict[str, Any]) -> None:
+    """From the site step, take the defaults to the created entry."""
+
+    assert result["step_id"] == "site"
+    result = await submit(hass, result, metering_points=["1001"], site_slug="home")
+    assert result["step_id"] == "communities"
+    result = await submit(hass, result, communities=["2001"])
+    assert_created(result)
 
 
 def make_entry(hass: HomeAssistant, **overrides: Any) -> MockConfigEntry:
@@ -448,7 +466,7 @@ async def test_user_flow_personal_token(hass: HomeAssistant) -> None:
 
     result = await submit(hass, result, metering_points=["1001"], site_slug="home")
     result = await submit(hass, result, communities=["2001"])
-    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert_created(result)
     assert result["data"][CONF_TOKEN] == token
     assert CONF_TOKEN_ID not in result["data"]
     assert not FakeTokenClient.calls
@@ -477,6 +495,10 @@ async def test_personal_token_expiry_must_be_future(
     assert result["errors"] == {"token_expires": error}
     assert not FakeClient.instances
 
+    day = dt_util.now().date() + timedelta(days=30)
+    result = await submit(hass, result, token_expires=day.isoformat())
+    await finish_from_site(hass, result)
+
 
 async def test_personal_token_online_error_on_expiry_step(hass: HomeAssistant) -> None:
     """Online errors after the expiry step are shown on that step."""
@@ -488,6 +510,10 @@ async def test_personal_token_online_error_on_expiry_step(hass: HomeAssistant) -
     assert result["step_id"] == "token_expiry"
     assert result["errors"] == {"base": "invalid_auth"}
 
+    FakeClient.session_error = None
+    result = await submit(hass, result, token_expires=day.isoformat())
+    await finish_from_site(hass, result)
+
 
 async def test_session_jwt_expiring_soon_notice(hass: HomeAssistant) -> None:
     """Less than 7 days left: a notice step, then the flow continues."""
@@ -496,7 +522,7 @@ async def test_session_jwt_expiring_soon_notice(hass: HomeAssistant) -> None:
     assert result["step_id"] == "expiring_soon"
     assert result["description_placeholders"]["days"] in {"2", "3"}
     result = await submit(hass, result)
-    assert result["step_id"] == "site"
+    await finish_from_site(hass, result)
 
 
 # ---------------------------------------------------------------------------
@@ -521,6 +547,10 @@ async def test_local_token_errors(
     assert result["errors"] == {"base": error}
     assert not FakeClient.instances
 
+    await finish_from_site(
+        hass, await submit_token(hass, result, token=session_jwt(30))
+    )
+
 
 @pytest.mark.parametrize(
     ("exc", "error"),
@@ -532,6 +562,8 @@ async def test_local_token_errors(
         (ApiChangedError("404", status=404), "api_changed"),
         (SchemaError("S2", "members", "missing"), "api_changed"),
         (RuntimeError("boom"), "unknown"),
+        # The expiry passed between the local check and the request.
+        (TokenExpiredError("stored token expiry has passed"), "token_expired"),
     ],
 )
 @pytest.mark.parametrize("where", ["session", "mp"])
@@ -551,7 +583,7 @@ async def test_online_errors(
     # Recovers once the portal answers.
     FakeClient.session_error = FakeClient.mp_error = None
     result = await submit_token(hass, result, token=session_jwt(30))
-    assert result["step_id"] == "site"
+    await finish_from_site(hass, result)
 
 
 async def test_unknown_error_logs_no_token(
@@ -572,6 +604,11 @@ async def test_no_member(hass: HomeAssistant) -> None:
     FakeClient.session = parse_session({"email": "x", "members": []})
     result = await submit_token(hass, await start(hass), token=session_jwt(30))
     assert result["errors"] == {"base": "no_member"}
+
+    FakeClient.session = parse_session(load_fixture("session_one_member.json"))
+    await finish_from_site(
+        hass, await submit_token(hass, result, token=session_jwt(30))
+    )
 
 
 async def test_two_members_select(hass: HomeAssistant) -> None:
@@ -600,6 +637,8 @@ async def test_two_members_select(hass: HomeAssistant) -> None:
     assert result["step_id"] == "site"
     result = await submit(hass, result, metering_points=["1001"], site_slug="home")
     result = await submit(hass, result, communities=["2001", "2002"])
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["result"].unique_id == cf.entry_unique_id("9000002", "5001")
     assert result["data"][CONF_MEMBER_NUMBER] == "9000002"
     assert "Example Company" not in json.dumps(result["data"])
 
@@ -613,6 +652,11 @@ async def test_member_error_shown_on_member_step(hass: HomeAssistant) -> None:
     result = await submit(hass, result, member="0")
     assert result["step_id"] == "member"
     assert result["errors"] == {"base": "cannot_connect"}
+
+    FakeClient.mp_error = None
+    result = await submit(hass, result, member="0")
+    result = await choose(hass, result, "use_session")
+    await finish_from_site(hass, result)
 
 
 # ---------------------------------------------------------------------------
@@ -642,7 +686,7 @@ async def test_two_locations_select(hass: HomeAssistant) -> None:
     result = await submit(hass, result, communities=["2001"])
     assert result["data"][CONF_LOCATION_ID] == "5002"
     assert result["data"][CONF_SITE_SLUG] == "cabin"
-    assert result["result"].unique_id == cf.entry_unique_id(MEMBER, "5002")
+    assert_created(result, "5002")
 
 
 async def test_metering_point_defaults_and_labels(hass: HomeAssistant) -> None:
@@ -699,6 +743,7 @@ async def test_site_validation(
     result = await submit(hass, result, **data)
     assert result["step_id"] == "site"
     assert result["errors"] == errors
+    await finish_from_site(hass, result)
 
 
 async def test_site_slug_in_use(hass: HomeAssistant) -> None:
@@ -709,16 +754,24 @@ async def test_site_slug_in_use(hass: HomeAssistant) -> None:
     result = await submit(hass, result, metering_points=["1001"], site_slug="home")
     assert result["errors"] == {"site_slug": "slug_in_use"}
 
+    result = await submit(hass, result, metering_points=["1001"], site_slug="cabin")
+    result = await submit(hass, result, communities=["2001"])
+    assert_created(result)
+    assert result["data"][CONF_SITE_SLUG] == "cabin"
+
 
 async def test_site_without_community(hass: HomeAssistant) -> None:
     """Selected points without activations: no community to import."""
 
     raw = mp_raw()
-    raw[0]["memberMeteringpoints"][0]["activations"] = []
+    raw[0]["memberMeteringpoints"][1]["activations"] = []
     FakeClient.mp = parse_metering_points(raw)
     result = await submit_token(hass, await start(hass), token=session_jwt(30))
-    result = await submit(hass, result, metering_points=["1001"], site_slug="home")
+    result = await submit(hass, result, metering_points=["1002"], site_slug="home")
     assert result["errors"] == {"base": "no_community"}
+
+    # Another point with an activation recovers.
+    await finish_from_site(hass, result)
 
 
 async def test_community_needs_one(hass: HomeAssistant) -> None:
@@ -731,6 +784,9 @@ async def test_community_needs_one(hass: HomeAssistant) -> None:
     assert result["errors"] == {"base": "no_community"}
     key = next(k for k in result["data_schema"].schema if str(k) == "edit_slugs")
     assert key.default() is True  # the entered values are kept
+
+    result = await submit(hass, result, communities=["2001"], edit_slugs=False)
+    assert_created(result)
 
 
 @pytest.mark.parametrize(
@@ -755,6 +811,10 @@ async def test_community_slug_validation(
     defaults = [k.default() for k in result["data_schema"].schema]
     assert defaults == [data["slug_1"], data["slug_2"]]
 
+    result = await submit(hass, result, slug_1="beg", slug_2="eeg")
+    assert_created(result)
+    assert [c["slug"] for c in result["data"][CONF_COMMUNITIES]] == ["beg", "eeg"]
+
 
 async def test_community_slugs_step(hass: HomeAssistant) -> None:
     """Edit slugs: one field per chosen community, mapped in the description."""
@@ -773,7 +833,7 @@ async def test_community_slugs_step(hass: HomeAssistant) -> None:
     assert str(key) == "slug_1"
     assert key.default() == "eeg"
     result = await submit(hass, result, slug_1="regional")
-    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert_created(result)
     assert result["data"][CONF_COMMUNITIES] == [
         {"id": 2002, "slug": "regional", "name": "Example EEG"}
     ]
@@ -906,6 +966,11 @@ async def test_reauth_wrong_account_member(hass: HomeAssistant) -> None:
     assert result["errors"] == {"base": "wrong_account"}
     assert entry.data[CONF_TOKEN] == old
 
+    FakeClient.session = parse_session(load_fixture("session_one_member.json"))
+    result = await submit_token(hass, result, token=session_jwt(20))
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_TOKEN] != old
+
 
 async def test_reauth_wrong_account_forbidden(hass: HomeAssistant) -> None:
     """A 403 on the stored member's metering points is the wrong account."""
@@ -915,6 +980,10 @@ async def test_reauth_wrong_account_forbidden(hass: HomeAssistant) -> None:
     result = await entry.start_reauth_flow(hass)
     result = await submit(hass, result, token=session_jwt(20))
     assert result["errors"] == {"base": "wrong_account"}
+
+    FakeClient.mp_error = None
+    result = await submit_token(hass, result, token=session_jwt(20))
+    assert result["reason"] == "reauth_successful"
 
 
 @pytest.mark.parametrize(
@@ -934,6 +1003,12 @@ async def test_reauth_errors(hass: HomeAssistant, exc: Exception, error: str) ->
     assert result["errors"] == {"base": error}
     result = await submit(hass, result, token="garbage")
     assert result["errors"] == {"base": "invalid_token_format"}
+
+    FakeClient.session_error = None
+    token = session_jwt(20)
+    result = await submit_token(hass, result, token=token)
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_TOKEN] == token
 
 
 # ---------------------------------------------------------------------------
@@ -1131,6 +1206,12 @@ async def test_reconfigure_wrong_account(hass: HomeAssistant) -> None:
     result = await submit(hass, result, token=session_jwt(20))
     assert result["errors"] == {"base": "wrong_account"}
 
+    FakeClient.session = parse_session(load_fixture("session_one_member.json"))
+    result = await submit(hass, result)  # keep the stored token
+    result = await submit(hass, result, metering_points=["1001", "1002"])
+    result = await submit(hass, result, communities=[])
+    assert result["reason"] == "reconfigure_successful"
+
 
 async def test_reconfigure_location_remap(hass: HomeAssistant) -> None:
     """The stored location id is gone: choose the current one."""
@@ -1156,6 +1237,11 @@ async def test_reconfigure_no_metering_point(hass: HomeAssistant) -> None:
     result = await submit(hass, result)
     result = await submit(hass, result, metering_points=[])
     assert result["errors"] == {"metering_points": "no_metering_point"}
+
+    result = await submit(hass, result, metering_points=["1001"])
+    result = await submit(hass, result, communities=[])
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_MP_IDS] == [1001]
 
 
 # ---------------------------------------------------------------------------
@@ -1540,6 +1626,10 @@ async def test_revoke_needs_session_cookie(hass: HomeAssistant) -> None:
     assert not FakeTokenClient.calls
     assert not FakeClient.instances
 
+    result = await submit(hass, result, token=session_jwt(20))
+    result = await choose(hass, result, "create_token_confirm")
+    assert result["reason"] == "token_revoked"
+
 
 async def test_revoke_wrong_account(hass: HomeAssistant) -> None:
     """A cookie of another member is refused before the revoke."""
@@ -1553,6 +1643,11 @@ async def test_revoke_wrong_account(hass: HomeAssistant) -> None:
     result = await submit(hass, result, token=session_jwt(20))
     assert result["errors"] == {"base": "wrong_account"}
     assert not FakeTokenClient.calls
+
+    FakeClient.session = parse_session(load_fixture("session_one_member.json"))
+    result = await submit(hass, result, token=session_jwt(20))
+    result = await choose(hass, result, "use_session")
+    assert result["reason"] == "token_revoked"
 
 
 @pytest.mark.parametrize(
@@ -1577,6 +1672,12 @@ async def test_revoke_errors(hass: HomeAssistant, exc: Exception, error: str) ->
     assert result["errors"] == {"base": error}
     assert dict(entry.data) == old
     assert len(FakeTokenClient.calls) == 1
+
+    FakeTokenClient.revoke_error = None
+    result = await submit(hass, result, token=session_jwt(20))
+    result = await choose(hass, result, "create_token_confirm")
+    assert result["reason"] == "token_revoked"
+    assert entry.data[CONF_TOKEN] == FakeTokenClient.created.token
 
 
 async def test_entry_before_s7b_keeps_data(hass: HomeAssistant) -> None:
@@ -1616,6 +1717,12 @@ async def test_reconfigure_needs_a_community(hass: HomeAssistant) -> None:
     result = await submit(hass, result, communities=[])
     assert result["errors"] == {"base": "no_community"}
 
+    result = await submit(hass, result, communities=["2002"])
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_COMMUNITIES] == [
+        {"id": 2002, "slug": "eeg", "name": "Example EEG"}
+    ]
+
 
 async def test_reconfigure_only_orphans(hass: HomeAssistant) -> None:
     """Only a gone community: confirm form without fields, slug retired."""
@@ -1638,3 +1745,112 @@ async def test_reconfigure_only_orphans(hass: HomeAssistant) -> None:
     result = await submit(hass, result)
     assert result["reason"] == "reconfigure_successful"
     assert entry.data[CONF_RETIRED_SLUGS] == ["old"]
+
+
+# ---------------------------------------------------------------------------
+# Remaining branches (issue #35)
+
+
+def _many_communities(raw: list[dict[str, Any]], count: int) -> None:
+    for n in range(count):
+        _add_community(raw, 3000 + n, f"Extra EEG {n}", "RC_R")
+
+
+async def test_community_member_since_is_the_earliest(hass: HomeAssistant) -> None:
+    """Two points in one community: the earlier activation is shown."""
+
+    raw = mp_raw()
+    # The first point joined later; the second one's date must win.
+    raw[0]["memberMeteringpoints"][0]["activations"][0]["begin"] = "2026-03-01"
+    FakeClient.mp = parse_metering_points(raw)
+    result = await submit_token(hass, await start(hass), token=session_jwt(30))
+    result = await submit(
+        hass, result, metering_points=["1001", "1002"], site_slug="home"
+    )
+    options = next(
+        v for k, v in result["data_schema"].schema.items() if str(k) == "communities"
+    ).config["options"]
+    assert options[0]["label"] == "Example BEG (BEG, member since 2026-01-01) → beg"
+    result = await submit(hass, result, communities=["2001"])
+    assert_created(result)
+
+
+async def test_site_too_many_communities_aborts(hass: HomeAssistant) -> None:
+    """More communities than the flow has labels for: abort."""
+
+    raw = mp_raw()
+    _many_communities(raw, cf.MAX_COMMUNITIES)  # 2 + 9 > 9
+    FakeClient.mp = parse_metering_points(raw)
+    result = await submit_token(hass, await start(hass), token=session_jwt(30))
+    result = await submit(hass, result, metering_points=["1001"], site_slug="home")
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "too_many_communities"
+    assert not hass.config_entries.async_entries(DOMAIN)
+
+
+async def test_reconfigure_location_none_left_aborts(hass: HomeAssistant) -> None:
+    """The stored location is gone and the portal lists no other: abort."""
+
+    entry = make_entry(hass, **{CONF_LOCATION_ID: "4999"})
+    old = dict(entry.data)
+    FakeClient.mp = parse_metering_points([])
+    result = await entry.start_reconfigure_flow(hass)
+    result = await submit(hass, result)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_location"
+    assert dict(entry.data) == old
+
+
+async def test_reconfigure_location_of_another_entry_aborts(
+    hass: HomeAssistant,
+) -> None:
+    """Remapping onto a location another entry has: already configured."""
+
+    FakeClient.mp = parse_metering_points(
+        load_fixture("metering_point_two_locations.json")
+    )
+    other = make_entry(hass, **{CONF_LOCATION_ID: "5002", CONF_SITE_SLUG: "cabin"})
+    entry = make_entry(hass, **{CONF_LOCATION_ID: "4999"})
+    result = await entry.start_reconfigure_flow(hass)
+    result = await submit(hass, result)
+    assert result["step_id"] == "reconfigure_location"
+    result = await submit(hass, result, location="5002")
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_LOCATION_ID] == "4999"
+    assert other.unique_id == cf.entry_unique_id(MEMBER, "5002")
+
+
+async def test_reconfigure_too_many_communities_aborts(hass: HomeAssistant) -> None:
+    """Too many new communities in reconfigure: abort, entry unchanged."""
+
+    raw = mp_raw()
+    _many_communities(raw, cf.MAX_COMMUNITIES + 1)
+    FakeClient.mp = parse_metering_points(raw)
+    entry = make_entry(hass)
+    old = dict(entry.data)
+    result = await entry.start_reconfigure_flow(hass)
+    result = await submit(hass, result)
+    result = await submit(hass, result, metering_points=["1001"])
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "too_many_communities"
+    assert dict(entry.data) == old
+
+
+async def test_reconfigure_points_without_community(hass: HomeAssistant) -> None:
+    """Selected points in no community: error, then another point recovers."""
+
+    raw = mp_raw()
+    raw[0]["memberMeteringpoints"][1]["activations"] = []
+    FakeClient.mp = parse_metering_points(raw)
+    entry = make_entry(hass)
+    result = await entry.start_reconfigure_flow(hass)
+    result = await submit(hass, result)
+    result = await submit(hass, result, metering_points=["1002"])
+    assert result["step_id"] == "reconfigure_site"
+    assert result["errors"] == {"base": "no_community"}
+    result = await submit(hass, result, metering_points=["1001"])
+    result = await submit(hass, result, communities=[])
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_MP_IDS] == [1001]
+    assert entry.unique_id == cf.entry_unique_id(MEMBER, "5001")

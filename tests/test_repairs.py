@@ -16,7 +16,10 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 import pytest
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.eg_austria.const import DOMAIN
 from custom_components.eg_austria.coordinator import RunRequest
@@ -31,7 +34,11 @@ from custom_components.eg_austria.repairs import (
     ISSUE_IMPLAUSIBLE,
     ISSUE_TOKEN_EXPIRING,
     ISSUE_UNREACHABLE,
+    EntryRepairs,
+    _date_range,
     issue_id,
+    token_expiry,
+    token_warning_start,
 )
 
 from .conftest import LoadedEntry, async_setup_fake_entry
@@ -145,6 +152,73 @@ async def test_token_expiring_raised_when_period_starts(
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert issue(hass, ISSUE_TOKEN_EXPIRING, loaded) is not None
+
+
+async def test_token_expiring_timer_fires_between_runs(
+    hass: HomeAssistant, env: FrozenDateTimeFactory
+) -> None:
+    """The timer itself raises the issue when no run happens meanwhile."""
+
+    loaded = await setup(hass, 30 + 1 / 24)  # warning period starts in 1 h
+    assert issue(hass, ISSUE_TOKEN_EXPIRING, loaded) is None
+    calls = len(loaded.client.calls)
+    env.move_to(NOW + timedelta(hours=1, minutes=1))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert len(loaded.client.calls) == calls  # no run raised it
+    found = issue(hass, ISSUE_TOKEN_EXPIRING, loaded)
+    assert found is not None
+    assert found.translation_placeholders["days"] == "30"
+
+
+@pytest.mark.parametrize(
+    ("data", "warning_days"),
+    [
+        ({"token_exp": int(NOW.timestamp()), "token_kind": "personal"}, 30),
+        ({"token_exp": int(NOW.timestamp()), "token_kind": "session"}, 7),
+        # An unknown kind gets the shorter session warning.
+        ({"token_exp": int(NOW.timestamp()), "token_kind": "other"}, 7),
+        ({"token_exp": int(NOW.timestamp())}, 7),
+    ],
+)
+def test_token_warning_start(data: dict[str, Any], warning_days: int) -> None:
+    """Expiry minus 30 days (personal) or 7 days (session, unknown)."""
+
+    entry = MockConfigEntry(domain=DOMAIN, data=data)
+    assert token_expiry(entry) == NOW
+    assert token_warning_start(entry) == NOW - timedelta(days=warning_days)
+
+
+@pytest.mark.parametrize("exp", [None, True, "2026-06-08"])
+def test_token_without_stored_expiry(exp: Any) -> None:
+    """No usable stored expiry: no expiry and no warning start."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"token_exp": exp, "token_kind": "personal"}
+    )
+    assert token_expiry(entry) is None
+    assert token_warning_start(entry) is None
+
+
+async def test_token_check_without_expiry(hass: HomeAssistant, env: Any) -> None:
+    """Without a stored expiry nothing is raised and no timer is set."""
+
+    entry = MockConfigEntry(domain=DOMAIN, data={"token_kind": "personal"})
+    entry.add_to_hass(hass)
+    repairs = EntryRepairs(hass, entry, MagicMock())
+    repairs.async_check_token()
+    assert repairs._token_unsub is None
+    assert not ir.async_get(hass).issues
+
+
+def test_date_range() -> None:
+    """Empty, one day, or first - last."""
+
+    assert _date_range([]) == "-"
+    assert _date_range([date(2026, 6, 1)] * 2) == "2026-06-01"
+    assert _date_range([date(2026, 6, 3), date(2026, 6, 1)]) == (
+        "2026-06-01 - 2026-06-03"
+    )
 
 
 async def test_token_expiring_cleared_by_new_token(
