@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-07
-- Depends on: `day-completeness` and `analysis-data` parameters before the 2026-11-09 update; request size limits measured once
+- Depends on: `day-completeness` and `analysis-data` parameters, confirmed after the 2026-11-09 update (G1, 2026-11-21); request size limits measured once (Hour 31 days ≈ 1 MB in 5-6 s, unchanged in G1)
 
 ## Context
 
@@ -15,7 +15,7 @@
 
 ## Decision
 
-- **Aggregation:** `Hour` only. Requests in chunks of at most 31 days, sequential, at least 2 s apart, 60 s timeout.
+- **Aggregation:** `Hour`, one request per community and chunk (no all-communities request; G1 showed the single-community responses carry every phase-1 quantity). `Day` only for the autumn DST day, whose first local 02:00 hour is missing from `Hour` (spec 04). Requests in chunks of at most 31 days, sequential, at least 2 s apart, 60 s timeout.
 - **Daily run** at a fixed time per installation (random minute between 03:00 and 06:00 local, chosen at setup), plus a catch-up run at startup if the last successful run is more than 26 h old.
 - **Daily window:** from `min(today − 62 days, earliest incomplete day)` to today, where the earliest incomplete day is looked for in the last 120 days only, so one day that never completes can't make every daily run long. The completeness call covers 13 months (for diagnostics); the analysis-data calls cover the window. Older incomplete days are picked up by the long re-fetch.
 - **Long re-fetch:** once a month (first daily run after the 3rd), the window is the last 13 months, regardless of completeness.

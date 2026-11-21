@@ -7,7 +7,7 @@ Framework: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component` p
 - **Synthetic only.** No captured portal response goes into the repository, not even redacted. Fixtures are produced by a generator in `tests/fixtures/generate.py` and committed as JSON, so diffs are reviewable.
 - Synthetic ids: member `9000001`, location `5001`, metering points `1001` (consumption) and `1002` (generation), communities `2001` (`Example BEG`, BEG type) and `2002` (`Example EEG`, regional EEG type). Metering point numbers `AT0000000000000000000000000001001`-style (synthetic, valid length). Email `member@example.invalid`.
 - Tokens: JWTs signed with a test key generated in the test, `exp` relative to the frozen time; personal tokens built in the test as `ecapi_` + random lowercase hex. Never a real token copied from anywhere.
-- Shape follows the post-update fingerprint **[verify]**; keys not used by phase 1 are included with null or zero values so the parser sees realistic noise.
+- Shape follows the post-update fingerprint taken in G1 (build `20d1c18`, spec 01); keys not used by phase 1 are included with null or zero values so the parser sees realistic noise.
 
 ## Generator
 
@@ -16,22 +16,23 @@ Framework: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component` p
 - Generation: half-sine between 07:00 and 17:00 local, peak 3 kWh/h, scaled by a per-day factor from a seeded RNG.
 - Consumption: 0.4 kWh/h base plus evening bump.
 - Community split per hour: `toCommunity = generation × f_c`, `fromCommunity = consumption × g_c` with fixed synthetic shares per community; residual = rest. Site response = sum over communities.
-- Points newest first; `date` as a German locale string; `dateTimeFrom` UTC `Z`; `dateTimeFromLocal` with offset.
-- Totals computed from points; `*Complete` equal to base on complete days, lower on incomplete days; `*Faulty` true on incomplete days.
-- Knobs: list of incomplete days (community fields null), null meter hours, a partial hour, negative value, tenfold day, all-zero day, extra unknown key, missing required key, renamed key, string instead of number.
+- Points newest first; `date` as `DD.MM.YY HH:MM`; `dateTimeFrom` UTC `…T23:00:00.000Z`; `dateTimeFromLocal` as local wall time with a `Z` suffix (as the portal sends it); zero values as JSON int.
+- Totals computed from points; `*Complete` equal to base on complete days; community `*Faulty` true on community-incomplete days; meter `*Faulty` true with `0` values on meter-missing days.
+- Single-community responses repeat the meter and residual values; only community fields differ.
+- Knobs: list of community-incomplete days (community fields `0`, flag set), meter-missing days (`0` + meter flag), null meter hours, a partial hour, negative value, tenfold day, all-zero day, extra unknown key, missing required key, renamed key, string instead of number.
 
 Committed scenarios:
 
 | Fixture | Content |
 |---|---|
-| `analysis_hour_normal_{site,beg,eeg}.json` | 7 days, all complete |
-| `analysis_hour_tail_incomplete.json` | 31 days, last 14 days community-incomplete, last 2 days empty |
-| `analysis_hour_dst_autumn.json`, `..._spring.json` | Days with 25 and 23 local hours |
+| `analysis_hour_normal_{beg,eeg}.json` | 7 days, all complete |
+| `analysis_hour_tail_incomplete.json` | 31 days, last 14 days community-incomplete, last day meter-missing (`0` + flag) |
+| `analysis_hour_dst_autumn.json`, `..._spring.json`, `analysis_day_dst_autumn.json` | Autumn day as the portal sends it (24 points, first local 02:00 missing, local 01:00 flagged) plus its `Day` value; spring day with 23 points |
 | `analysis_empty_day.json` | Empty lists, null totals (as in 1140/20) |
 | `analysis_bad_*.json` | One per shape and plausibility rule |
 | `day_completeness_*.json` | Matching completeness lists |
 | `metering_point_{single,two_locations}.json` | Discovery cases |
-| `maintenance_{none,active,future}.json`, `version_{a,b}.json` | |
+| `maintenance_{none,active,future}.json`, `version_{a,b}.json`, `session_{one,two}_members.json` | `maintenance_none` is an empty body |
 | `error_400_stale_client.json`, `error_400_other.json`, `error_401.json` | RFC 7807-like bodies with synthetic `instance`/`traceId` |
 
 ## Optional cross-check source: portal CSV export
@@ -81,7 +82,7 @@ A fixture generator option (`--csv`) may write matching synthetic CSVs so the cr
 ### Validation (`test_validation.py`)
 
 13. One test per rule S1-S9, P1-P6, H1-H2: failing fixture fails with that id, normal fixture passes.
-14. DST fixtures pass S5/S8.
+14. DST fixtures pass S5/S8; the autumn gap hour is filled from the `Day` residual once the day is complete (spec 04).
 15. P4-P6 warn but don't block while their constant is off; block when on.
 
 ### Statistics (`test_statistics.py`, with recorder fixture)

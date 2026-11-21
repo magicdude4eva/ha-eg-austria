@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-07
-- Depends on: portal API shape before the 2026-11-09 update
+- Depends on: portal API shape, re-checked after the 2026-11-09 update (G1, 2026-11-21)
 
 ## Context
 
@@ -11,7 +11,7 @@ The member portal API is unofficial and undocumented. EG Austria staff allowed m
 ## Decision
 
 - All HTTP calls go through one client module that holds a fixed whitelist of `(method, path template)` pairs. Only `GET` is allowed. Any other method or path raises before a request is made.
-- Phase 1 whitelist: `analysis-data`, `analysis-data/day-completeness`, `metering-point`, `/v1/portal/maintenance`, `/v1/version`. Phase 2 adds `billing/transactions` and `billing/pending-invoices`. Document downloads, token create/revoke and every `POST`/`PUT`/`PATCH`/`DELETE` are excluded.
+- Phase 1 whitelist: `analysis-data`, `analysis-data/day-completeness`, `metering-point`, `/v1/portal/maintenance`, `/v1/version`, and `GET /v1/portal/portal-session` (added 2026-11-21: the config flow reads the member number from it; no other `portal-session/*` path). Phase 2 adds `billing/transactions` and `billing/pending-invoices`. Document downloads, token create/revoke and every `POST`/`PUT`/`PATCH`/`DELETE` are excluded.
 - No login automation: the emailed-link login is never triggered by the integration.
 - A unit test asserts the whitelist and that no non-GET method is reachable.
 

@@ -5,7 +5,7 @@ Each slice is one small, reviewable subsession ending in one PR against the publ
 ## Prerequisites
 
 - **P0 Repo and tooling** (planned subsession, not a slice): repository, license, `custom_components/eg_austria` skeleton (`manifest.json`, `const.py`, empty `__init__.py`), `hacs.json`, CI with `hassfest`, store validation, `pytest`, `ruff`, pre-commit, issue templates. Copies these ADRs and specs into `docs/`.
-- **G1 Post-update re-test** (main session, after 2026-11-09 18:00 CET): confirms or updates every **[verify]** item in spec 01. Also runs the analysis tests T-Q3-cache (offline checks T-Q3a-h), T-MEM. Results go into spec 01/05 as a doc-only PR in P0 or S1.
+- **G1 Post-update re-test** (main session, after 2026-11-09 18:00 CET): confirms or updates every **[verify]** item in spec 01. Also runs the analysis tests T-Q3-cache (offline checks T-Q3a-h), T-MEM. Results go into spec 01/05 as a doc-only PR in P0 or S1. **Done 2026-11-21** (build `20d1c18`): see the G1 notes in specs 01-05 and 07.
 
 ## Slices
 

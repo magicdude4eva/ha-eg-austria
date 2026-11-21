@@ -51,7 +51,7 @@ No energy sensors (ADR 0003).
 
 ### Redaction
 
-`TO_REDACT = {"token", "member_number", "location_id", "mp_ids", "id", "energyCommunityId", "communityId", "meteringPointId", "meteringPointNumber", "email", "name", "firstName", "lastName", "address", "street", "zip", "city", "iban", "bic", "instance", "traceId"}`.
+`TO_REDACT = {"token", "member_number", "location_id", "mp_ids", "id", "energyCommunityId", "communityId", "meteringPointId", "meteringPointNumber", "email", "name", "firstName", "lastName", "address", "street", "zip", "city", "iban", "bic", "instance", "traceId", "memberId", "locationId", "number", "houseNumber", "postalCode", "stairsFloorDoor", "displayName", "energyCommunityName", "fromName", "toName", "fromMeteringpointNumber", "toMeteringpointNumber", "ecNumber", "substationName"}` (the `metering-point` and `portal-session` keys from G1).
 
 Rules beyond key-based redaction:
 
