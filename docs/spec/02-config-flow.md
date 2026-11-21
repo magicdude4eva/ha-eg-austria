@@ -19,12 +19,12 @@ Files: `config_flow.py`, `token.py` (parsing), `strings.json`, `translations/{en
 
 ### `create_token`: consent and token creation (session cookie only, issue #18)
 
-- After a session JWT passed the online validation (in `user`, `reauth_confirm`, `reconfigure_token` and after `revoke_token`), menu step `create_token`. The description says that the integration creates a **read-only** access token named "Home Assistant", valid one year, that EG Austria sends an email about it, and that the cookie itself is not stored. Options:
+- After a session JWT passed the online validation, menu step `create_token`: for a new entry only after `member`, `accept_terms` and `location` and the duplicate check (`already_configured`), so a duplicate never creates a token; in `reauth_confirm` and `reconfigure_token` right after the member check; after a successful `revoke_token`. The description says that the integration creates a **read-only** access token named "Home Assistant", valid one year, that EG Austria sends an email about it, and that the cookie itself is not stored. Options:
   - `create_token_confirm`: exactly one `PortalTokenClient.create_token("Home Assistant", now + 365 days)` with the pasted cookie (spec 01 "Token module"). On success the flow continues with the returned token as kind `personal`, `token_exp` = `expiresAt`, `token_id` = `id`; the cookie is dropped and the `expiring_soon` notice doesn't apply. No `token_expiry` step.
   - `use_session`: continue with the session cookie as the stored token (the fallback of ADR 0007).
 - On any create error (HTTP error, timeout, response that fails validation): form step `create_failed` without fields, showing the error (`create_failed_auth`, `create_failed_connect`, `create_failed_response`) and saying that setup continues with the session cookie (valid about a month; a token can be created later via Reconfigure). Submit continues with the cookie. The POST is never repeated in the same flow.
 - With the cookie kept: if `exp` is less than 7 days away, show the notice step `expiring_soon` (form without fields, placeholder `days`) before the next step (new entry only).
-- The next step is the one the flow would take without this step: `member`/`accept_terms`/`location` for a new entry, finish for reauth and revoke, `reconfigure_location`/`reconfigure_site` for reconfigure.
+- The next step: `expiring_soon` (cookie kept, less than 7 days) or `site` for a new entry, finish for reauth and revoke, `reconfigure_location`/`reconfigure_site` for reconfigure.
 
 ### `location` and `site`: location and metering points
 

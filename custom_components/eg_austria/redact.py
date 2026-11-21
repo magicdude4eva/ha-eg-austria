@@ -49,6 +49,7 @@ def redact_text(text: str, sensitive: Iterable[object] = ()) -> str:
 TO_REDACT: Final = frozenset(
     {
         "token",
+        "token_id",
         "member_number",
         "location_id",
         "mp_ids",

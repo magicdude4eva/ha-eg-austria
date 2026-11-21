@@ -2,18 +2,30 @@
   "config": {
     "step": {
       "user": {
-        "title": "EG Austria token",
-        "description": "Paste a **personal access token** (`ecapi_…`, valid about a year; recommended). How to create one: {readme_url}\n\nFallback: the session cookie `portal.jwtToken` from your browser's developer tools (Application → Cookies → portal.eg-austria.at) after logging in to the member portal. It is valid for about a month.\n\nThe token is stored in Home Assistant and never shown again. This integration only reads data.",
+        "title": "Connect EG Austria",
+        "description": "1. Log in to the member portal {portal_url} in your browser.\n2. Open the developer tools (F12) → Application (Firefox: Storage) → Cookies → portal.eg-austria.at.\n3. Copy the value of `portal.jwtToken` and paste it here.\n\nNext, Home Assistant offers to create a read-only access token from this cookie, so you don't have to repeat this every month. The cookie itself is not stored. If you already have a personal access token (`ecapi_…`), paste that instead. More: {readme_url}",
         "data": {
-          "token": "Token"
+          "token": "Session cookie or token"
         },
         "data_description": {
-          "token": "Personal token or session cookie value. Surrounding quotes and `portal.jwtToken=` are removed automatically."
+          "token": "Value of `portal.jwtToken`. Surrounding quotes and `portal.jwtToken=` are removed automatically."
         }
+      },
+      "create_token": {
+        "title": "Create an access token?",
+        "description": "Home Assistant can now create a **read-only** access token named \"{token_name}\" for your portal account, valid for one year. It can read your energy data but not change anything. EG Austria sends you an email about the new token (\"Neuer Access-Token erstellt\").\n\nOnly the access token is stored, not your session cookie. Without it, Home Assistant keeps the session cookie, which expires in {days} days.",
+        "menu_options": {
+          "create_token_confirm": "Create the access token (recommended)",
+          "use_session": "Keep the session cookie"
+        }
+      },
+      "create_failed": {
+        "title": "Access token not created",
+        "description": "Setup continues with the session cookie (valid for about a month). You get a repair warning before it expires; you can try again later with Reconfigure. If EG Austria still sends you an email about a new token, it was created anyway."
       },
       "token_expiry": {
         "title": "Personal token expiry",
-        "description": "The integration can't read the expiry of a personal token. Enter the date you chose when creating it (the portal default is one year). You get a repair warning 30 days before.",
+        "description": "The integration can't read the expiry of a pasted personal token. Enter the date you chose when creating it (the portal default is one year). You get a repair warning 30 days before.",
         "data": {
           "token_expires": "Token valid until"
         }
@@ -53,40 +65,54 @@
       },
       "communities": {
         "title": "Energy communities",
-        "description": "Communities of the selected metering points (name as the portal returns it, type, member since):\n\n{communities}\n\nThe slugs become part of the statistic ids and **can't be changed later**.",
+        "description": "Choose the communities to import. The slug after the arrow becomes part of the statistic ids and **can't be changed later**.",
         "data": {
-          "include_1": "Import community 1",
-          "slug_1": "Slug of community 1",
-          "include_2": "Import community 2",
-          "slug_2": "Slug of community 2",
-          "include_3": "Import community 3",
-          "slug_3": "Slug of community 3",
-          "include_4": "Import community 4",
-          "slug_4": "Slug of community 4",
-          "include_5": "Import community 5",
-          "slug_5": "Slug of community 5",
-          "include_6": "Import community 6",
-          "slug_6": "Slug of community 6",
-          "include_7": "Import community 7",
-          "slug_7": "Slug of community 7",
-          "include_8": "Import community 8",
-          "slug_8": "Slug of community 8",
-          "include_9": "Import community 9",
-          "slug_9": "Slug of community 9"
+          "communities": "Import",
+          "edit_slugs": "Change the slugs"
+        }
+      },
+      "community_slugs": {
+        "title": "Community slugs",
+        "description": "Slugs become part of the statistic ids and **can't be changed later**.\n\n{communities}",
+        "data": {
+          "slug_1": "Slug 1",
+          "slug_2": "Slug 2",
+          "slug_3": "Slug 3",
+          "slug_4": "Slug 4",
+          "slug_5": "Slug 5",
+          "slug_6": "Slug 6",
+          "slug_7": "Slug 7",
+          "slug_8": "Slug 8",
+          "slug_9": "Slug 9"
         }
       },
       "reauth_confirm": {
-        "title": "New EG Austria token",
-        "description": "The stored token was rejected or has expired. Paste a new personal token (recommended, see {readme_url}) or session cookie of the same member.",
+        "title": "Reconnect EG Austria",
+        "description": "The stored token was rejected or has expired.\n\n1. Log in to the member portal {portal_url} in your browser.\n2. Open the developer tools (F12) → Application (Firefox: Storage) → Cookies → portal.eg-austria.at.\n3. Copy the value of `portal.jwtToken` and paste it here.\n\nNext, Home Assistant offers to create a new access token. A personal token (`ecapi_…`) of the same member also works. More: {readme_url}",
         "data": {
-          "token": "Token"
+          "token": "Session cookie or token"
         }
       },
       "reconfigure": {
         "title": "Reconfigure EG Austria",
-        "description": "Optionally paste a new token before the current one expires (see {readme_url}). Leave empty to keep the stored token. Next you can change the metering points and add communities.",
+        "description": "This entry uses an access token that Home Assistant created.",
+        "menu_options": {
+          "reconfigure_token": "Change token, metering points or communities",
+          "revoke_token": "Revoke the access token"
+        }
+      },
+      "reconfigure_token": {
+        "title": "Reconfigure EG Austria",
+        "description": "Optionally paste a new session cookie (Home Assistant then offers to create a new access token) or a personal token (see {readme_url}). Leave empty to keep the stored token. A token Home Assistant created stays valid until it expires when you replace it; revoke it first if you no longer need it. Next you can change the metering points and add communities.",
         "data": {
-          "token": "New token (optional)"
+          "token": "New session cookie or token (optional)"
+        }
+      },
+      "revoke_token": {
+        "title": "Revoke the access token",
+        "description": "An access token can't revoke itself, so a fresh session cookie is needed.\n\n1. Log in to the member portal {portal_url} in your browser.\n2. Open the developer tools (F12) → Application (Firefox: Storage) → Cookies → portal.eg-austria.at.\n3. Copy the value of `portal.jwtToken` and paste it here.\n\nHome Assistant then revokes the token it created. Next you can create a new one or keep the session cookie. To stop the integration completely, delete the entry afterwards. More: {readme_url}",
+        "data": {
+          "token": "Session cookie"
         }
       },
       "reconfigure_location": {
@@ -105,26 +131,25 @@
       },
       "reconfigure_communities": {
         "title": "Energy communities",
-        "description": "Kept (slugs can't be changed):\n{kept}\n\nNo longer returned by the portal:\n{orphans}\n\nRetired slugs: {retired}\n\nNew communities:\n{new}\n\nTo keep the history of a community whose portal id changed, enter its old slug for the new row. Old slugs not reused are retired.",
+        "description": "Kept (slugs can't be changed):\n{kept}\n\nNo longer returned by the portal:\n{orphans}\n\nRetired slugs: {retired}\n\nTo keep the history of a community whose portal id changed, give the new community its old slug. Old slugs not reused are retired.",
         "data": {
-          "include_1": "Import community 1",
-          "slug_1": "Slug of community 1",
-          "include_2": "Import community 2",
-          "slug_2": "Slug of community 2",
-          "include_3": "Import community 3",
-          "slug_3": "Slug of community 3",
-          "include_4": "Import community 4",
-          "slug_4": "Slug of community 4",
-          "include_5": "Import community 5",
-          "slug_5": "Slug of community 5",
-          "include_6": "Import community 6",
-          "slug_6": "Slug of community 6",
-          "include_7": "Import community 7",
-          "slug_7": "Slug of community 7",
-          "include_8": "Import community 8",
-          "slug_8": "Slug of community 8",
-          "include_9": "Import community 9",
-          "slug_9": "Slug of community 9"
+          "communities": "Import new communities",
+          "edit_slugs": "Change the slugs"
+        }
+      },
+      "reconfigure_community_slugs": {
+        "title": "Community slugs",
+        "description": "Slugs become part of the statistic ids and **can't be changed later**. An old slug continues that community's history.\n\n{communities}",
+        "data": {
+          "slug_1": "Slug 1",
+          "slug_2": "Slug 2",
+          "slug_3": "Slug 3",
+          "slug_4": "Slug 4",
+          "slug_5": "Slug 5",
+          "slug_6": "Slug 6",
+          "slug_7": "Slug 7",
+          "slug_8": "Slug 8",
+          "slug_9": "Slug 9"
         }
       }
     },
@@ -143,7 +168,11 @@
       "no_community": "The selected metering points are in no energy community (or none is selected).",
       "invalid_slug": "Use 1-20 lower case letters, digits or `_`, starting with a letter.",
       "slug_in_use": "This site slug is already used by another entry.",
-      "duplicate_slug": "This slug is already used in this entry."
+      "duplicate_slug": "This slug is already used in this entry.",
+      "create_failed_auth": "The portal refused to create the access token.",
+      "create_failed_connect": "The portal could not be reached while creating the access token.",
+      "create_failed_response": "The portal answered the token request in an unexpected way.",
+      "session_cookie_required": "Paste a session cookie (`portal.jwtToken`); an access token can't revoke tokens."
     },
     "abort": {
       "already_configured": "This member and location are already configured.",
@@ -151,7 +180,8 @@
       "no_metering_points": "The location has no metering points.",
       "too_many_communities": "More energy communities than this version supports.",
       "reauth_successful": "The token was updated.",
-      "reconfigure_successful": "The entry was updated."
+      "reconfigure_successful": "The entry was updated.",
+      "token_revoked": "The access token was revoked and the entry updated."
     }
   },
   "options": {
