@@ -18,5 +18,6 @@ Forum references are `topic/post` on forum.eg-austria.at; `*` marks an EG Austri
 | [0010](0010-phasing.md) | Phasing: kWh, then money, then other setups | accepted |
 | [0011](0011-keep-live-energy-source.md) | Keep the live local meter as Energy dashboard source by default | accepted |
 | [0012](0012-statistic-scope-and-ids.md) | Statistic scope (site, community) and stable ids | accepted |
+| [0013](0013-setup-check.md) | Test the portal before setup: one GET, retry or reauth | accepted |
 
 Several records depend on the portal API as it was before the mandatory portal update of 2026-11-09. Each such record says so under "Depends on".

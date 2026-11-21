@@ -178,7 +178,8 @@ async def test_stored_values_right_after_setup(
         },
     )
     ids = entity_ids(hass, loaded)
-    assert not loaded.client.calls  # no run: the values come from the store
+    # Only the setup check (ADR 0013), no run: the values come from the store.
+    assert [c[0] for c in loaded.client.calls] == ["get_metering_points"]
     assert hass.states.get(ids["data_complete_until"]).state == "2026-06-05"
     assert hass.states.get(ids["last_import"]).state == last_success.isoformat()
     # No run since the restart: the status stays unknown.
@@ -206,7 +207,8 @@ async def test_run_status_survives_reload(
     ):
         assert await hass.config_entries.async_reload(loaded.entry.entry_id)
         await hass.async_block_till_done()
-    assert len(loaded.client.calls) == calls  # no run after the reload
+    # The setup check only, no run after the reload.
+    assert [c[0] for c in loaded.client.calls[calls:]] == ["get_metering_points"]
     assert loaded.coordinator.data is None
     assert hass.states.get(ids["last_run_status"]).state == "unavailable"
 

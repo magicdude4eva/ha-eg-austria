@@ -256,6 +256,9 @@
     }
   },
   "exceptions": {
+    "auth_failed": {
+      "message": "Das EG-Austria-Portal hat das Token abgelehnt. Bitte den Eintrag neu authentifizieren."
+    },
     "entry_not_found": {
       "message": "Kein EG-Austria-Eintrag mit dieser ID."
     },
@@ -264,6 +267,12 @@
     },
     "invalid_range": {
       "message": "Das Startdatum darf nicht nach dem Enddatum liegen, und das Enddatum nicht in der Zukunft."
+    },
+    "portal_maintenance": {
+      "message": "Das EG-Austria-Portal ist in einem angekündigten Wartungsfenster. Die Einrichtung wird später wiederholt."
+    },
+    "portal_unavailable": {
+      "message": "Das EG-Austria-Portal ist nicht erreichbar. Die Einrichtung wird später wiederholt."
     },
     "range_too_long": {
       "message": "Ein Neuabruf umfasst höchstens {days} Tage."

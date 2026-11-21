@@ -34,10 +34,18 @@ from pytest_homeassistant_custom_component.components.recorder.common import (
 from custom_components.eg_austria.config_flow import default_options
 from custom_components.eg_austria.const import DOMAIN
 from custom_components.eg_austria.coordinator import entry_store
+from custom_components.eg_austria.exceptions import (
+    ApiChangedError,
+    AuthError,
+    ForbiddenError,
+    PortalUnavailableError,
+    RateLimitedError,
+    SchemaError,
+)
 from custom_components.eg_austria.importer import RunStatus, RunType
 from custom_components.eg_austria.statistics import local_day_start
 
-from .conftest import FakeClient, entry_data
+from .conftest import FakeClient, entry_data, load_fixture
 
 NOW = datetime(2026, 6, 8, 4, 0, tzinfo=UTC)
 TODAY = date(2026, 6, 8)
@@ -171,7 +179,8 @@ async def test_setup_initial_import_unload_reload(
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
-    assert client.calls == []  # setup never fetches
+    # Setup checks the portal with one request (ADR 0013), nothing more.
+    assert [c[0] for c in client.calls] == ["get_metering_points"]
     kwargs = patched.call_args.kwargs
     assert kwargs["token_exp"] == entry.data["token_exp"]
 
@@ -212,7 +221,8 @@ async def test_setup_initial_import_unload_reload(
     assert await hass.config_entries.async_setup(entry.entry_id)
     await move(hass, env, minutes=20)
     assert entry.state is ConfigEntryState.LOADED
-    assert len(client.calls) == calls  # recent success: no startup run
+    # The setup check only; recent success: no startup run.
+    assert [c[0] for c in client.calls[calls:]] == ["get_metering_points"]
     assert entry.runtime_data.state.initial_done
 
     await hass.config_entries.async_remove(entry.entry_id)
@@ -232,6 +242,121 @@ async def test_setup_expired_token_starts_reauth(
     patched.assert_not_called()
     flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
     assert [f["context"]["source"] for f in flows] == ["reauth"]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        PortalUnavailableError("request timed out", retryable=True),
+        PortalUnavailableError("HTTP 503", status=503),
+        RateLimitedError("HTTP 429"),
+    ],
+)
+async def test_setup_portal_down_retries(
+    hass: HomeAssistant,
+    env: Any,
+    patched: MagicMock,
+    client: FakeClient,
+    error: Exception,
+) -> None:
+    """Unreachable, 5xx or 429 at setup: ConfigEntryNotReady (issue #36)."""
+
+    client.errors["get_metering_points"] = error
+    entry = add_entry(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert entry.error_reason_translation_key == "portal_unavailable"
+    assert [c[0] for c in client.calls] == ["get_metering_points"]
+    assert not hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+
+
+async def test_setup_check_timeout_retries(
+    hass: HomeAssistant, env: Any, patched: MagicMock, client: FakeClient
+) -> None:
+    """The setup bound expiring (``TimeoutError``): ConfigEntryNotReady."""
+
+    client.errors["get_metering_points"] = TimeoutError()
+    entry = add_entry(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert entry.error_reason_translation_key == "portal_unavailable"
+
+
+@pytest.mark.parametrize("error", [AuthError("HTTP 401"), ForbiddenError("HTTP 403")])
+async def test_setup_rejected_token_starts_reauth(
+    hass: HomeAssistant,
+    env: Any,
+    patched: MagicMock,
+    client: FakeClient,
+    error: Exception,
+) -> None:
+    """401/403 at setup: ConfigEntryAuthFailed, reauth starts."""
+
+    client.errors["get_metering_points"] = error
+    entry = add_entry(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert entry.error_reason_translation_key == "auth_failed"
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert [f["context"]["source"] for f in flows] == ["reauth"]
+
+
+async def test_setup_during_maintenance_retries(
+    hass: HomeAssistant,
+    env: FrozenDateTimeFactory,
+    patched: MagicMock,
+    client: FakeClient,
+) -> None:
+    """Non-JSON answer in an announced window: ConfigEntryNotReady."""
+
+    env.move_to(datetime(2026, 6, 8, 3, 15, tzinfo=UTC))  # window 01-03 + margin
+    client.errors["get_metering_points"] = ApiChangedError("unexpected content type")
+    client.maintenance_raw = load_fixture("maintenance_active.json")
+    entry = add_entry(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert entry.error_reason_translation_key == "portal_maintenance"
+    assert [c[0] for c in client.calls] == ["get_metering_points", "get_maintenance"]
+
+
+async def test_setup_maintenance_check_unreachable_retries(
+    hass: HomeAssistant, env: Any, patched: MagicMock, client: FakeClient
+) -> None:
+    """The maintenance lookup after a non-JSON answer fails too: retry."""
+
+    client.errors["get_metering_points"] = ApiChangedError("invalid JSON")
+    client.errors["get_maintenance"] = PortalUnavailableError("HTTP 502", status=502)
+    entry = add_entry(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert entry.error_reason_translation_key == "portal_unavailable"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ApiChangedError("invalid JSON"),  # no maintenance announced
+        ApiChangedError("HTTP 404", status=404),
+        SchemaError("S2", "memberMeteringpoints", "missing"),
+    ],
+)
+async def test_setup_changed_api_still_loads(
+    hass: HomeAssistant,
+    env: Any,
+    patched: MagicMock,
+    client: FakeClient,
+    error: Exception,
+) -> None:
+    """A changed API is left to the run (api_changed repair), not to setup."""
+
+    client.errors["get_metering_points"] = error
+    entry = add_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
 
 
 async def test_unload_during_run_writes_nothing(
@@ -351,7 +476,7 @@ async def test_refetch_service_validation(
             blocking=True,
         )
     assert err.value.translation_key == key
-    assert client.calls == []
+    assert [c[0] for c in client.calls] == ["get_metering_points"]  # setup only
 
 
 async def test_refetch_range_too_long(
@@ -377,7 +502,7 @@ async def test_refetch_range_too_long(
         )
     assert err.value.translation_key == "range_too_long"
     assert err.value.translation_placeholders == {"days": "400"}
-    assert client.calls == []
+    assert [c[0] for c in client.calls] == ["get_metering_points"]  # setup only
 
 
 async def test_services_need_a_loaded_entry(
