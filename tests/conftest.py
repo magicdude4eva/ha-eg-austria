@@ -4,12 +4,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+import importlib.util
 import json
+import logging
 from pathlib import Path
+import secrets
+import sys
 from typing import Any
 
 from multidict import CIMultiDict
 import pytest
+
+from custom_components.eg_austria.api import MIN_INTERVAL
+from custom_components.eg_austria.models import (
+    parse_analysis,
+    parse_day_completeness,
+    parse_maintenance,
+    parse_metering_points,
+    parse_version,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -18,6 +31,12 @@ FIXTURES = Path(__file__).parent / "fixtures"
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Let Home Assistant load integrations from custom_components/."""
     return
+
+
+@pytest.fixture(autouse=True)
+def quiet_sqlalchemy() -> None:
+    """Undo the plugin's SQL echo logging (thousands of rows per import run)."""
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
 
 def load_fixture(name: str) -> Any:
@@ -137,3 +156,145 @@ def mock_portal() -> FakePortal:
     """Fake portal session; nothing reaches the network."""
 
     return FakePortal()
+
+
+# ---------------------------------------------------------------------------
+# S5: client double for coordinator and integration tests
+
+
+def _generator() -> Any:
+    """Return ``tests/fixtures/generate.py`` as a module (loaded once)."""
+
+    name = "fixture_generate"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, FIXTURES / "generate.py")
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+class FakeClient:
+    """Stands in for ``EgAustriaClient`` (same public methods, no HTTP).
+
+    ``analysis-data`` and ``day-completeness`` come from the fixture generator
+    for whatever range is asked, so any window can be tested. Knobs:
+
+    * ``incomplete``: days flagged incomplete (and community-incomplete);
+    * ``meter_missing``: days with meter values ``0`` + faulty flag;
+    * ``future_from``: completeness null from this day on;
+    * ``errors``: method name → exception raised on every call;
+    * ``mutate``: ``fn(raw, aggregation, start, end, community_id)`` returning
+      the raw response to parse (for bad-data cases);
+    * ``before``: awaited before every request (concurrency/unload tests).
+    """
+
+    def __init__(self) -> None:
+        """Start with normal synthetic data."""
+
+        self.gen = _generator()
+        self.calls: list[tuple[str, tuple[Any, ...]]] = []
+        self.request_count = 0
+        self.min_interval = MIN_INTERVAL
+        self.intervals: list[float] = []
+        self.maintenance_raw: Any = None
+        self.version_raw: Any = load_fixture("version_a.json")
+        self.mp_raw: Any = load_fixture("metering_point_single.json")
+        self.incomplete: set[Any] = set()
+        self.meter_missing: set[Any] = set()
+        self.future_from: Any = None
+        self.errors: dict[str, BaseException] = {}
+        self.mutate: Any = None
+        self.before: Any = None
+
+    async def _call(self, name: str, *args: Any) -> None:
+        self.calls.append((name, args))
+        self.request_count += 1
+        self.intervals.append(self.min_interval)
+        if self.before is not None:
+            await self.before(name)
+        if name in self.errors:
+            raise self.errors[name]
+
+    def analysis_calls(self, aggregation: str | None = None) -> list[tuple[Any, ...]]:
+        """Arguments of every ``get_analysis`` call (optionally one aggregation)."""
+        return [
+            a
+            for n, a in self.calls
+            if n == "get_analysis" and (aggregation is None or a[1] == aggregation)
+        ]
+
+    async def get_maintenance(self) -> Any:
+        """Return the parsed maintenance list."""
+
+        await self._call("get_maintenance")
+        return parse_maintenance(self.maintenance_raw)
+
+    async def get_version(self) -> Any:
+        """Return the parsed version."""
+
+        await self._call("get_version")
+        return parse_version(self.version_raw)
+
+    async def get_metering_points(self, member: str) -> Any:
+        """Return the parsed metering points."""
+
+        await self._call("get_metering_points", member)
+        return parse_metering_points(self.mp_raw)
+
+    async def get_day_completeness(
+        self, member: str, start: Any, end: Any, cids: Any, mps: Any
+    ) -> Any:
+        """Return generated completeness for the range."""
+
+        await self._call("get_day_completeness", member, start, end, cids, mps)
+        raw = self.gen.completeness(start, end, self.incomplete, self.future_from)
+        return parse_day_completeness(raw)
+
+    async def get_analysis(
+        self, member: str, aggregation: Any, start: Any, end: Any, cids: Any, mps: Any
+    ) -> Any:
+        """Return generated analysis-data for one community and range."""
+
+        await self._call("get_analysis", member, str(aggregation), start, end, cids)
+        assert len(cids) == 1, "one community per request (spec 03)"
+        scenario = self.gen.Scenario(
+            start,
+            end,
+            cids[0],
+            aggregation=str(aggregation),
+            community_incomplete=set(self.incomplete),
+            meter_missing=set(self.meter_missing),
+        )
+        raw = self.gen.analysis(scenario)
+        if self.mutate is not None:
+            raw = self.mutate(raw, str(aggregation), start, end, cids[0])
+        return parse_analysis(raw)
+
+
+ENTRY_DATA_BASE: dict[str, Any] = {
+    "token_kind": "personal",
+    "member_number": "9000001",
+    "location_id": "5001",
+    "mp_ids": [1001, 1002],
+    "communities": [
+        {"id": 2001, "slug": "beg", "name": "Example BEG"},
+        {"id": 2002, "slug": "eeg", "name": "Example EEG"},
+    ],
+    "retired_slugs": [],
+    "site_slug": "home",
+    "run_minute": 240,
+}
+
+
+def entry_data(token_exp: int, **overrides: Any) -> dict[str, Any]:
+    """Config entry data with a random synthetic personal token."""
+
+    return {
+        **ENTRY_DATA_BASE,
+        "token": "ecapi_" + secrets.token_hex(24),
+        "token_exp": token_exp,
+        **overrides,
+    }
