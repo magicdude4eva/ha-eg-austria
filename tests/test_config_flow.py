@@ -116,8 +116,18 @@ class FakeClient:
 
 
 @pytest.fixture(autouse=True)
+def mock_recorder_before_hass(async_test_recorder) -> None:
+    """Prepare the recorder before ``hass`` (manifest dependency since S4)."""
+
+
+@pytest.fixture(autouse=True)
+def recorder(recorder_mock) -> None:
+    """Run every flow test with the test recorder (flow init sets up deps)."""
+
+
+@pytest.fixture(autouse=True)
 def fake_client():
-    """Patch the client and the session factory of the config flow."""
+    """Patch the client, the session factory and entry setup."""
 
     FakeClient.session = parse_session(load_fixture("session_one_member.json"))
     FakeClient.mp = parse_metering_points(load_fixture("metering_point_single.json"))
@@ -126,9 +136,14 @@ def fake_client():
     FakeClient.instances = []
     portal_session = MagicMock()
     portal_session.close = AsyncMock()
+    # Flow tests stop at the entry: no setup (which needs the recorder, S4).
     with (
         patch.object(cf, "EgAustriaClient", FakeClient),
         patch.object(cf, "create_portal_session", return_value=portal_session),
+        patch(
+            "homeassistant.config_entries.ConfigEntries.async_setup",
+            AsyncMock(return_value=True),
+        ),
     ):
         yield portal_session
 
