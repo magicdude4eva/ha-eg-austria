@@ -45,8 +45,13 @@ class EgSensorDescription(SensorEntityDescription):
 
 
 def _run_status(coordinator: EgAustriaCoordinator) -> str | None:
+    """Return the last run's status; after a restart the stored one (issue #29)."""
+
     summary = coordinator.data
-    return summary.status.value if summary is not None else None
+    status = (
+        summary.status if summary is not None else coordinator.state.last_run_status
+    )
+    return status.value if status is not None else None
 
 
 def _portal_version(coordinator: EgAustriaCoordinator) -> str | None:

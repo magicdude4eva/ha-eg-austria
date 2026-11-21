@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.const import STATE_UNKNOWN, EntityCategory
@@ -175,3 +175,29 @@ async def test_stored_values_right_after_setup(
     assert hass.states.get(ids["last_import"]).state == last_success.isoformat()
     # No run since the restart: the status stays unknown.
     assert hass.states.get(ids["last_run_status"]).state == STATE_UNKNOWN
+
+
+async def test_run_status_survives_reload(
+    hass: HomeAssistant, loaded: LoadedEntry
+) -> None:
+    """The stored status shows after a reload, before any new run (#29)."""
+
+    ids = entity_ids(hass, loaded)
+    loaded.client.errors["get_maintenance"] = PortalUnavailableError("timeout")
+    await loaded.coordinator.async_run(RunRequest(RunType.DAILY))
+    await loaded.coordinator.async_flush()
+    calls = len(loaded.client.calls)
+    with (
+        patch(
+            "custom_components.eg_austria.EgAustriaClient", return_value=loaded.client
+        ),
+        patch(
+            "custom_components.eg_austria.get_portal_session",
+            return_value=MagicMock(close=AsyncMock()),
+        ),
+    ):
+        assert await hass.config_entries.async_reload(loaded.entry.entry_id)
+        await hass.async_block_till_done()
+    assert len(loaded.client.calls) == calls  # no run after the reload
+    assert loaded.coordinator.data is None
+    assert hass.states.get(ids["last_run_status"]).state == "unavailable"

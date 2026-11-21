@@ -764,6 +764,7 @@ def test_store_round_trip() -> None:
         complete_until=date(2026, 6, 6),
         initial_done=True,
         rate_limited=True,
+        last_run_status=RunStatus.PARTIAL,
     )
     assert StoreData.from_dict(state.as_dict()) == state
     broken = StoreData.from_dict(
@@ -772,9 +773,15 @@ def test_store_round_trip() -> None:
             "consecutive_failure_days": "x",
             "held_days": {"k": ["no-date", None]},
             "complete_until": "2026-13-01",
+            "last_run_status": "no-status",
         }
     )
     assert broken == StoreData()
+    # A store written before issue #29 has no status: unknown, the rest loads.
+    old = StoreData.from_dict({"initial_done": True, "last_success": NOW.isoformat()})
+    assert old.last_run_status is None
+    assert old.initial_done
+    assert old.last_success == NOW
     assert StoreData.from_dict(None) == StoreData()
 
 

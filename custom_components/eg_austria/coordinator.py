@@ -116,6 +116,13 @@ def _d(value: Any) -> date | None:
     return dt_util.parse_date(value) if isinstance(value, str) else None
 
 
+def _status(value: Any) -> RunStatus | None:
+    try:
+        return RunStatus(value) if isinstance(value, str) else None
+    except ValueError:
+        return None
+
+
 def _days_map(value: Any) -> dict[str, list[date]]:
     out: dict[str, list[date]] = {}
     if isinstance(value, dict):
@@ -141,6 +148,7 @@ class StoreData:
     complete_until: date | None = None
     initial_done: bool = False
     rate_limited: bool = False
+    last_run_status: RunStatus | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any] | None) -> StoreData:
@@ -160,6 +168,7 @@ class StoreData:
             complete_until=_d(raw.get("complete_until")),
             initial_done=bool(raw.get("initial_done")),
             rate_limited=bool(raw.get("rate_limited")),
+            last_run_status=_status(raw.get("last_run_status")),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -183,6 +192,9 @@ class StoreData:
             "complete_until": iso(self.complete_until),
             "initial_done": self.initial_done,
             "rate_limited": self.rate_limited,
+            "last_run_status": (
+                self.last_run_status.value if self.last_run_status else None
+            ),
         }
 
 
@@ -732,6 +744,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
 
         today = local_today(summary.started)
         self.state.rate_limited = summary.status is RunStatus.RATE_LIMITED
+        self.state.last_run_status = summary.status
         if summary.success:
             self.state.last_success = summary.finished
             self.state.consecutive_failure_days = 0
