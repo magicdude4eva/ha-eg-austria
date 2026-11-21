@@ -562,12 +562,16 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         now = dt_util.utcnow()
         if self._token_expired(now):
             # ADR 0007: past the stored expiry, no request is made.
-            raise ConfigEntryAuthFailed("token expired")
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN, translation_key="token_expired"
+            )
         setup = self._entry_setup()
         try:
             await self._async_execute_inner(request, summary, setup, now)
         except AuthError as err:
-            raise ConfigEntryAuthFailed("authentication failed") from err
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN, translation_key="auth_failed"
+            ) from err
         except RunAborted as err:
             summary.status = RunStatus.API_CHANGED
             summary.validation = err.validation

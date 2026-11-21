@@ -111,7 +111,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) ->
     exp = entry.data.get(CONF_TOKEN_EXP)
     if isinstance(exp, int | float) and dt_util.utcnow().timestamp() >= exp:
         # ADR 0007: past the stored expiry nothing is sent; start reauth.
-        raise ConfigEntryAuthFailed("token expired")
+        raise ConfigEntryAuthFailed(
+            translation_domain=DOMAIN, translation_key="token_expired"
+        )
 
     client = EgAustriaClient(
         get_portal_session(hass),
