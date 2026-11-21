@@ -7,7 +7,8 @@ Thanks for helping. Please read this before opening an issue or pull request.
 This is a public repository about a service that holds personal energy and
 billing data. **Nothing private may ever be committed, attached or pasted**:
 
-- no portal tokens or cookies (JWTs), not even expired ones;
+- no portal tokens or cookies (JWTs or personal `ecapi_…` tokens), not even
+  expired or revoked ones;
 - no member numbers, location, community or metering point ids, and no real
   metering point numbers (`AT…`);
 - no names, addresses, emails (other than GitHub noreply or `example.*`),
@@ -23,7 +24,8 @@ ids from the test plan (member `9000001`, metering points `1001`/`1002`,
 ### Privacy guard
 
 `scripts/privacy_guard.py` runs as a pre-commit hook (files and commit
-message) and in CI. It fails on JWT-like strings, non-synthetic metering point
+message) and in CI. It fails on JWT-like strings, portal personal access
+tokens (`ecapi_…`), non-synthetic metering point
 numbers, non-noreply/example emails, forbidden file types, and on entries of an
 optional **private denylist kept outside the repository**:
 

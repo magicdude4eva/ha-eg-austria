@@ -21,6 +21,7 @@ JWT = "ey" + "J" + "hbGciOiJIUzI1NiJ9." + "eyJzdWIiOiIxIn0." + "c2lnbmF0dXJlXzEy
 REAL_MP = "A" + "T" + "007000" + "9" * 25
 SYNTH_MP = "A" + "T" + "0" * 27 + "1001"
 BAD_EMAIL = "someone" + "@" + "mail.example-isp.at"
+PAT = "eca" + "pi_" + "0123456789abcdef" * 4
 
 
 def rules(text: str, deny: list[str] | None = None) -> list[str]:
@@ -31,6 +32,19 @@ def rules(text: str, deny: list[str] | None = None) -> list[str]:
 def test_jwt_detected() -> None:
     """JWT-shaped strings fail."""
     assert rules(f"cookie: portal.jwtToken={JWT}") == ["jwt"]
+
+
+def test_personal_token_detected() -> None:
+    """Portal personal access tokens fail, also inside a header line."""
+    assert rules(f"Authorization: Bearer {PAT}") == ["api-token"]
+    assert rules(PAT.upper()) == ["api-token"]
+
+
+def test_personal_token_prefix_in_docs_allowed() -> None:
+    """Docs may name the prefix and pattern without a token value."""
+    prefix = "eca" + "pi_"
+    assert rules(f"starts with `{prefix}`, rest `[a-z0-9_]`") == []
+    assert rules(f"`{prefix}…`") == []
 
 
 def test_metering_point_real_vs_synthetic() -> None:
