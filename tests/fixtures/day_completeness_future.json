@@ -1,0 +1,52 @@
+[
+ {
+  "date": "2026-06-01",
+  "consumptionComplete": true,
+  "generationComplete": true
+ },
+ {
+  "date": "2026-06-02",
+  "consumptionComplete": true,
+  "generationComplete": true
+ },
+ {
+  "date": "2026-06-03",
+  "consumptionComplete": true,
+  "generationComplete": true
+ },
+ {
+  "date": "2026-06-04",
+  "consumptionComplete": true,
+  "generationComplete": true
+ },
+ {
+  "date": "2026-06-05",
+  "consumptionComplete": true,
+  "generationComplete": true
+ },
+ {
+  "date": "2026-06-06",
+  "consumptionComplete": true,
+  "generationComplete": true
+ },
+ {
+  "date": "2026-06-07",
+  "consumptionComplete": false,
+  "generationComplete": false
+ },
+ {
+  "date": "2026-06-08",
+  "consumptionComplete": null,
+  "generationComplete": null
+ },
+ {
+  "date": "2026-06-09",
+  "consumptionComplete": null,
+  "generationComplete": null
+ },
+ {
+  "date": "2026-06-10",
+  "consumptionComplete": null,
+  "generationComplete": null
+ }
+]

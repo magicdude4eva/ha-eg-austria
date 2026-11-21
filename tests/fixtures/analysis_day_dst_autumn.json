@@ -1,0 +1,60 @@
+{
+ "totalConsumption": 14.95,
+ "totalConsumptionByFactor": 7.475,
+ "totalConsumptionFromCommunity": 2.99,
+ "totalConsumptionFromCommunityPercent": 20,
+ "totalConsumptionInExcess": 10.465,
+ "totalConsumptionInExcessByFactor": 0,
+ "totalActualConsumptionPartFactor": 50,
+ "totalGeneration": 6.278,
+ "totalGenerationByFactor": 3.139,
+ "totalGenerationToCommunity": 1.884,
+ "totalGenerationToCommunityPercent": 30.01,
+ "totalGenerationInExcess": 2.826,
+ "totalGenerationInExcessByFactor": 0,
+ "totalActualGenerationPartFactor": 50,
+ "totalConsumptionComplete": 14.95,
+ "totalConsumptionByFactorComplete": 7.475,
+ "totalActualConsumptionPartFactorComplete": 50,
+ "totalConsumptionFromCommunityComplete": 2.99,
+ "totalConsumptionInExcessComplete": 10.465,
+ "totalConsumptionFromCommunityPercentComplete": null,
+ "totalConsumptionEnergyMix": {
+  "sun": 61.5,
+  "wind": 20,
+  "water": 13.5,
+  "other": 5
+ },
+ "totalConsumptionEnergyMixComplete": {
+  "sun": 61.5,
+  "wind": 20,
+  "water": 13.5,
+  "other": 5
+ },
+ "totalGenerationComplete": 6.278,
+ "totalGenerationByFactorComplete": 3.139,
+ "totalActualGenerationPartFactorComplete": 50,
+ "totalGenerationToCommunityComplete": 1.884,
+ "totalGenerationInExcessComplete": 2.826,
+ "totalGenerationToCommunityPercentComplete": null,
+ "consumptionFaulty": false,
+ "consumptionByFactorFaulty": false,
+ "consumptionFromCommunityFaulty": false,
+ "consumptionInExcessFaulty": false,
+ "consumptionInExcessByFactorFaulty": false,
+ "generationFaulty": false,
+ "generationByFactorFaulty": false,
+ "generationToCommunityFaulty": false,
+ "generationInExcessFaulty": false,
+ "generationInExcessByFactorFaulty": false,
+ "totalEarnings": 0.207,
+ "totalSpendings": 0.269,
+ "totalEarningsComplete": 0.207,
+ "totalSpendingsComplete": 0.269,
+ "consumptionDataPoints": [
+  {"dateTimeFrom": "2026-10-24T22:00:00.000Z", "dateTimeFromLocal": "2026-10-25T00:00:00.000Z", "date": "25.10.26 00:00", "energyMix": {"sun": 61.5, "wind": 20, "water": 13.5, "other": 5}, "energyMixComplete": {"sun": 61.5, "wind": 20, "water": 13.5, "other": 5}, "consumption": 14.95, "consumptionByFactor": 7.475, "consumptionFromCommunity": 2.99, "consumptionFromCommunityPercent": 20, "consumptionInExcess": 10.465, "actualConsumptionPartFactor": 50, "consumptionComplete": 14.95, "consumptionByFactorComplete": 7.475, "consumptionFromCommunityComplete": 2.99, "consumptionInExcessComplete": 10.465, "consumptionFromCommunityPercentComplete": null, "actualConsumptionPartFactorComplete": null, "consumptionFaulty": false, "consumptionByFactorFaulty": false, "consumptionFromCommunityFaulty": false, "spendings": 0.269, "spendingsComplete": 0.269}
+ ],
+ "generationDataPoints": [
+  {"dateTimeFrom": "2026-10-24T22:00:00.000Z", "dateTimeFromLocal": "2026-10-25T00:00:00.000Z", "date": "25.10.26 00:00", "generation": 6.278, "generationByFactor": 3.139, "generationToCommunity": 1.884, "generationToCommunityPercent": 30.01, "generationInExcess": 2.826, "actualGenerationPartFactor": 50, "generationComplete": 6.278, "generationByFactorComplete": 3.139, "generationToCommunityComplete": 1.884, "generationInExcessComplete": 2.826, "generationToCommunityPercentComplete": null, "actualGenerationPartFactorComplete": null, "generationFaulty": false, "generationByFactorFaulty": false, "generationToCommunityFaulty": false, "earnings": 0.207, "earningsComplete": 0.207}
+ ]
+}

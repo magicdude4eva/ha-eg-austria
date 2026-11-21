@@ -1,0 +1,6 @@
+{
+ "email": "member@example.invalid",
+ "members": [
+  {"memberId": "9000001", "displayName": "Example Member", "mustAcceptPlatformTerms": false}
+ ]
+}

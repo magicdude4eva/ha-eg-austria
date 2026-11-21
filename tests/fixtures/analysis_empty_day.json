@@ -1,0 +1,16 @@
+{
+ "totalConsumption": null,
+ "totalConsumptionFromCommunity": null,
+ "totalConsumptionInExcess": null,
+ "totalGeneration": null,
+ "totalGenerationToCommunity": null,
+ "totalGenerationInExcess": null,
+ "consumptionFaulty": false,
+ "consumptionFromCommunityFaulty": false,
+ "consumptionInExcessFaulty": false,
+ "generationFaulty": false,
+ "generationToCommunityFaulty": false,
+ "generationInExcessFaulty": false,
+ "consumptionDataPoints": [],
+ "generationDataPoints": []
+}

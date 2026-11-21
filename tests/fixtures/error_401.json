@@ -1,0 +1,11 @@
+{
+ "type": "about:blank",
+ "title": "Nicht autorisiert",
+ "status": 401,
+ "error": "Unauthorized",
+ "detail": "Access token revoked",
+ "instance": "/api/v1/portal/member/9000001/analysis-data?energyCommunityIds=2001&mpIds=1001",
+ "traceId": "00000000000000000000000000000003",
+ "statusCode": 401,
+ "message": "Access token revoked"
+}
