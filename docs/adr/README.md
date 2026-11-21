@@ -7,12 +7,12 @@ Forum references are `topic/post` on forum.eg-austria.at; `*` marks an EG Austri
 | # | Decision | Status |
 |---|---|---|
 | [0001](0001-custom-integration.md) | Custom integration, not an add-on or REST sensors | accepted |
-| [0002](0002-read-only-get-whitelist.md) | Read-only: a whitelist of GET endpoints | accepted |
+| [0002](0002-read-only-get-whitelist.md) | Read-only: a whitelist of GET endpoints (token create/revoke only in the config flow) | accepted |
 | [0003](0003-external-statistics-overwrite.md) | External statistics, overwritten on re-fetch | accepted |
 | [0004](0004-fetch-window.md) | Fetch window: completeness-driven, at least 2 months, periodic 13-month re-fetch, Hour aggregation, maintenance-aware | accepted |
 | [0005](0005-unknown-not-zero.md) | Null or incomplete data is unknown, never zero | accepted |
 | [0006](0006-fail-safe-validation.md) | Fail-safe validation and repairs | accepted |
-| [0007](0007-token-handling.md) | Token handling: personal access token preferred, session JWT as fallback; expiry warning | accepted |
+| [0007](0007-token-handling.md) | Token handling: the config flow creates a personal access token from the session cookie after consent (session JWT as fallback); expiry warning | accepted |
 | [0008](0008-provisional-settled-money.md) | Provisional vs settled money, Zero derived monthly | proposed (phase 2) |
 | [0009](0009-tariffs-dated-config.md) | Tariffs as dated configuration | proposed (phase 2) |
 | [0010](0010-phasing.md) | Phasing: kWh, then money, then other setups | accepted |

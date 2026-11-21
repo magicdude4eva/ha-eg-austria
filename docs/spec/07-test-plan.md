@@ -74,6 +74,7 @@ A fixture generator option (`--csv`) may write matching synthetic CSVs so the cr
 6. Request spacing ≥ 2 s (time patched).
 7. Hour range > 31 days raises before any request.
 8. Logs never contain the token, member number or ids (caplog scan).
+8a. Token module (`test_token_api.py`, ADR 0007): whitelist is exactly `POST portal-session/token` and `DELETE portal-session/token/{id}`; only `config_flow.py` imports `token_api` (source scan of the package); create sends one POST with the cookie (no Bearer), JSON `{name, expiresAt}` and no retry on timeout or 503; response validation (missing or malformed `token`, bool or bad `id`, `expiresAt` missing, naive or in the past, `revokedAt` set, non-JSON, list body) → `SchemaError`/`ApiChangedError`; status mapping (401/403/404/422/500); revoke sends one DELETE to the id path, 200/204/404 succeed, bad ids raise before sending; the created token never appears in logs or `repr`. Fixtures are built in the test (`ecapi_` + random hex), never copied.
 
 ### Models (`test_models.py`)
 
@@ -118,12 +119,14 @@ S5 tests use `FakeClient` (`tests/conftest.py`): the client's public methods, wi
 
 The flow uses the shared portal session and never closes it (issue #17); `test_api.py` checks that `get_portal_session()` returns the same session until Home Assistant has closed it.
 
-31. Token parsing variants: personal token (with whitespace, quotes), JWT raw, `portal.jwtToken=...; Path=/`, quotes, whitespace; kind detection; personal token requires a future `token_expires`.
+31. Token parsing variants: personal token (with whitespace, quotes), JWT raw, `portal.jwtToken=...; Path=/`, quotes, whitespace; kind detection; a pasted personal token requires a future `token_expires`.
+31a. Token creation (issue #18): a session cookie leads to `create_token` after the online check; `create_token_confirm` sends exactly one create with the cookie and stores only the returned token, kind `personal`, `token_exp` = `expiresAt` and `token_id` (the cookie appears nowhere in the entry); no `token_expiry` step; each create error shows `create_failed` with its error and continues with the cookie (no second create); `use_session` keeps the cookie; the 7-day notice only with the cookie kept. Reauth with a cookie creates a token the same way. A pasted `ecapi_` token still works and stores no `token_id`.
+31b. Revoke (issue #18): the reconfigure menu only appears with a stored `token_id`; `revoke_token` refuses a personal token, checks the member, sends exactly one revoke with the stored id, maps errors without changing the entry, and then offers `create_token` (new token stored, or the cookie kept with `token_id` removed).
 32. Errors: bad format, expired, invalid auth, cannot connect, api changed.
-33. Single location auto-selected; two locations → select; metering point multi-select; slug validation and uniqueness.
+33. Single location auto-selected; two locations → select; metering point multi-select with full number, facility name, `sourceOfProduction` and part factors in the labels (#19); communities multi-select labelled per community with the default slug, `edit_slugs` → `community_slugs` (#20); slug validation and uniqueness.
 34. Duplicate entry aborts.
 35. Reauth success updates token, kind and expiry and clears `token_expiring` (session → personal switch included); wrong account error (member missing, or 403); a revoked token (401) in the reauth form shows `invalid_auth`. That a 401 during a run starts reauth (`ConfigEntryAuthFailed`) is tested with the coordinator in S5 (case 22-30 range).
-36. Reconfigure adds a community, existing slugs read-only; a changed community id is remapped to its old slug, an unmapped one is retired; the location can be remapped; a new token is checked like reauth.
+36. Reconfigure adds a community (multi-select, optional slug step), existing slugs read-only and an entry made before S7b keeps its data and slugs; a changed community id is remapped to its old slug, an unmapped one is retired; the location can be remapped; a new token is checked like reauth.
 
 ### Repairs, entities, diagnostics (`test_repairs.py`, `test_sensor.py`, `test_diagnostics.py`)
 
@@ -131,7 +134,7 @@ S6 tests set up a real entry with the client factory patched to `FakeClient` (`c
 
 37. Each issue created and cleared on its condition: `token_expiring` at setup for both kinds, by the timer when the period starts, not again after a new token, timer cancelled on unload; auth failure → core reauth and none of the integration's issues; `api_changed` (stays during an unreachable run, cleared by a valid run) and its `stale_client` text; `implausible_data` cleared by a clean run and by `release_held` once nothing is held; `portal_unreachable` on the third day, cleared by a success; maintenance raises nothing; removing the entry deletes the issues.
 38. Sensor values before and after a run (and after a failed run); diagnostic category, one service device, `portal_version` disabled by default, its value when enabled.
-39. Diagnostics redaction: a session JWT carrying the email, fixtures with every sensitive key, unknown keys and a maintenance title with sensitive values, an error message that slipped past the client's redaction; assert none of the synthetic sensitive strings (token and its parts, email, member number, ids, metering point numbers, names, address) appears anywhere in the output or in the logs. Also: `redact_tree()`, `schema_fingerprint()` (and the client recording it), `jwt_issued_at()`, statistics first/last hour, an entry that is not loaded.
+39. Diagnostics redaction: a session JWT carrying the email, a created token with its `token_id`, fixtures with every sensitive key, unknown keys and a maintenance title with sensitive values, an error message that slipped past the client's redaction; assert none of the synthetic sensitive strings (token and its parts, email, member number, ids, metering point numbers, names, address) appears anywhere in the output or in the logs. Also: `redact_tree()`, `schema_fingerprint()` (and the client recording it), `jwt_issued_at()`, statistics first/last hour, an entry that is not loaded.
 
 ### Integration (`test_init.py`)
 

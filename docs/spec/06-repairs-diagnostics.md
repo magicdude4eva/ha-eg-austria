@@ -8,7 +8,7 @@ Created with `issue_registry.async_create_issue(hass, DOMAIN, f"{issue}_{entry_i
 
 | Issue | Severity | Created when | Cleared when | Fixable |
 |---|---|---|---|---|
-| `token_expiring` | warning | now ≥ `token_exp − 7 days` (session JWT) or `− 30 days` (personal token); checked at setup, after every run and by a timer at the start of the period | new token stored (config flow, S2) | no (text says how to paste a new token with the entry's Reconfigure) |
+| `token_expiring` | warning | now ≥ `token_exp − 7 days` (session JWT) or `− 30 days` (personal token; `token_exp` = `expiresAt` of a created token); checked at setup, after every run and by a timer at the start of the period | new token stored (config flow, S2) | no (text says how to paste a new token with the entry's Reconfigure) |
 | reauth (core flow) | — | `AuthError` or `exp` passed → `ConfigEntryAuthFailed` | reauth completed | yes (core) |
 | `api_changed` | error | `ApiChangedError` or `SchemaError`; translation key `stale_client` (same issue id) when the cause is a `StaleClientError` ("portal updated" 400): text also suggests updating the integration | next run passes shape validation | no; text asks for a diagnostics download and an issue report |
 | `implausible_data` | warning | a plausibility or history rule blocked a write | next run with no blocking result, or `release_held` once no held days remain | no |
@@ -44,7 +44,7 @@ Implemented in S5; details (defaults, refusals, `released`) in spec 03 "Services
 `async_get_config_entry_diagnostics` returns the sections below, each passed through `redact.redact_tree()` (the section names are not redacted, although one is called `token`). It works for an entry that is not loaded (entry, token and statistics only).
 
 - `entry`: entry version, options, `site_slug`, community slugs, retired slugs, number of metering points, the directions and the number of missing metering points seen in the last run; `data` redacted by `TO_REDACT`. The entry title is left out (users may rename it).
-- `token`: kind, stored expiry, days left; for a session JWT also `iat`. Nothing else from the token.
+- `token`: kind, stored expiry, days left, `created_by_flow` (true when the entry holds a token the config flow created, ADR 0007); for a session JWT also `iat`. Nothing else from the token; the token id is never included.
 - `store`: persistent state from spec 03 (dates and counters only).
 - `last_run`: type, window, chunk count, request count, duration, status, `stale_client`, redacted error, issue hints, validation result (rule id, severity, statistic key, chunk, day per finding; finding messages are left out because they may contain values), `schema_extra` key names, `written_rows` and `kept_stored_hours` (counts), `blocked` days, `corrections` (relative changes only).
 - `portal`: `gitCommit`, `buildTime` (kept by the coordinator from the last run), maintenance windows (start and end only; the portal's title text is left out).
@@ -53,7 +53,7 @@ Implemented in S5; details (defaults, refusals, `released`) in spec 03 "Services
 
 ### Redaction
 
-`TO_REDACT = {"token", "member_number", "location_id", "mp_ids", "id", "energyCommunityId", "communityId", "meteringPointId", "meteringPointNumber", "email", "name", "firstName", "lastName", "address", "street", "zip", "city", "iban", "bic", "instance", "traceId", "memberId", "locationId", "number", "houseNumber", "postalCode", "stairsFloorDoor", "displayName", "energyCommunityName", "fromName", "toName", "fromMeteringpointNumber", "toMeteringpointNumber", "ecNumber", "substationName"}` (the `metering-point` and `portal-session` keys from G1).
+`TO_REDACT = {"token", "token_id", "member_number", "location_id", "mp_ids", "id", "energyCommunityId", "communityId", "meteringPointId", "meteringPointNumber", "email", "name", "firstName", "lastName", "address", "street", "zip", "city", "iban", "bic", "instance", "traceId", "memberId", "locationId", "number", "houseNumber", "postalCode", "stairsFloorDoor", "displayName", "energyCommunityName", "fromName", "toName", "fromMeteringpointNumber", "toMeteringpointNumber", "ecNumber", "substationName"}` (the `metering-point` and `portal-session` keys from G1).
 
 Rules beyond key-based redaction:
 
