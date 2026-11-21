@@ -25,7 +25,7 @@ One device per entry (`DeviceEntryType.SERVICE`, identifier and name from the en
 | `token_expires` | timestamp | `token_exp` |
 | `data_complete_until` | date | last date of the contiguous run of days where both completeness flags are true, starting from the first activation |
 | `last_import` | timestamp | end of last successful run |
-| `last_run_status` | enum | `ok`, `partial`, `skipped_maintenance`, `auth_failed`, `api_changed`, `unavailable`, `rate_limited`; unknown after a restart until the first run |
+| `last_run_status` | enum | `ok`, `partial`, `skipped_maintenance`, `auth_failed`, `api_changed`, `unavailable`, `rate_limited`; kept in the store, so a restart shows the last finished run; unknown only before the first run |
 | `portal_version` | text, disabled by default | short `gitCommit` |
 
 No energy sensors (ADR 0003).

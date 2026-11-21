@@ -65,9 +65,10 @@ released: {statistic_key: [dates]}    # release_held, until a run covers them
 complete_until: date                  # last date of the contiguous complete run
 initial_done: bool
 rate_limited: bool                    # the last run got 429
+last_run_status: str                  # status of the last finished run (issue #29)
 ```
 
-No energy values are cached; statistics are the store of record. `held_days` inside a run's window are replaced by that run's H1 result; days outside it are kept. `complete_until` walks the completeness list of the run from its first day; if the stored value ends before that day, it is kept (the gap was not re-checked). The store is deleted with the entry (`async_remove_entry`). Setup loads the store (`coordinator.async_load()`) before the sensor platform is forwarded, so the diagnostic sensors show the stored dates right after a restart, before any run (issue #26); `async_start()` then registers the schedule.
+No energy values are cached; statistics are the store of record. `held_days` inside a run's window are replaced by that run's H1 result; days outside it are kept. `complete_until` walks the completeness list of the run from its first day; if the stored value ends before that day, it is kept (the gap was not re-checked). The store is deleted with the entry (`async_remove_entry`). Setup loads the store (`coordinator.async_load()`) before the sensor platform is forwarded, so the diagnostic sensors show the stored dates right after a restart, before any run (issue #26), and `last_run_status` shows the stored status of the last finished run (issue #29; unknown for a store written before that field); `async_start()` then registers the schedule.
 
 ## Error handling per run
 
