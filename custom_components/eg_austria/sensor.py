@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 # personal data and stay out of the device registry.
 MANUFACTURER = "magicdude4eva"
 MODEL = "EG Austria member portal (unofficial)"
-CONFIGURATION_URL = "https://portal.eg-austria.at/"
+CONFIGURATION_URL = "https://github.com/magicdude4eva/ha-eg-austria"
 GIT_COMMIT_SHORT = 7
 
 # Read-only entities, updated by the coordinator; no parallel limit needed.

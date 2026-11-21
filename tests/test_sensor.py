@@ -106,7 +106,7 @@ async def test_entities_and_device(hass: HomeAssistant, loaded: LoadedEntry) -> 
     assert device.manufacturer == "magicdude4eva"
     assert device.model == "EG Austria member portal (unofficial)"
     assert device.sw_version == str(integration.version)
-    assert device.configuration_url == "https://portal.eg-austria.at/"
+    assert device.configuration_url == "https://github.com/magicdude4eva/ha-eg-austria"
     assert device.serial_number is None
     assert device.hw_version is None
 
@@ -251,6 +251,6 @@ async def test_device_updated_in_place(
     updated = devices.async_get(device.id)
     assert updated is not None
     assert updated.manufacturer == "magicdude4eva"
-    assert updated.configuration_url == "https://portal.eg-austria.at/"
+    assert updated.configuration_url == "https://github.com/magicdude4eva/ha-eg-austria"
     assert len(dr.async_entries_for_config_entry(devices, loaded.entry.entry_id)) == 1
     assert entity_ids(hass, loaded) == ids
