@@ -6,7 +6,7 @@ Files: `coordinator.py`, `importer.py`. One `EgAustriaCoordinator` per config en
 
 | Type | Trigger | Window |
 |---|---|---|
-| `initial` | After entry creation if `import_history` | Earliest `activeFrom` of selected metering points → today |
+| `initial` | After entry creation if `import_history` | Earliest activation `begin` (`activeFrom`) of selected metering points → today |
 | `daily` | `async_track_time_change` at `run_minute`; and at startup if the last success is > 26 h old | See below |
 | `long` | The first daily run on or after the 3rd of each month, if no long run succeeded this month | Today − `long_refetch_months` → today |
 | `manual` | Service `eg_austria.refetch` with optional `start_date`, `end_date` (max 400 days) | As given |
@@ -19,6 +19,7 @@ Only one run per entry at a time (an `asyncio.Lock`); a trigger during a run is 
 completeness = get_day_completeness(today − 13 months, today, all community ids, mp_ids)
 first_incomplete = earliest date d in [today − 120 d, today] where
                    not (consumptionComplete and generationComplete) or d missing
+                   (null flags count as false; future days are listed with null)
 start = min(today − daily_window_days, first_incomplete or today)
 end   = today
 ```
@@ -31,16 +32,13 @@ The initial and long runs also call `day-completeness` for their window (chunked
 2. `get_version()`. Record `gitCommit`; if it differs from the stored one, flag `portal_version_changed` in the run summary.
 3. Day completeness (above).
 4. Split [start, end] into chunks of ≤ 31 days aligned to calendar months where possible.
-5. For each chunk, request `analysis-data` (Hour):
-   - `site` request: all selected communities, all selected metering points.
-   - one request per selected community (same metering points).
-   **[test T-Q3c]** If per-community values add up to the site values and residuals are global, the site request is still needed for residuals and totals; if residuals turn out per community, adjust spec 04.
+5. For each chunk, request `analysis-data` (Hour), one request per selected community, all selected metering points. There is no all-communities request: G1 (T-Q3c) showed that meter values and residuals (`*InExcess`) are the same in every single-community response, and that site community values are the sum of the per-community values (spec 01 "Request scope"). If the chunk contains an autumn DST day, also request `Day` for that one day, once per community (spec 04 "Autumn DST gap").
 6. Parse and validate every chunk (spec 05). On a shape failure: stop, no writes for the whole run.
 7. Build hourly series per statistic (spec 04), apply completeness rules.
 8. Write statistics (spec 04) per statistic in one import call covering start → newest hour.
 9. Store the run summary; clear repairs that this run resolved.
 
-Request count per daily run: (1 + N communities) × chunks + 3. With 2 communities and a 62-day window: about 12.
+Request count per daily run: N communities × chunks + 3 (+ N once a year for the DST day). With 2 communities and a 62-day window: about 9.
 
 ## Persistent state
 

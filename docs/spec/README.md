@@ -15,8 +15,8 @@ Phase 1 of the `eg_austria` integration: hourly kWh statistics from the EG Austr
 
 ## Conventions
 
-- **Pre-update:** every endpoint, parameter and field name here is as observed before the mandatory portal update of 2026-11-09. Items marked **[verify]** must be confirmed against the post-update API before slice S1 is merged. Items marked **[test]** are open questions with a planned check.
-- Times: the API's `dateTimeFrom` is UTC; days and dates in request parameters are Austrian local days (Europe/Vienna; the portal states this for its day views). Whether `endDate` is inclusive is still **[verify]**.
+- **Post-update:** endpoints, parameters and field names were re-checked in G1 (2026-11-21, portal build `20d1c18`) after the mandatory update of 2026-11-09. Items still marked **[verify]** could not be checked then (noted in place). Items marked **[test]** are open questions with a planned check.
+- Times: the API's `dateTimeFrom` is UTC; days and dates in request parameters are Austrian local days (Europe/Vienna; the portal states this for its day views). `startDate` and `endDate` are both inclusive (G1).
 - Energy in kWh. Money is phase 2 and not specified here.
 - All examples use synthetic ids (`1001`, `2001`, ...), synthetic names (`Example BEG`) and synthetic values.
 

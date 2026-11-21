@@ -31,7 +31,7 @@ Metadata for every phase 1 statistic:
 
 ## Mapping
 
-Request scope: `site` = all selected communities; `c` = only community c (spec 03).
+Scope: `site` = the whole location; `c` = only community c. Every value comes from the per-community responses (spec 03): `site` meter and residual fields (`consumption`, `generation`, `*InExcess`) from the first community's response (they are identical in all of them, rule P6), `site` community fields as the sum over the selected communities, `c` fields from community c's response.
 
 | Quantity key | Label | Scope | Point list | Field | Completeness side |
 |---|---|---|---|---|---|
@@ -52,11 +52,16 @@ Not mapped in phase 1: `*Complete`, `*ByFactor`, percent, part factor, energy mi
 
 For each statistic and each hour `h` (UTC start, from `dateTimeFrom`) in the window:
 
-1. `v = field value` of the point at `h` (no point → unknown).
+1. `v = field value` of the point at `h` (no point → unknown, except the autumn DST gap below).
 2. `v is None` → unknown.
-3. If the statistic has a completeness side and `day-completeness` for the local date of `h` says that side is incomplete or the day is missing → unknown.
-4. If validation held this statistic's day back (spec 05) → unknown.
-5. Otherwise `state = v`.
+3. If the statistic has a completeness side and `day-completeness` for the local date of `h` says that side is incomplete, `null` or the day is missing → unknown.
+4. If the statistic has no completeness side (meter values) and that side of the day is not complete: the point's meter flag (`consumptionFaulty` or `generationFaulty`) true → unknown. The portal sends missing meter data as `0` with that flag set, not as `null` (G1). On complete days the flag is ignored: there it was only seen on the hour before the autumn DST gap, with a correct value.
+5. If validation held this statistic's day back (spec 05) → unknown.
+6. Otherwise `state = v`.
+
+### Autumn DST gap
+
+On the day clocks go back, `Hour` has no point for the first local 02:00 hour (00:00 UTC), while the `Day` value includes it (spec 01). Once that day is complete for the statistic's side, the importer requests `Day` for that one date (per community) and sets the 00:00 UTC hour to `Day − sum of the day's 24 hourly values` for each mapped field, if that residual is ≥ 0 (else unknown, logged once). Before the day is complete the hour stays unknown. Decided 2026-11-21 (G1 review) over leaving the hour unknown, so the day's sum matches the portal's `Day` value.
 
 Unknown hours produce no new row (ADR 0005); an hour that already has a stored row keeps it (see "Stored rows win over unknown" below).
 

@@ -8,14 +8,14 @@ Any failure → `SchemaError` → the whole run writes nothing, repair `api_chan
 
 | Id | Rule |
 |---|---|
-| S1 | Response is a JSON object (list for `day-completeness`, `maintenance`). |
+| S1 | Response is a JSON object (list for `day-completeness`, `metering-point`; list or empty body for `maintenance`). |
 | S2 | Required keys present (spec 01). |
 | S3 | Energy fields are number or null; flags are bool; `dateTimeFrom` is a string. |
 | S4 | `dateTimeFrom` parses as ISO 8601 with offset or `Z`; converted to UTC. |
 | S5 | For `Hour`: every timestamp is on a whole UTC hour. |
 | S6 | No duplicate timestamps within a point list. |
 | S7 | All timestamps lie in the requested local date range (start 00:00 to end 24:00 local). |
-| S8 | Point count per list ≤ hours in the range (23/24/25 per local day around DST). |
+| S8 | Point count per list ≤ hours in the range (23/24/25 per local day around DST; the autumn day actually returns 24, spec 01). |
 | S9 | `day-completeness` dates are valid, unique, within range. |
 
 Extra unknown keys are not a failure; their names (never values) are collected in `schema_extra` for diagnostics. A change in the set of extra keys between runs is logged once at info level.
@@ -29,11 +29,11 @@ Failure → that statistic's values for that chunk are not written (stored rows 
 | P1 | No negative value. | 0 |
 | P2 | No value > `max_hourly_kwh` (option, default 50). Catches unit or tenfold errors (1326/3*). | — |
 | P3 | `fromCommunity ≤ consumption` and `toCommunity ≤ generation` per hour, when both known. | 0.001 kWh |
-| P4 | `fromCommunity + inExcess ≈ consumption`, `toCommunity + inExcess ≈ generation` per hour on complete days. **[test T-Q3b]**; enabled only after the test confirms the identity, otherwise diagnostic only. | 0.002 kWh or 0.5 % |
-| P5 | Point sums ≈ `total*` of the same response for the six mapped fields, where totals are not null. **[test T-Q3d]** | 0.01 kWh or 0.1 % |
-| P6 | Site community values ≈ sum of per-community values per hour. **[test T-Q3c]**; diagnostic until confirmed. | 0.002 kWh |
+| P4 | `Σ_c fromCommunity_c + inExcess ≈ consumption`, `Σ_c toCommunity_c + inExcess ≈ generation` per hour (sum over the selected communities' responses). Confirmed by G1 (T-Q3b: exact in every hour, complete and incomplete days). | 0.002 kWh or 0.5 % |
+| P5 | Point sums ≈ `total*` of the same response for the six mapped fields, where totals are not null. Confirmed by G1 (T-Q3d: exact). | 0.01 kWh or 0.1 % |
+| P6 | `consumption`, `generation`, `consumptionInExcess`, `generationInExcess` are equal per hour in every per-community response of a chunk. Confirmed by G1 (T-Q3c). | 0.002 kWh |
 
-P1 to P3 are always on. P4 to P6 start as warnings in diagnostics and become blocking once the tests in the analysis confirm the identities; a constant per rule controls this.
+P1 to P6 are blocking (G1 confirmed P4 to P6 on build `20d1c18`). A constant per rule can turn one back into a warning if a portal change breaks an identity. P4 is skipped for the autumn DST gap hour, which has no point.
 
 ## Stage 3: history guard (per day and statistic)
 
