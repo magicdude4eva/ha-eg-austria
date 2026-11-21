@@ -5,7 +5,7 @@ Module `api.py` (async, `aiohttp` via Home Assistant's shared client session fac
 ## Base and request policy
 
 - Base URL: `https://portal.eg-austria.at/api` (constant, not configurable).
-- Auth: header `Cookie: portal.jwtToken=<token>`. Use a dedicated `ClientSession` with `cookie_jar=DummyCookieJar()` so `Set-Cookie` responses (which clear the cookie) are ignored (ADR 0007).
+- Auth by token kind (ADR 0007): personal token → header `Authorization: Bearer <token>`; session JWT → header `Cookie: portal.jwtToken=<token>`. The client takes `(token, kind)`; there is no fallback from one form to the other. Use a dedicated `ClientSession` with `cookie_jar=DummyCookieJar()` so `Set-Cookie` responses (which clear the cookie) are ignored.
 - Headers: `Accept: application/json`, `User-Agent: ha-eg-austria/<version> (+<repo url>)`. No personal data in headers.
 - Timeout: 60 s total per request. Requests strictly sequential; minimum 2 s between request starts.
 - Retries inside one run: none for 4xx; one retry after 30 s for timeouts, connection errors and 502/503/504. Further retries are the scheduler's job.
@@ -91,7 +91,7 @@ Exceptions in `exceptions.py`, all subclasses of `EgAustriaError`:
 
 | Condition | Exception | Effect (spec 03, 06) |
 |---|---|---|
-| 401, or 403 with an auth-type body | `AuthError` | `ConfigEntryAuthFailed` → reauth |
+| 401 (including "Access token revoked"), or 403 with an auth-type body | `AuthError` | `ConfigEntryAuthFailed` → reauth |
 | 403 other | `ForbiddenError` | treated as `AuthError` in phase 1 |
 | 400 whose `detail`/`message` contains "aktualisiert" (stale client, 1140/29) | `ApiChangedError` | repair `api_changed`, no writes |
 | 400 other, 404, 405, 422 | `ApiChangedError` (with status and redacted message) | same |

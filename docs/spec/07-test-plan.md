@@ -6,7 +6,7 @@ Framework: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component` p
 
 - **Synthetic only.** No captured portal response goes into the repository, not even redacted. Fixtures are produced by a generator in `tests/fixtures/generate.py` and committed as JSON, so diffs are reviewable.
 - Synthetic ids: member `9000001`, location `5001`, metering points `1001` (consumption) and `1002` (generation), communities `2001` (`Example BEG`, BEG type) and `2002` (`Example EEG`, regional EEG type). Metering point numbers `AT0000000000000000000000000001001`-style (synthetic, valid length). Email `member@example.invalid`.
-- Tokens: JWTs signed with a test key generated in the test, `exp` relative to the frozen time. Never a real token shape copied from anywhere.
+- Tokens: JWTs signed with a test key generated in the test, `exp` relative to the frozen time; personal tokens built in the test as `ecapi_` + random lowercase hex. Never a real token copied from anywhere.
 - Shape follows the post-update fingerprint **[verify]**; keys not used by phase 1 are included with null or zero values so the parser sees realistic noise.
 
 ## Generator
@@ -63,7 +63,7 @@ A fixture generator option (`--csv`) may write matching synthetic CSVs so the cr
 ### API client (`test_api.py`)
 
 1. Builds URLs with repeated array keys; exact query for a known call.
-2. Sends the cookie header; ignores `Set-Cookie` (second call still sends the original token).
+2. Sends `Authorization: Bearer` for a personal token and the cookie header for a session JWT, never both; ignores `Set-Cookie` (second call still sends the original token).
 3. Whitelist: no public method can issue a non-GET; `_get` rejects an unlisted template.
 4. Error mapping for 400 stale client, 400 other, 401, 403, 404, 429 with `Retry-After`, 500, 503, timeout, HTML body, invalid JSON.
 5. One retry on timeout and 503, none on 4xx.
@@ -107,11 +107,11 @@ A fixture generator option (`--csv`) may write matching synthetic CSVs so the cr
 
 ### Config flow (`test_config_flow.py`)
 
-31. Token parsing variants (raw, `portal.jwtToken=...; Path=/`, quotes, whitespace).
+31. Token parsing variants: personal token (with whitespace, quotes), JWT raw, `portal.jwtToken=...; Path=/`, quotes, whitespace; kind detection; personal token requires a future `token_expires`.
 32. Errors: bad format, expired, invalid auth, cannot connect, api changed.
 33. Single location auto-selected; two locations → select; metering point multi-select; slug validation and uniqueness.
 34. Duplicate entry aborts.
-35. Reauth success updates token and clears `token_expiring`; wrong account error.
+35. Reauth success updates token, kind and expiry and clears `token_expiring` (session → personal switch included); wrong account error; revoked-token 401 starts reauth.
 36. Reconfigure adds a community, existing slugs read-only.
 
 ### Repairs, entities, diagnostics (`test_repairs.py`, `test_sensor.py`, `test_diagnostics.py`)

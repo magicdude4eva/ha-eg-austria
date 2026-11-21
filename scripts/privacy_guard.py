@@ -4,6 +4,7 @@
 Checks every given file (or every tracked file with ``--all``) for:
 
 * JWT-like strings (``eyJ...``-style three-part base64url tokens),
+* EG Austria personal access tokens (``ecapi_`` prefix),
 * Austrian metering point numbers (``AT`` + 31 digits) other than synthetic
   ones (grid operator code ``000000``),
 * email addresses other than noreply / example / reserved test domains,
@@ -34,6 +35,8 @@ MIN_DENY_LEN = 4
 MAX_FILE_BYTES = 5 * 1024 * 1024
 
 JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}")
+# Portal personal access tokens: "ecapi_" + 16 or more token characters.
+PAT_RE = re.compile(r"ecapi_[A-Za-z0-9_-]{16,}", re.IGNORECASE)
 # AT + 31 digits, optionally grouped by spaces or dots.
 METERING_RE = re.compile(r"(?<![A-Za-z0-9])AT(?:[ .]?\d){31}(?!\d)")
 SYNTHETIC_GRID_OPERATOR = "000000"
@@ -134,6 +137,8 @@ def scan_text(path: str, text: str, denylist: list[str]) -> list[Finding]:
     for lineno, line in enumerate(text.splitlines(), start=1):
         for m in JWT_RE.finditer(line):
             findings.append(Finding(path, lineno, "jwt", redact(m.group(0))))
+        for m in PAT_RE.finditer(line):
+            findings.append(Finding(path, lineno, "api-token", redact(m.group(0))))
         for m in METERING_RE.finditer(line):
             digits = re.sub(r"\D", "", m.group(0))
             if not digits.startswith(SYNTHETIC_GRID_OPERATOR):
