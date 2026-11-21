@@ -90,12 +90,14 @@ A fixture generator option (`--csv`) may write matching synthetic CSVs so the cr
 
 ### Statistics (`test_statistics.py`, with recorder fixture)
 
+Recorder tests use `recorder_mock` with a module-level `mock_recorder_before_hass` override, because the shared autouse `auto_enable_custom_integrations` fixture requests `hass` first. Further cases covered: DST autumn fill and spring 23-hour day (case 14 for the writer side), base sum after a gap longer than the 400-day lookback, display-name update on rename, no import when nothing is known.
+
 16. Ids and metadata exactly as spec 04 for a two-community entry; no statistics for a missing direction.
 17. First import: sums start at 0 and are cumulative; null hours produce no row.
 18. Community quantities on incomplete days produce no row; meter quantities do.
 19. Re-import with changed values for an old day rewrites that day and all later sums; rows before the window untouched.
 20. Known → unknown: stored rows are kept and sums stay consistent (hourly differences equal states).
-21. Window ending before the newest stored hour is not possible (assert in importer).
+21. Window ending before the newest stored hour is not possible: the rewrite runs to the newest known **or stored** hour, so stored rows after the newest known hour are kept and re-summed (spec 04).
 
 ### Coordinator (`test_coordinator.py`)
 

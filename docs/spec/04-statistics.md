@@ -59,9 +59,15 @@ For each statistic and each hour `h` (UTC start, from `dateTimeFrom`) in the win
 5. If validation held this statistic's day back (spec 05) → unknown.
 6. Otherwise `state = v`.
 
+Details fixed in S4:
+
+- Local dates (window, `day-completeness`, `Day`) are Austrian local time (`Europe/Vienna`), independent of the Home Assistant time zone.
+- `site` community values are the sum over **all** selected communities; if any community has no point or a `null` value for the hour, the site value is unknown (never a partial sum).
+- Rule 5 uses `held_days` keyed by statistic key (`<site>_<quantity>`, as in spec 03).
+
 ### Autumn DST gap
 
-On the day clocks go back, `Hour` has no point for the first local 02:00 hour (00:00 UTC), while the `Day` value includes it (spec 01). Once that day is complete for the statistic's side, the importer requests `Day` for that one date (per community) and sets the 00:00 UTC hour to `Day − sum of the day's 24 hourly values` for each mapped field, if that residual is ≥ 0 (else unknown, logged once). Before the day is complete the hour stays unknown. Decided 2026-11-21 (G1 review) over leaving the hour unknown, so the day's sum matches the portal's `Day` value.
+On the day clocks go back, `Hour` has no point for the first local 02:00 hour (00:00 UTC), while the `Day` value includes it (spec 01). Once that day is complete for the statistic's side, the importer requests `Day` for that one date (per community) and sets the 00:00 UTC hour to `Day − sum of the day's 24 hourly values` for each mapped field, if that residual is ≥ 0 (else unknown, logged once). Before the day is complete the hour stays unknown. The residual uses the raw hourly values (the meter flag is ignored, as on any complete day), is rounded to 6 decimals, and is unknown if any of the 24 hours or the `Day` value is `null` or missing. A residual of exactly 0 is a value. The gap hour is found from the time zone (the first of the two local 02:00 hours), not hard-coded. Decided 2026-11-21 (G1 review) over leaving the hour unknown, so the day's sum matches the portal's `Day` value.
 
 Unknown hours produce no new row (ADR 0005); an hour that already has a stored row keeps it (see "Stored rows win over unknown" below).
 
@@ -79,11 +85,27 @@ for h in hours(window_start, newest_hour):
 async_add_external_statistics(hass, metadata, rows)
 ```
 
-- `base` and `stored_state` lookup: one `statistics_during_period(hass, window_start − 400 days, window_end, {statistic_id}, "hour", None, {"state", "sum"})`; `base` is the sum of the last row before `window_start` (0 if none), `stored_state` maps the window's hours to stored states. A helper wraps this so a later version can use a cheaper query.
-- `newest_hour` = the latest hour with any known value for that statistic in this run.
+- `base` and `stored_state` lookup: one `statistics_during_period(hass, window_start − 400 days, None, {all statistic ids of the entry}, "hour", None, {"state", "sum"})` per run in the recorder executor; `base` is the sum of the last row before `window_start`, `stored_state` maps the hours from `window_start` on to stored states. A statistic with no row in the 400-day lookback (first import, or a longer gap) gets a second query over all of its history before `window_start`, so a long gap can't reset the sum to 0; only with no earlier row at all is `base` 0. A helper (`async_load_stored`) wraps this so a later version can use a cheaper query.
+- `newest_hour` = the latest hour from `window_start` on that is known in this run **or already stored**. Including stored rows means a run whose newest hours went back to unknown still rewrites (and keeps) them, so no stored row after the rewritten range can keep a stale sum (test plan case 21 holds by construction, no assert needed).
 - **Stored rows win over unknown.** The import API can't delete rows. If an hour in the window has a stored row and is unknown in this run (a value went back to `null`, or a day flipped back to incomplete), the run keeps the stored `state` for that hour and includes it in the new sums. Otherwise the stale row's `sum` would sit between rewritten rows and break hourly differences. Such hours are counted in diagnostics (`kept_stored_hours`). To read them, the run loads stored `state` rows for the window with the same `statistics_during_period` call (types `{"state", "sum"}`).
 - Rows before `window_start` are never touched.
-- One import call per statistic per run. The recorder queues the import; the run doesn't wait for commit.
+- One import call per statistic per run; none when the statistic has neither a known nor a stored hour from `window_start` on (no empty statistic is created, and its metadata name is refreshed on the next run with data). The recorder queues the import; the run doesn't wait for commit.
+
+## Interface (for S5)
+
+```python
+defs = build_statistic_defs(site_slug, [CommunityRef(slug, name), ...], directions,
+                            site_label=..., labels={"site.<quantity>": ..., "community.<quantity>": ...})
+results = await async_import_window(hass, defs, hourly, completeness, first_day, last_day,
+                                    day_values=day_values, held_days=held_days)
+```
+
+- `communities` in the entry's order; `directions` = directions of the selected metering points.
+- `hourly`: community slug → that community's `Hour` responses (one per chunk); `day_values`: community slug → `Day` responses for autumn DST days; `completeness`: the run's `day-completeness` list; `first_day`/`last_day`: the window's local dates, both inclusive.
+- `held_days`: statistic key → local dates that must not be written. Build it from `ValidationResult.is_blocked(key, day)` for every key and window day, not only from `held_by_statistic()`, so blocking findings (per day or per chunk) are covered too; keys match spec 05's (`<site>_<quantity>`, `<site>_<community>_<quantity>`).
+- Display labels default to English in code; S5 passes the translated "Home" and quantity labels (translation strings live with S5, `strings.json` is not touched by S4).
+- Result per statistic key: rows written, `kept_stored_hours`, unknown hour count with first/last hour, `newest_hour`, filled DST hours and dates with a negative residual, for the run summary and diagnostics.
+- `build_series()` (pure) and `async_write_statistics()` are public too, for tests and for a later dry run.
 
 ## Statistic removal
 
