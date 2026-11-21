@@ -85,8 +85,8 @@ A fixture generator option (`--csv`) may write matching synthetic CSVs so the cr
 ### Validation (`test_validation.py`)
 
 13. One test per rule S1-S9, P1-P6, H1-H2: failing fixture fails with that id, normal fixture passes.
-14. DST fixtures pass S5/S8; the autumn gap hour is filled from the `Day` residual once the day is complete (spec 04).
-15. P4-P6 warn but don't block while their constant is off; block when on.
+14. DST fixtures pass S5/S8 (autumn `Hour` with 24 points, autumn `Day`, spring with 23 points; a filled 25th autumn hour still passes, a 24th spring hour fails); P4 skips the gap hour. Filling the gap from the `Day` residual is the statistics writer's job and tested in S4 (spec 04).
+15. P4-P6 (and any other P rule) warn but don't block while their `RULE_BLOCKING` entry is off; block when on.
 
 ### Statistics (`test_statistics.py`, with recorder fixture)
 
