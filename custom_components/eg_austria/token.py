@@ -1,16 +1,19 @@
 """Token kinds and local JWT expiry (ADR 0007).
 
 S1 provides what the API client needs: the token kind and the ``exp`` claim of
-a session JWT, decoded locally without a signature check. S2 extends this
-module with parsing of pasted input (quotes, ``portal.jwtToken=…; Path=/``).
+a session JWT, decoded locally without a signature check. S2 adds parsing of
+pasted input (whitespace, quotes, ``portal.jwtToken=…; Path=/``) and kind
+detection for the config flow (spec 02).
 """
 
 from __future__ import annotations
 
 import base64
 import binascii
+from dataclasses import dataclass, field
 from enum import StrEnum
 import json
+import re
 
 
 class TokenKind(StrEnum):
@@ -43,3 +46,47 @@ def jwt_expiry(token: str) -> int:
     if isinstance(exp, bool) or not isinstance(exp, int | float):
         raise TokenFormatError("JWT has no numeric exp")
     return int(exp)
+
+
+COOKIE_PREFIX = "portal.jwtToken="
+_PERSONAL_RE = re.compile(r"ecapi_[a-z0-9_]+")
+_JWT_RE = re.compile(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
+_QUOTES = "\"'`"
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedToken:
+    """A cleaned token, its kind and (session JWT only) its ``exp`` claim."""
+
+    token: str = field(repr=False)
+    kind: TokenKind
+    exp: int | None = None
+
+
+def _strip(value: str) -> str:
+    value = value.strip()
+    while len(value) >= 2 and value[0] == value[-1] and value[0] in _QUOTES:
+        value = value[1:-1].strip()
+    return value
+
+
+def parse_token(raw: str) -> ParsedToken:
+    """Clean pasted input and detect the token kind (ADR 0007).
+
+    Accepted: a personal token (``ecapi_…``), a raw session JWT, or a cookie
+    string containing ``portal.jwtToken=<jwt>`` (anything after ``;`` is
+    dropped), each optionally wrapped in whitespace and quotes. Only the
+    ``exp`` claim of a JWT is read. Raises ``TokenFormatError`` (never with
+    the token in the message) for anything else. Expiry against the clock is
+    the caller's check.
+    """
+
+    value = _strip(raw)
+    if _PERSONAL_RE.fullmatch(value):
+        return ParsedToken(value, TokenKind.PERSONAL)
+    if COOKIE_PREFIX in value:
+        value = value.split(COOKIE_PREFIX, 1)[1]
+    value = _strip(value.split(";", 1)[0])
+    if not _JWT_RE.fullmatch(value):
+        raise TokenFormatError("not a personal token or JWT")
+    return ParsedToken(value, TokenKind.SESSION, jwt_expiry(value))

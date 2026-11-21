@@ -2,6 +2,7 @@
   "domain": "eg_austria",
   "name": "EG Austria (unofficial)",
   "codeowners": ["@magicdude4eva"],
+  "config_flow": true,
   "dependencies": ["recorder"],
   "documentation": "https://github.com/magicdude4eva/ha-eg-austria",
   "integration_type": "service",
