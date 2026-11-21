@@ -1,7 +1,8 @@
 """EG Austria energy-community data for Home Assistant (unofficial, read-only).
 
 Setup creates the API client, the persistent store and the coordinator; the
-coordinator schedules the imports (spec 03). The services of spec 06 are
+coordinator schedules the imports (spec 03). Repairs and the diagnostic
+sensors follow the coordinator (spec 06). The services of spec 06 are
 registered once in ``async_setup``, independent of entries.
 """
 
@@ -12,6 +13,7 @@ import logging
 from typing import Final
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
@@ -28,11 +30,13 @@ from .api import EgAustriaClient, create_portal_session
 from .const import CONF_TOKEN, CONF_TOKEN_EXP, CONF_TOKEN_KIND, DOMAIN
 from .coordinator import EgAustriaCoordinator, RunRequest, entry_store
 from .importer import MAX_MANUAL_DAYS, RunType, local_today
+from .repairs import EntryRepairs, async_delete_all
 from .token import TokenKind
 
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA: Final = cv.config_entry_only_config_schema(DOMAIN)
+PLATFORMS: Final = [Platform.SENSOR]
 
 SERVICE_REFETCH: Final = "refetch"
 SERVICE_RELEASE_HELD: Final = "release_held"
@@ -97,6 +101,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) ->
     )
     await _async_load_labels(hass, coordinator)
     entry.runtime_data = coordinator
+    entry.async_on_unload(EntryRepairs(hass, entry, coordinator).async_start())
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await coordinator.async_start()
     return True
 
@@ -104,6 +110,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) ->
 async def async_unload_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) -> bool:
     """Stop the schedule, let a running import stop, close the session."""
 
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
     coordinator = entry.runtime_data
     await coordinator.async_stop()
     await coordinator.async_flush()
@@ -113,8 +121,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) -
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Delete the entry's store; statistics stay in the recorder (ADR 0012)."""
+    """Delete the entry's store and issues; statistics stay (ADR 0012)."""
 
+    async_delete_all(hass, entry.entry_id)
     await entry_store(hass, entry.entry_id).async_remove()
 
 

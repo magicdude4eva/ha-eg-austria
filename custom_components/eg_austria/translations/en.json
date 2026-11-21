@@ -241,5 +241,55 @@
     "run_in_progress": {
       "message": "An import is already running for this entry. Try again when it has finished."
     }
+  },
+  "issues": {
+    "token_expiring": {
+      "title": "EG Austria token expires soon",
+      "description": "The portal token of {title} expires on {expires} (in {days} days). After that no data is imported until a new token is stored.\n\nCreate a new token (a personal access token is recommended) and paste it with **Reconfigure** on the EG Austria integration page. This message disappears once the new token is saved."
+    },
+    "api_changed": {
+      "title": "EG Austria portal response changed",
+      "description": "On {date} a response from the EG Austria portal for {title} did not match the expected format (rules: {rules}). To protect your statistics nothing was written. The integration keeps trying daily and clears this message after a run validates.\n\nPlease download the diagnostics of this entry (they are redacted) and attach them to an issue report in the integration's issue tracker."
+    },
+    "stale_client": {
+      "title": "EG Austria portal was updated",
+      "description": "On {date} the EG Austria portal told {title} that the member portal was updated and this client is out of date. To protect your statistics nothing was written. The integration keeps trying daily and clears this message after a run validates.\n\nCheck for an update of the integration. If there is none yet, please download the diagnostics of this entry (they are redacted) and attach them to an issue report."
+    },
+    "implausible_data": {
+      "title": "EG Austria data held back",
+      "description": "Some data for {title} failed a plausibility check and was not written (rules: {rules}; statistics: {statistics}; dates: {dates}). Everything else was imported.\n\nThe next run checks these days again and clears this message when they pass. If you have confirmed in the portal that the values are correct, call the action **EG Austria: Release held days** to write them with the next run."
+    },
+    "portal_unreachable": {
+      "title": "EG Austria portal unreachable",
+      "description": "The EG Austria portal could not be reached for {title} on {days} consecutive days (last successful import: {last_success}). Imports continue automatically when the portal answers again; no data is lost as long as the portal still offers it."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "token_expires": {
+        "name": "Token expires"
+      },
+      "data_complete_until": {
+        "name": "Data complete until"
+      },
+      "last_import": {
+        "name": "Last import"
+      },
+      "last_run_status": {
+        "name": "Last run status",
+        "state": {
+          "ok": "OK",
+          "partial": "Partly imported",
+          "skipped_maintenance": "Skipped (maintenance)",
+          "auth_failed": "Authentication failed",
+          "api_changed": "Portal changed",
+          "unavailable": "Portal unavailable",
+          "rate_limited": "Rate limited"
+        }
+      },
+      "portal_version": {
+        "name": "Portal version"
+      }
+    }
   }
 }

@@ -144,6 +144,16 @@ def fake_client():
             "homeassistant.config_entries.ConfigEntries.async_setup",
             AsyncMock(return_value=True),
         ),
+        # Reauth and reconfigure reload the entry without going through
+        # ConfigEntries.async_setup; keep that reload from setting up for real.
+        patch(
+            "custom_components.eg_austria.async_setup_entry",
+            AsyncMock(return_value=True),
+        ),
+        patch(
+            "custom_components.eg_austria.async_unload_entry",
+            AsyncMock(return_value=True),
+        ),
     ):
         yield portal_session
 
