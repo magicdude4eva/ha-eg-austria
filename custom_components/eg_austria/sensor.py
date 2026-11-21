@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
 from .importer import RunStatus
@@ -30,7 +31,12 @@ from .repairs import token_expiry
 if TYPE_CHECKING:
     from .coordinator import EgAustriaCoordinator
 
-MANUFACTURER = "EG Austria (unofficial)"
+# Device page (issue #30): a community integration, not an EG Austria product.
+# No serial number or hardware version: metering point and community ids are
+# personal data and stay out of the device registry.
+MANUFACTURER = "magicdude4eva"
+MODEL = "EG Austria member portal (unofficial)"
+CONFIGURATION_URL = "https://portal.eg-austria.at/"
 GIT_COMMIT_SHORT = 7
 
 # Read-only entities, updated by the coordinator; no parallel limit needed.
@@ -102,7 +108,9 @@ async def async_setup_entry(
     """Add the diagnostic sensors of an entry."""
 
     coordinator: EgAustriaCoordinator = entry.runtime_data
-    async_add_entities(EgDiagnosticSensor(coordinator, d) for d in SENSORS)
+    integration = await async_get_integration(hass, DOMAIN)
+    sw_version = str(integration.version) if integration.version else None
+    async_add_entities(EgDiagnosticSensor(coordinator, d, sw_version) for d in SENSORS)
 
 
 class EgDiagnosticSensor(CoordinatorEntity["EgAustriaCoordinator"], SensorEntity):
@@ -113,7 +121,10 @@ class EgDiagnosticSensor(CoordinatorEntity["EgAustriaCoordinator"], SensorEntity
     entity_description: EgSensorDescription
 
     def __init__(
-        self, coordinator: EgAustriaCoordinator, description: EgSensorDescription
+        self,
+        coordinator: EgAustriaCoordinator,
+        description: EgSensorDescription,
+        sw_version: str | None = None,
     ) -> None:
         """Attach to the entry's service device."""
 
@@ -127,6 +138,9 @@ class EgDiagnosticSensor(CoordinatorEntity["EgAustriaCoordinator"], SensorEntity
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
             manufacturer=MANUFACTURER,
+            model=MODEL,
+            sw_version=sw_version,
+            configuration_url=CONFIGURATION_URL,
             entry_type=DeviceEntryType.SERVICE,
         )
 
