@@ -28,6 +28,9 @@
         "description": "Die Integration kann das Ablaufdatum eines eingefügten persönlichen Tokens nicht auslesen. Gib das Datum an, das du beim Erstellen gewählt hast (im Portal standardmäßig ein Jahr). 30 Tage vorher erscheint eine Reparaturwarnung.",
         "data": {
           "token_expires": "Token gültig bis"
+        },
+        "data_description": {
+          "token_expires": "Ablaufdatum, das beim Erstellen des persönlichen Tokens im Portal gewählt wurde."
         }
       },
       "expiring_soon": {
@@ -39,6 +42,9 @@
         "description": "Diese Anmeldung kann für mehrere Mitglieder handeln. Wähle das Mitglied, das hinzugefügt werden soll.",
         "data": {
           "member": "Mitglied"
+        },
+        "data_description": {
+          "member": "Das Mitglied, dessen Energiedaten importiert werden."
         }
       },
       "accept_terms": {
@@ -50,6 +56,9 @@
         "description": "Wähle den Standort für diesen Eintrag. Für einen weiteren Standort legst du einen weiteren Eintrag an.",
         "data": {
           "location": "Standort"
+        },
+        "data_description": {
+          "location": "Der Standort, dessen Zählpunkte dieser Eintrag importiert."
         }
       },
       "site": {
@@ -60,6 +69,7 @@
           "site_slug": "Standort-Kürzel"
         },
         "data_description": {
+          "metering_points": "Zählpunkte, deren Stundenwerte zu Statistiken werden.",
           "site_slug": "Kleinbuchstaben, Ziffern und `_`, beginnend mit einem Buchstaben, höchstens 20 Zeichen. Die Statistiken heißen \"Home\"."
         }
       },
@@ -69,6 +79,10 @@
         "data": {
           "communities": "Importieren",
           "edit_slugs": "Kürzel ändern"
+        },
+        "data_description": {
+          "communities": "Energiegemeinschaften der gewählten Zählpunkte, die importiert werden.",
+          "edit_slugs": "Einen Schritt anzeigen, um die vorgeschlagenen Kürzel vor dem Festlegen zu ändern."
         }
       },
       "community_slugs": {
@@ -84,6 +98,17 @@
           "slug_7": "Kürzel 7",
           "slug_8": "Kürzel 8",
           "slug_9": "Kürzel 9"
+        },
+        "data_description": {
+          "slug_1": "Kürzel der Gemeinschaft 1 in der Liste oben.",
+          "slug_2": "Kürzel der Gemeinschaft 2 in der Liste oben.",
+          "slug_3": "Kürzel der Gemeinschaft 3 in der Liste oben.",
+          "slug_4": "Kürzel der Gemeinschaft 4 in der Liste oben.",
+          "slug_5": "Kürzel der Gemeinschaft 5 in der Liste oben.",
+          "slug_6": "Kürzel der Gemeinschaft 6 in der Liste oben.",
+          "slug_7": "Kürzel der Gemeinschaft 7 in der Liste oben.",
+          "slug_8": "Kürzel der Gemeinschaft 8 in der Liste oben.",
+          "slug_9": "Kürzel der Gemeinschaft 9 in der Liste oben."
         }
       },
       "reauth_confirm": {
@@ -91,6 +116,9 @@
         "description": "Der gespeicherte Token wurde abgelehnt oder ist abgelaufen.\n\n1. Melde dich im Browser im Mitgliederportal {portal_url} an.\n2. Öffne die Entwicklerwerkzeuge (F12) → Anwendung (Firefox: Web-Speicher) → Cookies → portal.eg-austria.at.\n3. Kopiere den Wert von `portal.jwtToken` und füge ihn hier ein.\n\nDanach bietet Home Assistant an, einen neuen Zugangstoken zu erstellen. Ein persönlicher Token (`ecapi_…`) desselben Mitglieds geht auch. Mehr: {readme_url}",
         "data": {
           "token": "Sitzungs-Cookie oder Token"
+        },
+        "data_description": {
+          "token": "Wert von `portal.jwtToken` oder ein persönliches Token (`ecapi_…`) desselben Mitglieds."
         }
       },
       "reconfigure": {
@@ -106,6 +134,9 @@
         "description": "Optional ein neues Sitzungs-Cookie (Home Assistant bietet dann einen neuen Zugangstoken an) oder einen persönlichen Token einfügen (siehe {readme_url}). Leer lassen, um den gespeicherten Token zu behalten. Ein von Home Assistant erstellter Token bleibt beim Ersetzen bis zu seinem Ablauf gültig; widerrufe ihn vorher, wenn du ihn nicht mehr brauchst. Danach kannst du die Zählpunkte ändern und Gemeinschaften hinzufügen.",
         "data": {
           "token": "Neues Sitzungs-Cookie oder Token (optional)"
+        },
+        "data_description": {
+          "token": "Wert von `portal.jwtToken` oder ein persönliches Token (`ecapi_…`). Leer lassen, um das gespeicherte Token zu behalten."
         }
       },
       "revoke_token": {
@@ -113,6 +144,9 @@
         "description": "Ein Zugangstoken kann sich nicht selbst widerrufen, dafür braucht es ein frisches Sitzungs-Cookie.\n\n1. Melde dich im Browser im Mitgliederportal {portal_url} an.\n2. Öffne die Entwicklerwerkzeuge (F12) → Anwendung (Firefox: Web-Speicher) → Cookies → portal.eg-austria.at.\n3. Kopiere den Wert von `portal.jwtToken` und füge ihn hier ein.\n\nHome Assistant widerruft dann den Token, den es erstellt hat. Danach kannst du einen neuen erstellen oder das Sitzungs-Cookie behalten. Um die Integration ganz zu beenden, lösche danach den Eintrag. Mehr: {readme_url}",
         "data": {
           "token": "Sitzungs-Cookie"
+        },
+        "data_description": {
+          "token": "Wert von `portal.jwtToken` aus einer frischen Portal-Anmeldung. Ein Access-Token funktioniert hier nicht."
         }
       },
       "reconfigure_location": {
@@ -120,6 +154,9 @@
         "description": "Der gespeicherte Standort wird vom Portal nicht mehr geliefert (vielleicht hat sich seine ID geändert). Wähle den Standort, zu dem dieser Eintrag gehört; die Statistik-IDs bleiben gleich.",
         "data": {
           "location": "Standort"
+        },
+        "data_description": {
+          "location": "Der Standort im Portal, zu dem dieser Eintrag jetzt gehört."
         }
       },
       "reconfigure_site": {
@@ -127,6 +164,9 @@
         "description": "Standort-Kürzel: `{site_slug}` (nicht änderbar).",
         "data": {
           "metering_points": "Zählpunkte"
+        },
+        "data_description": {
+          "metering_points": "Zählpunkte, deren Stundenwerte zu Statistiken werden."
         }
       },
       "reconfigure_communities": {
@@ -135,6 +175,10 @@
         "data": {
           "communities": "Neue Gemeinschaften importieren",
           "edit_slugs": "Kürzel ändern"
+        },
+        "data_description": {
+          "communities": "Noch nicht importierte Gemeinschaften, die hinzukommen sollen.",
+          "edit_slugs": "Einen Schritt anzeigen, um die vorgeschlagenen Kürzel der neuen Gemeinschaften zu ändern."
         }
       },
       "reconfigure_community_slugs": {
@@ -150,6 +194,17 @@
           "slug_7": "Kürzel 7",
           "slug_8": "Kürzel 8",
           "slug_9": "Kürzel 9"
+        },
+        "data_description": {
+          "slug_1": "Kürzel der Gemeinschaft 1 in der Liste oben.",
+          "slug_2": "Kürzel der Gemeinschaft 2 in der Liste oben.",
+          "slug_3": "Kürzel der Gemeinschaft 3 in der Liste oben.",
+          "slug_4": "Kürzel der Gemeinschaft 4 in der Liste oben.",
+          "slug_5": "Kürzel der Gemeinschaft 5 in der Liste oben.",
+          "slug_6": "Kürzel der Gemeinschaft 6 in der Liste oben.",
+          "slug_7": "Kürzel der Gemeinschaft 7 in der Liste oben.",
+          "slug_8": "Kürzel der Gemeinschaft 8 in der Liste oben.",
+          "slug_9": "Kürzel der Gemeinschaft 9 in der Liste oben."
         }
       }
     },
@@ -197,7 +252,8 @@
         "data_description": {
           "max_hourly_kwh": "Stundenwerte darüber werden als unplausibel zurückgehalten.",
           "daily_window_days": "Die letzten Tage, die bei jedem täglichen Lauf neu geladen werden.",
-          "long_refetch_months": "Monate, die der monatliche Lauf neu lädt (späte Korrekturen)."
+          "long_refetch_months": "Monate, die der monatliche Lauf neu lädt (späte Korrekturen).",
+          "import_history": "Beim ersten Lauf alle Daten seit dem Beitritt der Zählpunkte zu einer Gemeinschaft importieren. Aus: nur das tägliche Fenster."
         }
       }
     }
@@ -279,6 +335,9 @@
     },
     "run_in_progress": {
       "message": "Für diesen Eintrag läuft bereits ein Import. Bitte nach dessen Ende erneut versuchen."
+    },
+    "token_expired": {
+      "message": "Das EG-Austria-Token ist abgelaufen. Bitte den Eintrag neu authentifizieren."
     }
   },
   "issues": {

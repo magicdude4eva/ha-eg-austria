@@ -1,0 +1,29 @@
+{
+  "entity": {
+    "sensor": {
+      "last_run_status": {
+        "default": "mdi:information-outline",
+        "state": {
+          "ok": "mdi:check-circle-outline",
+          "partial": "mdi:progress-alert",
+          "skipped_maintenance": "mdi:wrench-clock",
+          "auth_failed": "mdi:key-alert-outline",
+          "api_changed": "mdi:api-off",
+          "unavailable": "mdi:cloud-off-outline",
+          "rate_limited": "mdi:speedometer-slow"
+        }
+      },
+      "portal_version": {
+        "default": "mdi:tag-outline"
+      }
+    }
+  },
+  "services": {
+    "refetch": {
+      "service": "mdi:database-refresh-outline"
+    },
+    "release_held": {
+      "service": "mdi:database-check-outline"
+    }
+  }
+}

@@ -28,6 +28,9 @@
         "description": "The integration can't read the expiry of a pasted personal token. Enter the date you chose when creating it (the portal default is one year). You get a repair warning 30 days before.",
         "data": {
           "token_expires": "Token valid until"
+        },
+        "data_description": {
+          "token_expires": "Expiry date you chose in the portal when you created the personal token."
         }
       },
       "expiring_soon": {
@@ -39,6 +42,9 @@
         "description": "This login can act for several members. Choose the one to add.",
         "data": {
           "member": "Member"
+        },
+        "data_description": {
+          "member": "The member whose energy data is imported."
         }
       },
       "accept_terms": {
@@ -50,6 +56,9 @@
         "description": "Choose the location (site) for this entry. Add another entry for another location.",
         "data": {
           "location": "Location"
+        },
+        "data_description": {
+          "location": "The site whose metering points this entry imports."
         }
       },
       "site": {
@@ -60,6 +69,7 @@
           "site_slug": "Site slug"
         },
         "data_description": {
+          "metering_points": "Metering points whose hourly values become statistics.",
           "site_slug": "Lower case letters, digits and `_`, starting with a letter, at most 20 characters. The statistics are shown as \"Home\"."
         }
       },
@@ -69,6 +79,10 @@
         "data": {
           "communities": "Import",
           "edit_slugs": "Change the slugs"
+        },
+        "data_description": {
+          "communities": "Energy communities of the selected metering points to import.",
+          "edit_slugs": "Show a step to change the proposed slugs before they are fixed."
         }
       },
       "community_slugs": {
@@ -84,6 +98,17 @@
           "slug_7": "Slug 7",
           "slug_8": "Slug 8",
           "slug_9": "Slug 9"
+        },
+        "data_description": {
+          "slug_1": "Slug of community 1 in the list above.",
+          "slug_2": "Slug of community 2 in the list above.",
+          "slug_3": "Slug of community 3 in the list above.",
+          "slug_4": "Slug of community 4 in the list above.",
+          "slug_5": "Slug of community 5 in the list above.",
+          "slug_6": "Slug of community 6 in the list above.",
+          "slug_7": "Slug of community 7 in the list above.",
+          "slug_8": "Slug of community 8 in the list above.",
+          "slug_9": "Slug of community 9 in the list above."
         }
       },
       "reauth_confirm": {
@@ -91,6 +116,9 @@
         "description": "The stored token was rejected or has expired.\n\n1. Log in to the member portal {portal_url} in your browser.\n2. Open the developer tools (F12) → Application (Firefox: Storage) → Cookies → portal.eg-austria.at.\n3. Copy the value of `portal.jwtToken` and paste it here.\n\nNext, Home Assistant offers to create a new access token. A personal token (`ecapi_…`) of the same member also works. More: {readme_url}",
         "data": {
           "token": "Session cookie or token"
+        },
+        "data_description": {
+          "token": "Value of `portal.jwtToken`, or a personal token (`ecapi_…`) of the same member."
         }
       },
       "reconfigure": {
@@ -106,6 +134,9 @@
         "description": "Optionally paste a new session cookie (Home Assistant then offers to create a new access token) or a personal token (see {readme_url}). Leave empty to keep the stored token. A token Home Assistant created stays valid until it expires when you replace it; revoke it first if you no longer need it. Next you can change the metering points and add communities.",
         "data": {
           "token": "New session cookie or token (optional)"
+        },
+        "data_description": {
+          "token": "Value of `portal.jwtToken`, or a personal token (`ecapi_…`). Leave empty to keep the stored token."
         }
       },
       "revoke_token": {
@@ -113,6 +144,9 @@
         "description": "An access token can't revoke itself, so a fresh session cookie is needed.\n\n1. Log in to the member portal {portal_url} in your browser.\n2. Open the developer tools (F12) → Application (Firefox: Storage) → Cookies → portal.eg-austria.at.\n3. Copy the value of `portal.jwtToken` and paste it here.\n\nHome Assistant then revokes the token it created. Next you can create a new one or keep the session cookie. To stop the integration completely, delete the entry afterwards. More: {readme_url}",
         "data": {
           "token": "Session cookie"
+        },
+        "data_description": {
+          "token": "Value of `portal.jwtToken` from a fresh portal login. An access token can't be used here."
         }
       },
       "reconfigure_location": {
@@ -120,6 +154,9 @@
         "description": "The stored location is no longer returned by the portal (its id may have changed). Choose the location this site belongs to; statistic ids stay the same.",
         "data": {
           "location": "Location"
+        },
+        "data_description": {
+          "location": "The location in the portal this entry now belongs to."
         }
       },
       "reconfigure_site": {
@@ -127,6 +164,9 @@
         "description": "Site slug: `{site_slug}` (can't be changed).",
         "data": {
           "metering_points": "Metering points"
+        },
+        "data_description": {
+          "metering_points": "Metering points whose hourly values become statistics."
         }
       },
       "reconfigure_communities": {
@@ -135,6 +175,10 @@
         "data": {
           "communities": "Import new communities",
           "edit_slugs": "Change the slugs"
+        },
+        "data_description": {
+          "communities": "Communities not imported yet that you want to add.",
+          "edit_slugs": "Show a step to change the proposed slugs of the new communities."
         }
       },
       "reconfigure_community_slugs": {
@@ -150,6 +194,17 @@
           "slug_7": "Slug 7",
           "slug_8": "Slug 8",
           "slug_9": "Slug 9"
+        },
+        "data_description": {
+          "slug_1": "Slug of community 1 in the list above.",
+          "slug_2": "Slug of community 2 in the list above.",
+          "slug_3": "Slug of community 3 in the list above.",
+          "slug_4": "Slug of community 4 in the list above.",
+          "slug_5": "Slug of community 5 in the list above.",
+          "slug_6": "Slug of community 6 in the list above.",
+          "slug_7": "Slug of community 7 in the list above.",
+          "slug_8": "Slug of community 8 in the list above.",
+          "slug_9": "Slug of community 9 in the list above."
         }
       }
     },
@@ -197,7 +252,8 @@
         "data_description": {
           "max_hourly_kwh": "Hourly values above this are held back as implausible.",
           "daily_window_days": "The last days fetched again on every daily run.",
-          "long_refetch_months": "Months fetched again by the monthly run (late corrections)."
+          "long_refetch_months": "Months fetched again by the monthly run (late corrections).",
+          "import_history": "On the first run, import all data since the metering points joined a community. Off: only the daily window."
         }
       }
     }
@@ -279,6 +335,9 @@
     },
     "run_in_progress": {
       "message": "An import is already running for this entry. Try again when it has finished."
+    },
+    "token_expired": {
+      "message": "The EG Austria token has expired. Reauthenticate the entry."
     }
   },
   "issues": {
