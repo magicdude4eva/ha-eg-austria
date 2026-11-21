@@ -124,9 +124,11 @@ S5 tests use `FakeClient` (`tests/conftest.py`): the client's public methods, wi
 
 ### Repairs, entities, diagnostics (`test_repairs.py`, `test_sensor.py`, `test_diagnostics.py`)
 
-37. Each issue created and cleared on its condition.
-38. Sensor values after a run; `portal_version` disabled by default.
-39. Diagnostics redaction: fixture with every sensitive key and pattern; assert none of the synthetic sensitive strings (token, email, member number, ids, metering point numbers, names) appears anywhere in the output.
+S6 tests set up a real entry with the client factory patched to `FakeClient` (`conftest.async_setup_fake_entry`) and patch out the statistics write where only validation matters.
+
+37. Each issue created and cleared on its condition: `token_expiring` at setup for both kinds, by the timer when the period starts, not again after a new token, timer cancelled on unload; auth failure → core reauth and none of the integration's issues; `api_changed` (stays during an unreachable run, cleared by a valid run) and its `stale_client` text; `implausible_data` cleared by a clean run and by `release_held` once nothing is held; `portal_unreachable` on the third day, cleared by a success; maintenance raises nothing; removing the entry deletes the issues.
+38. Sensor values before and after a run (and after a failed run); diagnostic category, one service device, `portal_version` disabled by default, its value when enabled.
+39. Diagnostics redaction: a session JWT carrying the email, fixtures with every sensitive key, unknown keys and a maintenance title with sensitive values, an error message that slipped past the client's redaction; assert none of the synthetic sensitive strings (token and its parts, email, member number, ids, metering point numbers, names, address) appears anywhere in the output or in the logs. Also: `redact_tree()`, `schema_fingerprint()` (and the client recording it), `jwt_issued_at()`, statistics first/last hour, an entry that is not loaded.
 
 ### Integration (`test_init.py`)
 

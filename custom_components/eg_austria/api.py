@@ -57,7 +57,7 @@ from .models import (
     parse_session,
     parse_version,
 )
-from .redact import redact_text
+from .redact import redact_text, schema_fingerprint
 from .token import TokenKind, jwt_expiry
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,6 +83,10 @@ PATH_DAY_COMPLETENESS: Final = (
 PATH_MAINTENANCE: Final = "/v1/portal/maintenance"
 PATH_VERSION: Final = "/v1/version"
 PATH_SESSION: Final = "/v1/portal/portal-session"
+_FINGERPRINTED: Final = {
+    PATH_ANALYSIS: "analysis-data",
+    PATH_DAY_COMPLETENESS: "day-completeness",
+}
 
 # ADR 0002: the only (method, path template) pairs this client can send.
 WHITELIST: Final[frozenset[tuple[str, str]]] = frozenset(
@@ -170,6 +174,9 @@ class EgAustriaClient:
         self._sensitive: set[str] = set()
         self._maintenance: list[Maintenance] = []
         self.request_count = 0
+        # Key -> type name of the last analysis-data / day-completeness
+        # response (spec 06 diagnostics); never values.
+        self.schema_fingerprints: dict[str, Any] = {}
 
     def __repr__(self) -> str:
         """Never show the token."""
@@ -334,7 +341,7 @@ class EgAustriaClient:
         async with self._lock:
             for attempt in (1, 2):
                 try:
-                    return await self._send(url, template, allow_empty=allow_empty)
+                    raw = await self._send(url, template, allow_empty=allow_empty)
                 except PortalUnavailableError as err:
                     if attempt == 2 or not err.retryable:
                         raise
@@ -342,6 +349,12 @@ class EgAustriaClient:
                         "GET %s: %s, retrying in %.0f s", template, err, RETRY_DELAY
                     )
                     await self._sleep(RETRY_DELAY)
+                else:
+                    if template in _FINGERPRINTED:
+                        self.schema_fingerprints[_FINGERPRINTED[template]] = (
+                            schema_fingerprint(raw)
+                        )
+                    return raw
         raise AssertionError("unreachable")  # pragma: no cover
 
     async def _send(self, url: URL, template: str, *, allow_empty: bool) -> Any:

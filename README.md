@@ -19,13 +19,52 @@ Planned for phase 1:
 - hourly external statistics per site and per energy community (consumption,
   generation, from/to community, residual), overwritten when the portal corrects data;
 - incomplete or missing data stays unknown, never zero;
-- repairs for expiring tokens, portal maintenance and API changes;
-- redacted diagnostics.
+- repairs for expiring tokens, API changes, held-back data and an unreachable
+  portal (announced maintenance only postpones the run);
+- diagnostic sensors and redacted diagnostics.
 
 ## Installation
 
 Not yet. Once 0.1.0 is released it can be added to the Home Assistant
 Marketplace (formerly HACS) as a custom repository by link.
+
+## Repairs and diagnostics
+
+The integration raises a repair in **Settings > System > Repairs** when it
+needs you. Each one clears itself when the cause is gone.
+
+### Token expiry
+
+Raised 30 days before the expiry date you entered for a personal access token,
+or 7 days before a session token expires. Create a new token and paste it with
+**Reconfigure** on the integration page. If the portal rejects the token
+earlier, Home Assistant asks you to re-authenticate instead.
+
+### Portal changed
+
+The portal answered in a format the integration does not know, or said the
+client is out of date. Nothing is written until a run passes the checks
+again, so your statistics stay correct. Please download the diagnostics of the
+entry (three-dot menu > Download diagnostics; tokens, ids, names and values
+are removed) and attach them to an
+[issue](https://github.com/magicdude4eva/ha-eg-austria/issues).
+
+### Held data
+
+Some values failed a plausibility check (for example a negative or a
+ten-fold value) and were not written; everything else was. The next run checks
+those days again. If the portal shows the values as correct, the action
+`eg_austria.release_held` lets the next run write them.
+
+### Portal unreachable
+
+No run succeeded on three calendar days in a row. Imports resume by
+themselves; the portal keeps the data, so nothing is lost while it is down.
+
+### Diagnostic sensors
+
+Token expiry, data complete until, last import, last run status and (disabled
+by default) the portal version.
 
 ## Privacy
 

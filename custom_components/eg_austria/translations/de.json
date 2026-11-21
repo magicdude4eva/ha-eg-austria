@@ -241,5 +241,55 @@
     "run_in_progress": {
       "message": "Für diesen Eintrag läuft bereits ein Import. Bitte nach dessen Ende erneut versuchen."
     }
+  },
+  "issues": {
+    "token_expiring": {
+      "title": "EG-Austria-Token läuft bald ab",
+      "description": "Das Portal-Token von {title} läuft am {expires} ab (in {days} Tagen). Danach werden keine Daten mehr importiert, bis ein neues Token hinterlegt ist.\n\nErstelle ein neues Token (empfohlen: ein persönliches Zugriffstoken) und füge es über **Neu konfigurieren** auf der Seite der EG-Austria-Integration ein. Diese Meldung verschwindet, sobald das neue Token gespeichert ist."
+    },
+    "api_changed": {
+      "title": "Antwort des EG-Austria-Portals hat sich geändert",
+      "description": "Am {date} passte eine Antwort des EG-Austria-Portals für {title} nicht zum erwarteten Format (Regeln: {rules}). Zum Schutz deiner Statistiken wurde nichts geschrieben. Die Integration versucht es täglich weiter und entfernt diese Meldung, sobald ein Lauf die Prüfung besteht.\n\nBitte lade die Diagnosedaten dieses Eintrags herunter (sie sind geschwärzt) und hänge sie an eine Fehlermeldung im Issue-Tracker der Integration an."
+    },
+    "stale_client": {
+      "title": "EG-Austria-Portal wurde aktualisiert",
+      "description": "Am {date} hat das EG-Austria-Portal {title} gemeldet, dass das Mitgliederportal aktualisiert wurde und dieser Client veraltet ist. Zum Schutz deiner Statistiken wurde nichts geschrieben. Die Integration versucht es täglich weiter und entfernt diese Meldung, sobald ein Lauf die Prüfung besteht.\n\nPrüfe, ob es ein Update der Integration gibt. Falls noch nicht, lade bitte die Diagnosedaten dieses Eintrags herunter (sie sind geschwärzt) und hänge sie an eine Fehlermeldung an."
+    },
+    "implausible_data": {
+      "title": "EG-Austria-Daten zurückgehalten",
+      "description": "Einige Daten für {title} haben eine Plausibilitätsprüfung nicht bestanden und wurden nicht geschrieben (Regeln: {rules}; Statistiken: {statistics}; Daten: {dates}). Alles andere wurde importiert.\n\nDer nächste Lauf prüft diese Tage erneut und entfernt die Meldung, wenn sie bestehen. Wenn du im Portal geprüft hast, dass die Werte stimmen, rufe die Aktion **EG Austria: Zurückgehaltene Tage freigeben** auf, damit der nächste Lauf sie schreibt."
+    },
+    "portal_unreachable": {
+      "title": "EG-Austria-Portal nicht erreichbar",
+      "description": "Das EG-Austria-Portal war für {title} an {days} aufeinanderfolgenden Tagen nicht erreichbar (letzter erfolgreicher Import: {last_success}). Der Import läuft automatisch weiter, sobald das Portal wieder antwortet; solange das Portal die Daten noch anbietet, geht nichts verloren."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "token_expires": {
+        "name": "Token läuft ab"
+      },
+      "data_complete_until": {
+        "name": "Daten vollständig bis"
+      },
+      "last_import": {
+        "name": "Letzter Import"
+      },
+      "last_run_status": {
+        "name": "Status des letzten Laufs",
+        "state": {
+          "ok": "OK",
+          "partial": "Teilweise importiert",
+          "skipped_maintenance": "Übersprungen (Wartung)",
+          "auth_failed": "Anmeldung fehlgeschlagen",
+          "api_changed": "Portal geändert",
+          "unavailable": "Portal nicht erreichbar",
+          "rate_limited": "Anfragelimit erreicht"
+        }
+      },
+      "portal_version": {
+        "name": "Portal-Version"
+      }
+    }
   }
 }

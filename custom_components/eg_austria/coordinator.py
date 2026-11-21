@@ -14,8 +14,8 @@ Hooks for S6 (repairs, diagnostic sensors, diagnostics), see also
   callbacks run then and after ``release_held``;
 * ``RunSummary.issues`` (``IssueHints``) says per repair whether this run
   raises it (True), clears it (False) or says nothing (None);
-* auth failures start the core reauth flow here; nothing else creates
-  repairs in S5.
+* auth failures start the core reauth flow here; the other repairs are
+  raised and cleared by ``repairs.py`` (S6) from these hooks.
 """
 
 from __future__ import annotations
@@ -65,6 +65,7 @@ from .exceptions import (
     PortalUnavailableError,
     RateLimitedError,
     SchemaError,
+    StaleClientError,
 )
 from .importer import (
     COMPLETENESS_MONTHS,
@@ -74,6 +75,7 @@ from .importer import (
     RunCancelled,
     RunStatus,
     RunType,
+    SiteInfo,
     add_months,
     async_fetch_completeness,
     async_import,
@@ -83,7 +85,7 @@ from .importer import (
     local_today,
     site_info,
 )
-from .models import Maintenance
+from .models import Maintenance, PortalVersion
 from .redact import redact_text
 from .statistics import Quantity
 from .validation import ValidationResult, schema_failure
@@ -229,6 +231,7 @@ class RunSummary:
     kept_stored_hours: dict[str, int] = field(default_factory=dict)
     blocked: dict[str, list[date]] = field(default_factory=dict)
     error: str | None = None  # redacted message
+    stale_client: bool = False  # api_changed came from a "portal updated" 400
     rescheduled_for: datetime | None = None  # after maintenance
     issues: IssueHints = field(default_factory=IssueHints)
 
@@ -303,6 +306,9 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         self._base_interval = getattr(client, "min_interval", None)
         self.labels: dict[str, str] = {}
         self.site_label: str | None = None
+        # Last portal answers kept for diagnostics (S6); no energy values.
+        self.portal_version: PortalVersion | None = None
+        self.site: SiteInfo | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -559,6 +565,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         except ApiChangedError as err:
             summary.status = RunStatus.API_CHANGED
             summary.error = self._redact(err)
+            summary.stale_client = isinstance(err, StaleClientError)
             summary.issues = IssueHints(api_changed=True)
         except RateLimitedError as err:
             summary.status = RunStatus.RATE_LIMITED
@@ -597,6 +604,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         # 2. Version.
         self._check_stop()
         version = await client.get_version()
+        self.portal_version = version
         summary.portal_git_commit = version.git_commit
         previous = self.state.portal_git_commit
         if previous is not None and previous != version.git_commit:
@@ -616,6 +624,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             setup.mp_ids,
             setup.community_ids,
         )
+        self.site = site
         if site.missing_mp_ids:
             _LOGGER.warning(
                 "%d selected metering point(s) not found; reconfigure the entry",

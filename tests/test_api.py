@@ -174,6 +174,31 @@ async def test_day_completeness_chunked_to_13_months(
     assert len(result) == 14
 
 
+async def test_schema_fingerprints_kept(
+    client: EgAustriaClient, mock_portal: FakePortal
+) -> None:
+    """The last analysis-data / day-completeness shapes are kept, no values."""
+
+    assert client.schema_fingerprints == {}
+    add(mock_portal, body=fixture_bytes("analysis_hour_normal_beg.json"))
+    add(mock_portal, body=fixture_bytes("day_completeness_normal.json"))
+    add(mock_portal, body=fixture_bytes("version_a.json"))
+    await client.get_analysis(
+        MEMBER, Aggregation.HOUR, date(2026, 6, 1), date(2026, 6, 7), [BEG], [MP_C]
+    )
+    await client.get_day_completeness(
+        MEMBER, date(2026, 6, 1), date(2026, 6, 7), [BEG], [MP_C]
+    )
+    await client.get_version()
+    prints = client.schema_fingerprints
+    assert set(prints) == {"analysis-data", "day-completeness"}
+    point = prints["analysis-data"]["consumptionDataPoints"][0]
+    assert point["consumption"] in {"float", "int"}
+    assert point["dateTimeFrom"] == "str"
+    assert len(prints["analysis-data"]["consumptionDataPoints"]) == 1
+    assert isinstance(prints["day-completeness"], list)
+
+
 @pytest.mark.parametrize(
     ("member", "communities", "mps", "error"),
     [

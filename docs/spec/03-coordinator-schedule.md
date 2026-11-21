@@ -88,7 +88,8 @@ Cancel listeners, let a running import finish its current request (it stops befo
 
 ## Hooks for S6
 
-- `coordinator.data`: `RunSummary` of the last finished run: `run_type`, `status` (the `last_run_status` values of spec 06), `started`, `finished`, `duration`, `window`, `chunks`, `requests`, `portal_git_commit`, `portal_version_changed`, `maintenance`, `validation` (`ValidationResult`: rule ids, statistic keys, dates, `schema_extra`, `corrections`), `written_rows` and `kept_stored_hours` per statistic key, `blocked` (held days per key), redacted `error`, `rescheduled_for`.
+- `coordinator.data`: `RunSummary` of the last finished run: `run_type`, `status` (the `last_run_status` values of spec 06), `started`, `finished`, `duration`, `window`, `chunks`, `requests`, `portal_git_commit`, `portal_version_changed`, `maintenance`, `validation` (`ValidationResult`: rule ids, statistic keys, dates, `schema_extra`, `corrections`), `written_rows` and `kept_stored_hours` per statistic key, `blocked` (held days per key), redacted `error`, `stale_client` (S6: the `api_changed` came from a `StaleClientError`), `rescheduled_for`.
+- S6 additions for diagnostics: `coordinator.portal_version` (last `PortalVersion`), `coordinator.site` (last `SiteInfo`: directions, missing metering points), `client.schema_fingerprints`.
 - `RunSummary.issues` (`IssueHints`): per repair `api_changed`, `implausible_data`, `portal_unreachable`: True = create, False = delete, None = this run says nothing (for example an unreachable portal says nothing about `api_changed`).
 - `coordinator.state`: `StoreData` (above; `as_dict()` for diagnostics). Sensors: `last_import` = `state.last_success`, `data_complete_until` = `state.complete_until`, `portal_version` = `state.portal_git_commit`.
 - `coordinator.async_add_listener()`: called after every run and after `release_held` (S6 re-evaluates `implausible_data` then).

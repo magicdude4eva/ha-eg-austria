@@ -27,13 +27,7 @@ class TokenFormatError(ValueError):
     """The value is not a JWT with a numeric ``exp`` claim."""
 
 
-def jwt_expiry(token: str) -> int:
-    """Return the ``exp`` claim (Unix seconds) of a session JWT.
-
-    Only ``exp`` is read; every other claim (email, ``sub``) is discarded.
-    The error message never contains the token.
-    """
-
+def _jwt_claims(token: str) -> dict[str, object]:
     parts = token.split(".")
     if len(parts) != 3 or not all(parts):
         raise TokenFormatError("not a JWT")
@@ -42,7 +36,34 @@ def jwt_expiry(token: str) -> int:
         claims = json.loads(base64.urlsafe_b64decode(payload))
     except (binascii.Error, ValueError) as err:
         raise TokenFormatError("JWT payload is not JSON") from err
-    exp = claims.get("exp") if isinstance(claims, dict) else None
+    if not isinstance(claims, dict):
+        raise TokenFormatError("JWT has no numeric exp")
+    return claims
+
+
+def jwt_issued_at(token: str) -> int | None:
+    """Return the ``iat`` claim (Unix seconds) of a session JWT, if any.
+
+    For diagnostics (spec 06); every other claim is discarded.
+    """
+
+    try:
+        iat = _jwt_claims(token).get("iat")
+    except TokenFormatError:
+        return None
+    if isinstance(iat, bool) or not isinstance(iat, int | float):
+        return None
+    return int(iat)
+
+
+def jwt_expiry(token: str) -> int:
+    """Return the ``exp`` claim (Unix seconds) of a session JWT.
+
+    Only ``exp`` is read; every other claim (email, ``sub``) is discarded.
+    The error message never contains the token.
+    """
+
+    exp = _jwt_claims(token).get("exp")
     if isinstance(exp, bool) or not isinstance(exp, int | float):
         raise TokenFormatError("JWT has no numeric exp")
     return int(exp)

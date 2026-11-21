@@ -298,3 +298,75 @@ def entry_data(token_exp: int, **overrides: Any) -> dict[str, Any]:
         "token_exp": token_exp,
         **overrides,
     }
+
+
+# ---------------------------------------------------------------------------
+# S6: a set-up entry with the client factory patched (repairs, sensors,
+# diagnostics). Nothing reaches the network.
+
+
+@dataclass
+class LoadedEntry:
+    """An entry set up with ``FakeClient``; ``coordinator`` = runtime data."""
+
+    entry: Any
+    client: FakeClient
+
+    @property
+    def coordinator(self) -> Any:
+        """Return the entry's coordinator."""
+        return self.entry.runtime_data
+
+
+async def async_setup_fake_entry(
+    hass: Any,
+    *,
+    token_exp: int,
+    client: FakeClient | None = None,
+    store: dict[str, Any] | None = None,
+    **data: Any,
+) -> LoadedEntry:
+    """Add and set up an entry whose client is ``client`` (no startup run).
+
+    The store marks the initial import done and a recent success unless
+    ``store`` says otherwise, so no run starts by itself.
+    """
+
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.eg_austria.config_flow import default_options
+    from custom_components.eg_austria.const import DOMAIN
+    from custom_components.eg_austria.coordinator import entry_store
+
+    client = client or FakeClient()
+    session = MagicMock()
+    session.close = AsyncMock()
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="EG Austria Home",
+        data=entry_data(token_exp, **data),
+        options=default_options(),
+    )
+    entry.add_to_hass(hass)
+    now = dt_util.utcnow()
+    await entry_store(hass, entry.entry_id).async_save(
+        store
+        if store is not None
+        else {
+            "initial_done": True,
+            "last_success": (now - timedelta(hours=2)).isoformat(),
+            "last_long_success": (now - timedelta(hours=2)).isoformat(),
+        }
+    )
+    with (
+        patch("custom_components.eg_austria.EgAustriaClient", return_value=client),
+        patch(
+            "custom_components.eg_austria.create_portal_session", return_value=session
+        ),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    return LoadedEntry(entry, client)
