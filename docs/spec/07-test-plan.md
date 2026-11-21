@@ -1,10 +1,10 @@
 # 07: Test plan
 
-Framework: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component` pinned to the targeted Home Assistant version, `aioresponses` for HTTP, `freezegun` (via the HA fixture) for time. CI also runs `hassfest` and the store validation action. Coverage target: 90 % for `api.py`, `models.py`, `validation.py`, `statistics.py`, `coordinator.py`.
+Framework: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component` pinned to the targeted Home Assistant version, an in-repo session double `FakePortal` for HTTP (`tests/conftest.py`: queued responses, recorded calls, only a `get` method; S1 found `aioresponses` 0.7.9 incompatible with the aiohttp 3.14 that Home Assistant 2026.10 pins), `FakeClock` (injected `monotonic`/`sleep`/`utcnow`) or `freezegun` (via the HA fixture) for time. CI also runs `hassfest` and the store validation action. Coverage target: 90 % for `api.py`, `models.py`, `validation.py`, `statistics.py`, `coordinator.py`.
 
 ## Fixture rules
 
-- **Synthetic only.** No captured portal response goes into the repository, not even redacted. Fixtures are produced by a generator in `tests/fixtures/generate.py` and committed as JSON, so diffs are reviewable.
+- **Synthetic only.** No captured portal response goes into the repository, not even redacted. Fixtures are produced by a generator in `tests/fixtures/generate.py` and committed as JSON (one compact line per point or entry), so diffs are reviewable. `tests/test_fixtures.py` fails when a committed file differs from the generator output; regenerate with `python3 tests/fixtures/generate.py`.
 - Synthetic ids: member `9000001`, location `5001`, metering points `1001` (consumption) and `1002` (generation), communities `2001` (`Example BEG`, BEG type) and `2002` (`Example EEG`, regional EEG type). Metering point numbers `AT0000000000000000000000000001001`-style (synthetic, valid length). Email `member@example.invalid`.
 - Tokens: JWTs signed with a test key generated in the test, `exp` relative to the frozen time; personal tokens built in the test as `ecapi_` + random lowercase hex. Never a real token copied from anywhere.
 - Shape follows the post-update fingerprint taken in G1 (build `20d1c18`, spec 01); keys not used by phase 1 are included with null or zero values so the parser sees realistic noise.
@@ -19,7 +19,8 @@ Framework: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component` p
 - Points newest first; `date` as `DD.MM.YY HH:MM`; `dateTimeFrom` UTC `…T23:00:00.000Z`; `dateTimeFromLocal` as local wall time with a `Z` suffix (as the portal sends it); zero values as JSON int.
 - Totals computed from points; `*Complete` equal to base on complete days; community `*Faulty` true on community-incomplete days; meter `*Faulty` true with `0` values on meter-missing days.
 - Single-community responses repeat the meter and residual values; only community fields differ.
-- Knobs: list of community-incomplete days (community fields `0`, flag set), meter-missing days (`0` + meter flag), null meter hours, a partial hour, negative value, tenfold day, all-zero day, extra unknown key, missing required key, renamed key, string instead of number.
+- Knobs: list of community-incomplete days (community fields `0`, flag set), meter-missing days (`0` + meter flag), null meter hours; the bad fixtures are mutations of a normal day (negative value, tenfold day, all-zero day, extra unknown key, missing required key, renamed key, string instead of number, ...). Not built in S1: a "partial hour" knob (no portal case known) and the optional `--csv` output.
+- Dates (all synthetic): normal week 2026-06-01..07, tail month 2026-05, autumn DST 2026-10-25, spring DST 2026-03-29, single day 2026-06-03.
 
 Committed scenarios:
 
@@ -29,11 +30,13 @@ Committed scenarios:
 | `analysis_hour_tail_incomplete.json` | 31 days, last 14 days community-incomplete, last day meter-missing (`0` + flag) |
 | `analysis_hour_dst_autumn.json`, `..._spring.json`, `analysis_day_dst_autumn.json` | Autumn day as the portal sends it (24 points, first local 02:00 missing, local 01:00 flagged) plus its `Day` value; spring day with 23 points |
 | `analysis_empty_day.json` | Empty lists, null totals (as in 1140/20) |
-| `analysis_bad_*.json` | One per shape and plausibility rule |
-| `day_completeness_*.json` | Matching completeness lists |
+| `analysis_hour_null_hours.json` | One day, two hours with null meter values |
+| `analysis_hour_noise.json` | Unknown top-level and point keys, an unparsable `date` |
+| `analysis_bad_*.json` | One per rule, named after it: `s1_not_object`, `s2_missing_key`, `s2_renamed_key`, `s3_string_value`, `s3_bool_flag_as_number`, `s4_naive_timestamp`, `s5_not_whole_hour`, `s6_duplicate`, `s7_out_of_range`, `p1_negative`, `p2_tenfold`, `p3_community_gt_meter`, `p4_sum_{beg,eeg}` (pair), `p5_totals_mismatch`, `p6_differs_{beg,eeg}` (pair), `h1_all_zero`. S1-S4 fail in the parser; S5 onwards parse and are for S3. No S8 file: an Hour response with more points than hours always breaks S5, S6 or S7 first, so S3 builds that case in code |
+| `day_completeness_*.json` | `normal`, `tail_incomplete` (match the analysis files), `future` (null flags from a date on), `bad_duplicate`, `bad_date`, `bad_numeric` (S9 / case 12) |
 | `metering_point_{single,two_locations}.json` | Discovery cases |
 | `maintenance_{none,active,future}.json`, `version_{a,b}.json`, `session_{one,two}_members.json` | `maintenance_none` is an empty body |
-| `error_400_stale_client.json`, `error_400_other.json`, `error_401.json` | RFC 7807-like bodies with synthetic `instance`/`traceId` |
+| `error_400_stale_client.json`, `error_400_other.json`, `error_401.json` | RFC 7807-like bodies with synthetic `instance`/`traceId`; the stale-client text is invented (the real one could not be reproduced), `error_401` says "Access token revoked" |
 
 ## Optional cross-check source: portal CSV export
 

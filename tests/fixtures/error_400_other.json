@@ -1,0 +1,11 @@
+{
+ "type": "about:blank",
+ "title": "Ungültige Anfrage",
+ "status": 400,
+ "error": "Bad Request",
+ "detail": "Validation failed (enum string is expected)",
+ "instance": "/api/v1/portal/member/9000001/analysis-data?energyCommunityIds=2001&mpIds=1001",
+ "traceId": "00000000000000000000000000000002",
+ "statusCode": 400,
+ "message": "Validation failed (enum string is expected)"
+}

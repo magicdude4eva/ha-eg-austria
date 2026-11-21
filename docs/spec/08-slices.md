@@ -11,7 +11,7 @@ Each slice is one small, reviewable subsession ending in one PR against the publ
 
 | # | Slice | Owns | Depends on | Done when |
 |---|---|---|---|---|
-| S1 | Models, fixtures generator, API client | `models.py`, `api.py`, `exceptions.py`, `tests/fixtures/*`, `test_api.py`, `test_models.py` | P0, G1 | Test cases 1-12 pass; whitelist test present |
+| S1 | Models, fixtures generator, API client | `models.py`, `api.py`, `exceptions.py`, `token.py` (kind + JWT `exp` only), `redact.py` (`redact_text()` only), `tests/fixtures/*`, `tests/conftest.py`, `test_api.py`, `test_models.py`, `test_fixtures.py` | P0, G1 | Test cases 1-12 pass; whitelist test present |
 | S2 | Token parsing and config flow (user, site, communities, reauth, reconfigure, options), translations | `config_flow.py`, `token.py`, `strings.json`, `translations/*`, `test_config_flow.py` | S1 | Cases 31-36 pass |
 | S3 | Validation rules | `validation.py`, `test_validation.py` | S1 | Cases 13-15 pass |
 | S4 | Statistics writer (ids, metadata, series building, sums, stored-row rule) | `statistics.py`, `test_statistics.py` | S1 (models only) | Cases 16-21 pass |
@@ -20,7 +20,12 @@ Each slice is one small, reviewable subsession ending in one PR against the publ
 | S7 | First run on the development box | none in the repo (private notes) | S6 | Installed, initial import done, private acceptance checks recorded, issues filed for findings |
 | S8 | Docs and release 0.1.0 | `README.md`, `docs/*`, `CHANGELOG.md` | S7 | Tagged release, installable by link |
 
-`redact.py` is needed by S1 for log redaction: S1 creates it with the `redact_text()` helper only; S6 extends it. That is the one shared file; S6 starts after S1 is merged.
+Shared files, each created by S1 and extended later (S2 and S6 start after S1 is merged):
+
+- `redact.py`: S1 creates it with the `redact_text()` helper only; S6 extends it.
+- `token.py`: S1 creates it with `TokenKind` and `jwt_expiry()` (the client needs the kind and the `exp` of a session JWT); S2 adds the parsing of pasted input.
+- `const.py` holds `VERSION` (S1, used in the User-Agent; keep equal to `manifest.json`); later slices may add constants.
+- `tests/conftest.py` holds `load_fixture`, `FakePortal` and `FakeClock` (S1); later slices may add fixtures but not change these.
 
 ## Order and parallelism
 
