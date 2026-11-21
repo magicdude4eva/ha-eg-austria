@@ -11,6 +11,7 @@ from freezegun.api import FrozenDateTimeFactory
 from homeassistant.const import STATE_UNKNOWN, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.loader import async_get_integration
 import pytest
 
 from custom_components.eg_austria.const import DOMAIN
@@ -100,7 +101,14 @@ async def test_entities_and_device(hass: HomeAssistant, loaded: LoadedEntry) -> 
     assert device is not None
     assert device.entry_type is dr.DeviceEntryType.SERVICE
     assert device.name == "EG Austria Home"
-    assert device.manufacturer == "EG Austria (unofficial)"
+    # Device page (#30): author, model, version from the manifest, portal link.
+    integration = await async_get_integration(hass, DOMAIN)
+    assert device.manufacturer == "magicdude4eva"
+    assert device.model == "EG Austria member portal (unofficial)"
+    assert device.sw_version == str(integration.version)
+    assert device.configuration_url == "https://portal.eg-austria.at/"
+    assert device.serial_number is None
+    assert device.hw_version is None
 
 
 async def test_values_before_and_after_run(
@@ -201,3 +209,48 @@ async def test_run_status_survives_reload(
     assert len(loaded.client.calls) == calls  # no run after the reload
     assert loaded.coordinator.data is None
     assert hass.states.get(ids["last_run_status"]).state == "unavailable"
+
+
+async def test_device_updated_in_place(
+    hass: HomeAssistant, recorder_mock: Any, freezer: FrozenDateTimeFactory
+) -> None:
+    """A device from an older version gets the new fields, same id (#30)."""
+
+    freezer.move_to(NOW)
+    await hass.config.async_set_time_zone("Europe/Vienna")
+    loaded = await async_setup_fake_entry(
+        hass,
+        token_exp=EXP,
+        store={"initial_done": True, "last_attempt": NOW.isoformat()},
+    )
+    devices = dr.async_get(hass)
+    ids = entity_ids(hass, loaded)
+    entity = er.async_get(hass).async_get(ids["last_run_status"])
+    assert entity is not None
+    device = devices.async_get(entity.device_id or "")
+    assert device is not None
+    assert await hass.config_entries.async_unload(loaded.entry.entry_id)
+    devices.async_update_device(
+        device.id,
+        manufacturer="EG Austria (unofficial)",
+        model=None,
+        sw_version=None,
+        configuration_url=None,
+    )
+    with (
+        patch(
+            "custom_components.eg_austria.EgAustriaClient", return_value=loaded.client
+        ),
+        patch(
+            "custom_components.eg_austria.get_portal_session",
+            return_value=MagicMock(close=AsyncMock()),
+        ),
+    ):
+        assert await hass.config_entries.async_setup(loaded.entry.entry_id)
+        await hass.async_block_till_done()
+    updated = devices.async_get(device.id)
+    assert updated is not None
+    assert updated.manufacturer == "magicdude4eva"
+    assert updated.configuration_url == "https://portal.eg-austria.at/"
+    assert len(dr.async_entries_for_config_entry(devices, loaded.entry.entry_id)) == 1
+    assert entity_ids(hass, loaded) == ids

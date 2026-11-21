@@ -18,7 +18,7 @@ Placeholders in issue texts contain only the entry title, rule id, statistic key
 
 ## Diagnostic entities
 
-One device per entry (`DeviceEntryType.SERVICE`, identifier and name from the entry, manufacturer "EG Austria (unofficial)"). All sensors `EntityCategory.DIAGNOSTIC`, `has_entity_name`, unique id `<entry_id>_<key>` (the entry id, not the entry unique id: that one changes when reconfigure remaps the location, which would orphan the entities). The values come from the entry and the store, so the sensors stay available between runs.
+One device per entry (`DeviceEntryType.SERVICE`, identifier and name from the entry, manufacturer "magicdude4eva", model "EG Austria member portal (unofficial)", `sw_version` the integration version from `manifest.json` (read at runtime), `configuration_url` https://portal.eg-austria.at/; no serial number or hardware version, because metering point and community ids are personal data (issue #30)). All sensors `EntityCategory.DIAGNOSTIC`, `has_entity_name`, unique id `<entry_id>_<key>` (the entry id, not the entry unique id: that one changes when reconfigure remaps the location, which would orphan the entities). The values come from the entry and the store, so the sensors stay available between runs.
 
 | Key | Type | Value |
 |---|---|---|
