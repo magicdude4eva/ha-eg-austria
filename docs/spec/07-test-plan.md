@@ -101,6 +101,8 @@ Recorder tests use `recorder_mock` with a module-level `mock_recorder_before_has
 
 ### Coordinator (`test_coordinator.py`)
 
+S5 tests use `FakeClient` (`tests/conftest.py`): the client's public methods, with `analysis-data` and `day-completeness` built by the fixture generator for whatever range is asked, plus knobs for incomplete and meter-missing days, errors per method, response mutation and a hook before each request. Time is frozen with `freezer` in `Europe/Vienna`; statistics go to the test recorder (`recorder_mock`). An autouse fixture sets `sqlalchemy.engine` back to WARNING: the test plugin sets it to INFO, which makes runs with thousands of statistic rows several times slower.
+
 22. Daily window from completeness: earliest incomplete in 120 days; ≥ 62 days; capped.
 23. Long run on the first daily run after the 3rd, once per month.
 24. Startup catch-up when last success > 26 h; not when recent.
@@ -129,7 +131,7 @@ Recorder tests use `recorder_mock` with a module-level `mock_recorder_before_has
 ### Integration (`test_init.py`)
 
 40. Setup → initial import → statistics present → unload cleanly → reload.
-41. Services `refetch` and `release_held`.
+41. Services `refetch` (range, defaults, refusals, busy) and `release_held` (H1 hold, release, not held again). Also: expired token at setup → reauth; unload during a run stops it without writes; translated statistic names.
 
 ## Private acceptance on the development box (not in CI, not in the repo)
 

@@ -171,5 +171,75 @@
         }
       }
     }
+  },
+  "selector": {
+    "statistic_name": {
+      "options": {
+        "site": "Zuhause",
+        "site_consumption": "Bezug",
+        "site_generation": "Einspeisung",
+        "site_consumption_from_community": "Bezug aus Gemeinschaften",
+        "site_generation_to_community": "Einspeisung an Gemeinschaften",
+        "site_consumption_from_supplier": "Bezug vom Lieferanten",
+        "site_generation_to_surplus": "Einspeisung an Überschussabnehmer",
+        "community_consumption_from_community": "Bezug aus Gemeinschaft",
+        "community_generation_to_community": "Einspeisung an Gemeinschaft"
+      }
+    }
+  },
+  "services": {
+    "refetch": {
+      "name": "Neu abrufen",
+      "description": "Ruft einen Zeitraum erneut aus dem Mitgliederportal ab und schreibt seine Statistiken neu. Läuft im Hintergrund.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Eintrag",
+          "description": "Der EG-Austria-Eintrag."
+        },
+        "start_date": {
+          "name": "Startdatum",
+          "description": "Erster abzurufender Tag. Standard: das tägliche Fenster (62 Tage)."
+        },
+        "end_date": {
+          "name": "Enddatum",
+          "description": "Letzter abzurufender Tag. Standard: heute. Höchstens 400 Tage nach dem Startdatum."
+        }
+      }
+    },
+    "release_held": {
+      "name": "Zurückgehaltene Tage freigeben",
+      "description": "Gibt Tage frei, die die Prüfung zurückgehalten hat, damit der nächste Lauf sie so schreibt, wie das Portal sie liefert.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Eintrag",
+          "description": "Der EG-Austria-Eintrag."
+        },
+        "statistic_key": {
+          "name": "Statistik-Schlüssel",
+          "description": "Nur diese Statistik, zum Beispiel home_generation. Standard: alle."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Nur dieser Tag. Standard: alle zurückgehaltenen Tage."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "Kein EG-Austria-Eintrag mit dieser ID."
+    },
+    "entry_not_loaded": {
+      "message": "Der EG-Austria-Eintrag ist nicht geladen."
+    },
+    "invalid_range": {
+      "message": "Das Startdatum darf nicht nach dem Enddatum liegen, und das Enddatum nicht in der Zukunft."
+    },
+    "range_too_long": {
+      "message": "Ein Neuabruf umfasst höchstens {days} Tage."
+    },
+    "run_in_progress": {
+      "message": "Für diesen Eintrag läuft bereits ein Import. Bitte nach dessen Ende erneut versuchen."
+    }
   }
 }

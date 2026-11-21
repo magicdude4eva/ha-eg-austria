@@ -171,5 +171,75 @@
         }
       }
     }
+  },
+  "selector": {
+    "statistic_name": {
+      "options": {
+        "site": "Home",
+        "site_consumption": "Consumption",
+        "site_generation": "Generation",
+        "site_consumption_from_community": "Consumption from communities",
+        "site_generation_to_community": "Generation to communities",
+        "site_consumption_from_supplier": "Consumption from supplier",
+        "site_generation_to_surplus": "Generation to surplus buyer",
+        "community_consumption_from_community": "Consumption from community",
+        "community_generation_to_community": "Generation to community"
+      }
+    }
+  },
+  "services": {
+    "refetch": {
+      "name": "Re-fetch",
+      "description": "Fetches a date range again from the member portal and rewrites its statistics. Runs in the background.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Entry",
+          "description": "The EG Austria entry to run."
+        },
+        "start_date": {
+          "name": "Start date",
+          "description": "First day to fetch. Default: the daily window (62 days)."
+        },
+        "end_date": {
+          "name": "End date",
+          "description": "Last day to fetch. Default: today. At most 400 days after the start date."
+        }
+      }
+    },
+    "release_held": {
+      "name": "Release held days",
+      "description": "Releases days that validation held back, so the next run writes them as the portal sends them.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Entry",
+          "description": "The EG Austria entry."
+        },
+        "statistic_key": {
+          "name": "Statistic key",
+          "description": "Only this statistic, for example home_generation. Default: all."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Only this day. Default: all held days."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "No EG Austria entry with this id."
+    },
+    "entry_not_loaded": {
+      "message": "The EG Austria entry is not loaded."
+    },
+    "invalid_range": {
+      "message": "The start date must not be after the end date, and the end date must not be in the future."
+    },
+    "range_too_long": {
+      "message": "A re-fetch covers at most {days} days."
+    },
+    "run_in_progress": {
+      "message": "An import is already running for this entry. Try again when it has finished."
+    }
   }
 }

@@ -15,7 +15,7 @@ Each slice is one small, reviewable subsession ending in one PR against the publ
 | S2 | Token parsing and config flow (user, site, communities, reauth, reconfigure, options), translations | `config_flow.py`, `token.py`, `strings.json`, `translations/*`, `test_config_flow.py`; additive: `const.py` (entry keys, option defaults), `manifest.json` (`config_flow: true`), `__init__.py` (no-op `async_setup_entry`/`async_unload_entry` until S5) | S1 | Cases 31-36 pass |
 | S3 | Validation rules | `validation.py`, `test_validation.py` | S1 | Cases 13-15 pass |
 | S4 | Statistics writer (ids, metadata, series building, sums, stored-row rule) | `statistics.py`, `test_statistics.py` | S1 (models only) | Cases 16-21 pass |
-| S5 | Coordinator, scheduler, store, services | `coordinator.py`, `importer.py`, `__init__.py`, `services.yaml`, `test_coordinator.py`, `test_init.py` | S2, S3, S4 | Cases 22-30, 40-41 pass |
+| S5 | Coordinator, scheduler, store, services | `coordinator.py` (with the store), `importer.py`, `__init__.py`, `services.yaml`, `test_coordinator.py`, `test_init.py`; additive: `strings.json`/`translations/*` (services, service errors, statistic labels), `tests/conftest.py` (`FakeClient`, `entry_data`, SQL log level) | S2, S3, S4 | Cases 22-30, 40-41 pass |
 | S6 | Repairs, diagnostic sensors, diagnostics and redaction | `repairs.py`, `sensor.py`, `diagnostics.py`, `redact.py`, related tests | S5 (hooks), S1 | Cases 37-39 pass |
 | S7 | First run on the development box | none in the repo (private notes) | S6 | Installed, initial import done, private acceptance checks recorded, issues filed for findings |
 | S8 | Docs and release 0.1.0 | `README.md`, `docs/*`, `CHANGELOG.md` | S7 | Tagged release, installable by link |

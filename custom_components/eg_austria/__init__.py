@@ -1,22 +1,189 @@
 """EG Austria energy-community data for Home Assistant (unofficial, read-only).
 
-S2 adds the config flow only; setup does nothing yet. The coordinator,
-scheduler and services follow in slice S5 (see docs/spec/08-slices.md).
+Setup creates the API client, the persistent store and the coordinator; the
+coordinator schedules the imports (spec 03). The services of spec 06 are
+registered once in ``async_setup``, independent of entries.
 """
 
 from __future__ import annotations
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from datetime import date, timedelta
+import logging
+from typing import Final
+
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    HomeAssistantError,
+    ServiceValidationError,
+)
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.translation import async_get_translations
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.util import dt as dt_util
+import voluptuous as vol
+
+from .api import EgAustriaClient, create_portal_session
+from .const import CONF_TOKEN, CONF_TOKEN_EXP, CONF_TOKEN_KIND, DOMAIN
+from .coordinator import EgAustriaCoordinator, RunRequest, entry_store
+from .importer import MAX_MANUAL_DAYS, RunType, local_today
+from .token import TokenKind
+
+_LOGGER = logging.getLogger(__name__)
+
+CONFIG_SCHEMA: Final = cv.config_entry_only_config_schema(DOMAIN)
+
+SERVICE_REFETCH: Final = "refetch"
+SERVICE_RELEASE_HELD: Final = "release_held"
+ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
+ATTR_START_DATE: Final = "start_date"
+ATTR_END_DATE: Final = "end_date"
+ATTR_STATISTIC_KEY: Final = "statistic_key"
+ATTR_DATE: Final = "date"
+
+REFETCH_SCHEMA: Final = vol.Schema(
+    {
+        vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(ATTR_START_DATE): cv.date,
+        vol.Optional(ATTR_END_DATE): cv.date,
+    }
+)
+RELEASE_SCHEMA: Final = vol.Schema(
+    {
+        vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(ATTR_STATISTIC_KEY): cv.string,
+        vol.Optional(ATTR_DATE): cv.date,
+    }
+)
+LABEL_PREFIX: Final = f"component.{DOMAIN}.selector.statistic_name.options."
+
+type EgAustriaConfigEntry = ConfigEntry[EgAustriaCoordinator]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up an entry (placeholder until S5 adds the coordinator)."""
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the services."""
 
+    hass.services.async_register(
+        DOMAIN, SERVICE_REFETCH, _async_refetch, schema=REFETCH_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_RELEASE_HELD, _async_release_held, schema=RELEASE_SCHEMA
+    )
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload an entry."""
+async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) -> bool:
+    """Set up an entry: client, store, coordinator, schedule.
 
+    Nothing is fetched here; the first run starts in the background after
+    Home Assistant has started (spec 03).
+    """
+
+    exp = entry.data.get(CONF_TOKEN_EXP)
+    if isinstance(exp, int | float) and dt_util.utcnow().timestamp() >= exp:
+        # ADR 0007: past the stored expiry nothing is sent; start reauth.
+        raise ConfigEntryAuthFailed("token expired")
+
+    session = create_portal_session(hass)
+    client = EgAustriaClient(
+        session,
+        entry.data[CONF_TOKEN],
+        TokenKind(entry.data[CONF_TOKEN_KIND]),
+        token_exp=exp,
+    )
+    coordinator = EgAustriaCoordinator(
+        hass, entry, client, entry_store(hass, entry.entry_id), session=session
+    )
+    await _async_load_labels(hass, coordinator)
+    entry.runtime_data = coordinator
+    await coordinator.async_start()
     return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) -> bool:
+    """Stop the schedule, let a running import stop, close the session."""
+
+    coordinator = entry.runtime_data
+    await coordinator.async_stop()
+    await coordinator.async_flush()
+    if coordinator.session is not None:
+        await coordinator.session.close()
+    return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Delete the entry's store; statistics stay in the recorder (ADR 0012)."""
+
+    await entry_store(hass, entry.entry_id).async_remove()
+
+
+async def _async_load_labels(
+    hass: HomeAssistant, coordinator: EgAustriaCoordinator
+) -> None:
+    """Load the translated statistic labels (spec 04); English if missing."""
+
+    strings = await async_get_translations(
+        hass, hass.config.language, "selector", {DOMAIN}
+    )
+    labels = {
+        k.removeprefix(LABEL_PREFIX): v
+        for k, v in strings.items()
+        if k.startswith(LABEL_PREFIX)
+    }
+    coordinator.site_label = labels.pop("site", None)
+    coordinator.labels = labels
+
+
+# ---------------------------------------------------------------------------
+# Services
+
+
+def _coordinator(hass: HomeAssistant, entry_id: str) -> EgAustriaCoordinator:
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is None or entry.domain != DOMAIN:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="entry_not_found"
+        )
+    if entry.state is not ConfigEntryState.LOADED:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="entry_not_loaded"
+        )
+    return entry.runtime_data
+
+
+async def _async_refetch(call: ServiceCall) -> None:
+    """``eg_austria.refetch``: a manual run over a date range (spec 03).
+
+    Without dates the window is the daily window; without ``end_date`` it
+    ends today. The run starts in the background.
+    """
+
+    coordinator = _coordinator(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    today = local_today(dt_util.utcnow())
+    end: date = call.data.get(ATTR_END_DATE) or today
+    start: date | None = call.data.get(ATTR_START_DATE)
+    if end > today or (start is not None and start > end):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="invalid_range"
+        )
+    if start is not None and end - start >= timedelta(days=MAX_MANUAL_DAYS):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="range_too_long",
+            translation_placeholders={"days": str(MAX_MANUAL_DAYS)},
+        )
+    if not coordinator.async_trigger(RunRequest(RunType.MANUAL, start, end)):
+        raise HomeAssistantError(
+            translation_domain=DOMAIN, translation_key="run_in_progress"
+        )
+
+
+async def _async_release_held(call: ServiceCall) -> None:
+    """``eg_austria.release_held``: clear held days so the next run writes them."""
+
+    coordinator = _coordinator(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    count = coordinator.async_release(
+        call.data.get(ATTR_STATISTIC_KEY), call.data.get(ATTR_DATE)
+    )
+    _LOGGER.info("Released %d held day(s)", count)

@@ -1,0 +1,31 @@
+refetch:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: eg_austria
+    start_date:
+      required: false
+      selector:
+        date:
+    end_date:
+      required: false
+      selector:
+        date:
+release_held:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: eg_austria
+    statistic_key:
+      required: false
+      example: home_generation
+      selector:
+        text:
+    date:
+      required: false
+      selector:
+        date:

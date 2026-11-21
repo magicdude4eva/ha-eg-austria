@@ -37,6 +37,8 @@ No energy sensors (ADR 0003).
 | `eg_austria.refetch` | `config_entry_id`, `start_date?`, `end_date?` | Manual run (spec 03) |
 | `eg_austria.release_held` | `config_entry_id`, `statistic_key?`, `date?` | Clears held days so the next run writes them |
 
+Implemented in S5; details (defaults, refusals, `released`) in spec 03 "Services". The run summary and `IssueHints` that S6 turns into issues and sensor values are in spec 03 "Hooks for S6".
+
 ## Diagnostics
 
 `async_get_config_entry_diagnostics` returns:
