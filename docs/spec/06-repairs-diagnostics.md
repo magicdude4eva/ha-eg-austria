@@ -41,7 +41,7 @@ Implemented in S5; details (defaults, refusals, `released`) in spec 03 "Services
 
 ## Diagnostics
 
-`async_get_config_entry_diagnostics` returns the sections below, each passed through `redact.redact_tree()` (the section names are not redacted, although one is called `token`). It works for an entry that is not loaded (entry, token and statistics only).
+`async_get_config_entry_diagnostics` returns the sections below, each passed through `redact.redact_tree()` (the section names are not redacted, although one is called `token`). It works for an entry that is not loaded (entry, token and statistics only). `async_get_device_diagnostics` returns the same for the entry's one service device, so "Download diagnostics" is also in the device page's menu.
 
 - `entry`: entry version, options, `site_slug`, community slugs, retired slugs, number of metering points, the directions and the number of missing metering points seen in the last run; `data` redacted by `TO_REDACT`. The entry title is left out (users may rename it).
 - `token`: kind, stored expiry, days left, `created_by_flow` (true when the entry holds a token the config flow created, ADR 0007); for a session JWT also `iat`. Nothing else from the token; the token id is never included.

@@ -17,12 +17,14 @@ from unittest.mock import AsyncMock, patch
 
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 import jwt
 import pytest
 
 from custom_components.eg_austria.coordinator import RunRequest
 from custom_components.eg_austria.diagnostics import (
     async_get_config_entry_diagnostics,
+    async_get_device_diagnostics,
 )
 from custom_components.eg_austria.exceptions import ApiChangedError
 from custom_components.eg_austria.importer import RunType
@@ -320,3 +322,23 @@ def test_jwt_issued_at() -> None:
     assert jwt_issued_at("not-a-jwt") is None
     no_iat = jwt.encode({"exp": 1}, secrets.token_hex(32), algorithm="HS256")
     assert jwt_issued_at(no_iat) is None
+
+
+async def test_device_diagnostics_same_as_entry(
+    hass: HomeAssistant, env: Any, no_writes: AsyncMock
+) -> None:
+    """The device page download is the redacted entry download."""
+
+    token, _, exp = session_jwt(20)
+    loaded = await async_setup_fake_entry(
+        hass, token_exp=exp, token=token, token_kind="session"
+    )
+    await loaded.coordinator.async_run(RunRequest(RunType.DAILY))
+    await hass.async_block_till_done()
+    devices = dr.async_entries_for_config_entry(
+        dr.async_get(hass), loaded.entry.entry_id
+    )
+    assert len(devices) == 1
+    output = await async_get_device_diagnostics(hass, loaded.entry, devices[0])
+    assert output == await async_get_config_entry_diagnostics(hass, loaded.entry)
+    assert_clean(output, token)
