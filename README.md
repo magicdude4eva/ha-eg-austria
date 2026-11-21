@@ -37,6 +37,11 @@ Planned for phase 1:
 Not yet. Once 0.1.0 is released it can be added to the Home Assistant
 Marketplace (formerly HACS) as a custom repository by link.
 
+After you add the integration, Home Assistant opens a **Name and assign**
+dialog for the "EG Austria" service device. An area makes no sense for this
+service: just choose **Skip and finish**. Home Assistant offers this dialog for
+every device a new entry creates, so the integration can't turn it off.
+
 ## Repairs and diagnostics
 
 The integration raises a repair in **Settings > System > Repairs** when it
