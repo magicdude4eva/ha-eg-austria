@@ -8,6 +8,15 @@ Home Assistant long-term statistics.
 > portal's undocumented web API, which may change or break at any time. It only
 > reads data (HTTP GET); it never changes anything in your portal account.
 
+> [!TIP]
+> **Joining EG Austria?** If this integration is useful to you, you can sign up
+> with my referral link: <https://eg-austria.at/?ref=L79Y5W9G> (code
+> `L79Y5W9G`). It supports the maintainer and costs you nothing extra. This is a
+> personal referral, not a sponsorship by EG Austria.
+>
+> 🇦🇹 *Neu bei EG Austria? Mit dem Empfehlungscode `L79Y5W9G` unterstützt du
+> dieses Projekt.*
+
 ## Status
 
 Early development, **not usable yet**. Work follows the slices in
