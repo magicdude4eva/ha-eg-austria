@@ -125,7 +125,10 @@ locations[]:
   label                 <- address street + houseNumber (config-flow select only; never logged, redacted in diagnostics)
   meteringPoints[]:     <- memberMeteringpoints[]
     id                  <- id (int, used as mpIds)
-    number_tail         <- last 4 characters of number (labels only)
+    number              <- number (full metering point number; config-flow labels only, never logged, redacted in diagnostics)
+    number_tail         <- last 4 characters of number
+    name                <- name (facility name, optional; config-flow labels only)
+    sourceOfProduction  <- sourceOfProduction (optional, generation points; config-flow labels only)
     direction           <- consumptionOrGeneration: "Consumption" | "Generation" (anything else: SchemaError)
     activations[]:
       energyCommunityId <- energyCommunityId (int, used as energyCommunityIds)
@@ -134,9 +137,10 @@ locations[]:
       activeFrom        <- begin (local date)
       activeTo          <- end (local date or null)
       status            <- status ("Active" seen)
+      activePartFactor  <- activePartFactor (number or null; config-flow labels only)
 ```
 
-Participation factors and Zero plans go into `extra` only (snapshot values, never configuration). `address`, `number`, `name`, `*Name` and `memberId` are sensitive and redacted (spec 06).
+Zero plans and the other participation factors go into `extra` only (snapshot values, never configuration); `activePartFactor` is also parsed for the metering point labels (issue #19) and never stored. `address`, `number`, `name`, `*Name` and `memberId` are sensitive and redacted (spec 06).
 
 ### `SessionInfo`
 
@@ -169,6 +173,20 @@ Exceptions in `exceptions.py`, all subclasses of `EgAustriaError`:
 
 Error bodies are RFC 7807-like with content type `application/problem+json`: `type` (`about:blank`), `title` (German, e.g. `Ungültige Anfrage`), `status`, `statusCode`, `error` (e.g. `Bad Request`), `detail`, `message`, `instance`, `traceId` (G1). `instance` is the full request path and query, so it holds the member number and the community and metering point ids; the client never reads `instance` or `traceId` and puts only `detail`/`message`, passed through `redact_text()` with the member number and ids of the session, into exception messages and debug logs. The stale-client body (1140/29) could not be reproduced in G1 and stays as described.
 
+## Token module (config flow only, ADR 0007)
+
+Module `token_api.py`, class `PortalTokenClient(session, cookie)`. Only `config_flow.py` imports it (a test checks this); the coordinator and services can't reach it. It takes a session JWT only (sent as `Cookie: portal.jwtToken=`, same headers, timeout and no-redirect policy as above) and has its own frozen whitelist of exactly two entries:
+
+| Method | Path | Body | Success |
+|---|---|---|---|
+| `create_token(name, expires_at)` | `POST /v1/portal/portal-session/token` | JSON `{"name": "Home Assistant", "expiresAt": "<UTC ISO 8601 with ms and Z>"}` | 200/201 with the token object |
+| `revoke_token(token_id)` | `DELETE /v1/portal/portal-session/token/{id}` | none | 200/204 (body ignored); 404 counts as already gone |
+
+- One request per call, **no retry** (a timeout may have created the token anyway), no spacing needed.
+- `{id}` must match `^[A-Za-z0-9_-]{1,64}$` (ids seen are small integers) or the call raises `ValueError` before sending.
+- Create response validation (any failure → `SchemaError`, or `ApiChangedError` for a non-JSON body): a JSON object; `token` a string matching `^ecapi_[a-z0-9_]+$`; `id` an int (not a bool) or a string matching the id pattern, kept as text; `expiresAt` an ISO 8601 timestamp with time zone, in the future; `revokedAt`, if present, null. Other keys (`name`, `lastUsedAt`, `createdAt`) are ignored. The result is `CreatedToken(id, token, expires_at)` with `token` excluded from `repr`.
+- Status mapping as in "Errors" below (401/403 → `AuthError`, 5xx/timeout → `PortalUnavailableError`, other 4xx → `ApiChangedError`). Error bodies go through `redact_text()` (which also removes `ecapi_` tokens); the success body is never logged.
+
 ## Not in phase 1
 
-`billing/*`, `energy-flow`, `average-day`, `part-factor-changes`, `portal-session/token*` and every other `portal-session/*` path except `portal-session` itself, any document download.
+`billing/*`, `energy-flow`, `average-day`, `part-factor-changes`, listing tokens (`GET portal-session/token`) and every other `portal-session/*` path except `portal-session` itself and the two token calls above, any document download.

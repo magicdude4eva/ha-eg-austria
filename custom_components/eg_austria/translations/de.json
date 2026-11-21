@@ -2,18 +2,30 @@
   "config": {
     "step": {
       "user": {
-        "title": "EG-Austria-Token",
-        "description": "Füge einen **persönlichen Zugangstoken** ein (`ecapi_…`, etwa ein Jahr gültig; empfohlen). So erstellst du einen: {readme_url}\n\nAlternative: das Sitzungs-Cookie `portal.jwtToken` aus den Entwicklerwerkzeugen des Browsers (Anwendung → Cookies → portal.eg-austria.at) nach dem Anmelden im Mitgliederportal. Es ist etwa einen Monat gültig.\n\nDer Token wird in Home Assistant gespeichert und nie wieder angezeigt. Diese Integration liest nur Daten.",
+        "title": "EG Austria verbinden",
+        "description": "1. Melde dich im Browser im Mitgliederportal {portal_url} an.\n2. Öffne die Entwicklerwerkzeuge (F12) → Anwendung (Firefox: Web-Speicher) → Cookies → portal.eg-austria.at.\n3. Kopiere den Wert von `portal.jwtToken` und füge ihn hier ein.\n\nDanach bietet Home Assistant an, aus diesem Cookie einen Zugangstoken nur zum Lesen zu erstellen, damit du das nicht jeden Monat wiederholen musst. Das Cookie selbst wird nicht gespeichert. Hast du schon einen persönlichen Zugangstoken (`ecapi_…`), füge stattdessen diesen ein. Mehr: {readme_url}",
         "data": {
-          "token": "Token"
+          "token": "Sitzungs-Cookie oder Token"
         },
         "data_description": {
-          "token": "Persönlicher Token oder Wert des Sitzungs-Cookies. Anführungszeichen und `portal.jwtToken=` werden automatisch entfernt."
+          "token": "Wert von `portal.jwtToken`. Anführungszeichen und `portal.jwtToken=` werden automatisch entfernt."
         }
+      },
+      "create_token": {
+        "title": "Zugangstoken erstellen?",
+        "description": "Home Assistant kann jetzt für dein Portalkonto einen Zugangstoken **nur zum Lesen** mit dem Namen \"{token_name}\" erstellen, ein Jahr gültig. Er kann deine Energiedaten lesen, aber nichts ändern. EG Austria schickt dir eine E-Mail zum neuen Token (\"Neuer Access-Token erstellt\").\n\nGespeichert wird nur der Zugangstoken, nicht dein Sitzungs-Cookie. Ohne Token behält Home Assistant das Sitzungs-Cookie, das in {days} Tagen abläuft.",
+        "menu_options": {
+          "create_token_confirm": "Zugangstoken erstellen (empfohlen)",
+          "use_session": "Sitzungs-Cookie behalten"
+        }
+      },
+      "create_failed": {
+        "title": "Zugangstoken nicht erstellt",
+        "description": "Die Einrichtung geht mit dem Sitzungs-Cookie weiter (etwa einen Monat gültig). Vor dem Ablauf erscheint eine Reparaturwarnung; über Neu konfigurieren kannst du es später erneut versuchen. Schickt EG Austria trotzdem eine E-Mail zu einem neuen Token, wurde er dennoch erstellt."
       },
       "token_expiry": {
         "title": "Ablauf des persönlichen Tokens",
-        "description": "Die Integration kann das Ablaufdatum eines persönlichen Tokens nicht auslesen. Gib das Datum an, das du beim Erstellen gewählt hast (im Portal standardmäßig ein Jahr). 30 Tage vorher erscheint eine Reparaturwarnung.",
+        "description": "Die Integration kann das Ablaufdatum eines eingefügten persönlichen Tokens nicht auslesen. Gib das Datum an, das du beim Erstellen gewählt hast (im Portal standardmäßig ein Jahr). 30 Tage vorher erscheint eine Reparaturwarnung.",
         "data": {
           "token_expires": "Token gültig bis"
         }
@@ -53,40 +65,54 @@
       },
       "communities": {
         "title": "Energiegemeinschaften",
-        "description": "Gemeinschaften der gewählten Zählpunkte (Name wie vom Portal geliefert, Art, Mitglied seit):\n\n{communities}\n\nDie Kürzel werden Teil der Statistik-IDs und **können später nicht geändert werden**.",
+        "description": "Wähle die Gemeinschaften, die importiert werden. Das Kürzel nach dem Pfeil wird Teil der Statistik-IDs und **kann später nicht geändert werden**.",
         "data": {
-          "include_1": "Gemeinschaft 1 importieren",
-          "slug_1": "Kürzel der Gemeinschaft 1",
-          "include_2": "Gemeinschaft 2 importieren",
-          "slug_2": "Kürzel der Gemeinschaft 2",
-          "include_3": "Gemeinschaft 3 importieren",
-          "slug_3": "Kürzel der Gemeinschaft 3",
-          "include_4": "Gemeinschaft 4 importieren",
-          "slug_4": "Kürzel der Gemeinschaft 4",
-          "include_5": "Gemeinschaft 5 importieren",
-          "slug_5": "Kürzel der Gemeinschaft 5",
-          "include_6": "Gemeinschaft 6 importieren",
-          "slug_6": "Kürzel der Gemeinschaft 6",
-          "include_7": "Gemeinschaft 7 importieren",
-          "slug_7": "Kürzel der Gemeinschaft 7",
-          "include_8": "Gemeinschaft 8 importieren",
-          "slug_8": "Kürzel der Gemeinschaft 8",
-          "include_9": "Gemeinschaft 9 importieren",
-          "slug_9": "Kürzel der Gemeinschaft 9"
+          "communities": "Importieren",
+          "edit_slugs": "Kürzel ändern"
+        }
+      },
+      "community_slugs": {
+        "title": "Kürzel der Gemeinschaften",
+        "description": "Die Kürzel werden Teil der Statistik-IDs und **können später nicht geändert werden**.\n\n{communities}",
+        "data": {
+          "slug_1": "Kürzel 1",
+          "slug_2": "Kürzel 2",
+          "slug_3": "Kürzel 3",
+          "slug_4": "Kürzel 4",
+          "slug_5": "Kürzel 5",
+          "slug_6": "Kürzel 6",
+          "slug_7": "Kürzel 7",
+          "slug_8": "Kürzel 8",
+          "slug_9": "Kürzel 9"
         }
       },
       "reauth_confirm": {
-        "title": "Neuer EG-Austria-Token",
-        "description": "Der gespeicherte Token wurde abgelehnt oder ist abgelaufen. Füge einen neuen persönlichen Token (empfohlen, siehe {readme_url}) oder ein Sitzungs-Cookie desselben Mitglieds ein.",
+        "title": "EG Austria neu verbinden",
+        "description": "Der gespeicherte Token wurde abgelehnt oder ist abgelaufen.\n\n1. Melde dich im Browser im Mitgliederportal {portal_url} an.\n2. Öffne die Entwicklerwerkzeuge (F12) → Anwendung (Firefox: Web-Speicher) → Cookies → portal.eg-austria.at.\n3. Kopiere den Wert von `portal.jwtToken` und füge ihn hier ein.\n\nDanach bietet Home Assistant an, einen neuen Zugangstoken zu erstellen. Ein persönlicher Token (`ecapi_…`) desselben Mitglieds geht auch. Mehr: {readme_url}",
         "data": {
-          "token": "Token"
+          "token": "Sitzungs-Cookie oder Token"
         }
       },
       "reconfigure": {
         "title": "EG Austria neu konfigurieren",
-        "description": "Optional einen neuen Token einfügen, bevor der aktuelle abläuft (siehe {readme_url}). Leer lassen, um den gespeicherten Token zu behalten. Danach kannst du die Zählpunkte ändern und Gemeinschaften hinzufügen.",
+        "description": "Dieser Eintrag verwendet einen Zugangstoken, den Home Assistant erstellt hat.",
+        "menu_options": {
+          "reconfigure_token": "Token, Zählpunkte oder Gemeinschaften ändern",
+          "revoke_token": "Zugangstoken widerrufen"
+        }
+      },
+      "reconfigure_token": {
+        "title": "EG Austria neu konfigurieren",
+        "description": "Optional ein neues Sitzungs-Cookie (Home Assistant bietet dann einen neuen Zugangstoken an) oder einen persönlichen Token einfügen (siehe {readme_url}). Leer lassen, um den gespeicherten Token zu behalten. Ein von Home Assistant erstellter Token bleibt beim Ersetzen bis zu seinem Ablauf gültig; widerrufe ihn vorher, wenn du ihn nicht mehr brauchst. Danach kannst du die Zählpunkte ändern und Gemeinschaften hinzufügen.",
         "data": {
-          "token": "Neuer Token (optional)"
+          "token": "Neues Sitzungs-Cookie oder Token (optional)"
+        }
+      },
+      "revoke_token": {
+        "title": "Zugangstoken widerrufen",
+        "description": "Ein Zugangstoken kann sich nicht selbst widerrufen, dafür braucht es ein frisches Sitzungs-Cookie.\n\n1. Melde dich im Browser im Mitgliederportal {portal_url} an.\n2. Öffne die Entwicklerwerkzeuge (F12) → Anwendung (Firefox: Web-Speicher) → Cookies → portal.eg-austria.at.\n3. Kopiere den Wert von `portal.jwtToken` und füge ihn hier ein.\n\nHome Assistant widerruft dann den Token, den es erstellt hat. Danach kannst du einen neuen erstellen oder das Sitzungs-Cookie behalten. Um die Integration ganz zu beenden, lösche danach den Eintrag. Mehr: {readme_url}",
+        "data": {
+          "token": "Sitzungs-Cookie"
         }
       },
       "reconfigure_location": {
@@ -105,26 +131,25 @@
       },
       "reconfigure_communities": {
         "title": "Energiegemeinschaften",
-        "description": "Beibehalten (Kürzel nicht änderbar):\n{kept}\n\nNicht mehr vom Portal geliefert:\n{orphans}\n\nStillgelegte Kürzel: {retired}\n\nNeue Gemeinschaften:\n{new}\n\nUm die Historie einer Gemeinschaft zu behalten, deren Portal-ID sich geändert hat, gib ihr altes Kürzel in der neuen Zeile ein. Nicht wiederverwendete alte Kürzel werden stillgelegt.",
+        "description": "Beibehalten (Kürzel nicht änderbar):\n{kept}\n\nNicht mehr vom Portal geliefert:\n{orphans}\n\nStillgelegte Kürzel: {retired}\n\nUm die Historie einer Gemeinschaft zu behalten, deren Portal-ID sich geändert hat, gib der neuen Gemeinschaft ihr altes Kürzel. Nicht wiederverwendete alte Kürzel werden stillgelegt.",
         "data": {
-          "include_1": "Gemeinschaft 1 importieren",
-          "slug_1": "Kürzel der Gemeinschaft 1",
-          "include_2": "Gemeinschaft 2 importieren",
-          "slug_2": "Kürzel der Gemeinschaft 2",
-          "include_3": "Gemeinschaft 3 importieren",
-          "slug_3": "Kürzel der Gemeinschaft 3",
-          "include_4": "Gemeinschaft 4 importieren",
-          "slug_4": "Kürzel der Gemeinschaft 4",
-          "include_5": "Gemeinschaft 5 importieren",
-          "slug_5": "Kürzel der Gemeinschaft 5",
-          "include_6": "Gemeinschaft 6 importieren",
-          "slug_6": "Kürzel der Gemeinschaft 6",
-          "include_7": "Gemeinschaft 7 importieren",
-          "slug_7": "Kürzel der Gemeinschaft 7",
-          "include_8": "Gemeinschaft 8 importieren",
-          "slug_8": "Kürzel der Gemeinschaft 8",
-          "include_9": "Gemeinschaft 9 importieren",
-          "slug_9": "Kürzel der Gemeinschaft 9"
+          "communities": "Neue Gemeinschaften importieren",
+          "edit_slugs": "Kürzel ändern"
+        }
+      },
+      "reconfigure_community_slugs": {
+        "title": "Kürzel der Gemeinschaften",
+        "description": "Die Kürzel werden Teil der Statistik-IDs und **können später nicht geändert werden**. Ein altes Kürzel setzt die Historie dieser Gemeinschaft fort.\n\n{communities}",
+        "data": {
+          "slug_1": "Kürzel 1",
+          "slug_2": "Kürzel 2",
+          "slug_3": "Kürzel 3",
+          "slug_4": "Kürzel 4",
+          "slug_5": "Kürzel 5",
+          "slug_6": "Kürzel 6",
+          "slug_7": "Kürzel 7",
+          "slug_8": "Kürzel 8",
+          "slug_9": "Kürzel 9"
         }
       }
     },
@@ -143,7 +168,11 @@
       "no_community": "Die gewählten Zählpunkte sind in keiner Energiegemeinschaft (oder keine ist ausgewählt).",
       "invalid_slug": "Verwende 1-20 Kleinbuchstaben, Ziffern oder `_`, beginnend mit einem Buchstaben.",
       "slug_in_use": "Dieses Standort-Kürzel verwendet bereits ein anderer Eintrag.",
-      "duplicate_slug": "Dieses Kürzel wird in diesem Eintrag bereits verwendet."
+      "duplicate_slug": "Dieses Kürzel wird in diesem Eintrag bereits verwendet.",
+      "create_failed_auth": "Das Portal hat das Erstellen des Zugangstokens abgelehnt.",
+      "create_failed_connect": "Das Portal war beim Erstellen des Zugangstokens nicht erreichbar.",
+      "create_failed_response": "Das Portal hat auf die Token-Anfrage unerwartet geantwortet.",
+      "session_cookie_required": "Füge ein Sitzungs-Cookie (`portal.jwtToken`) ein; ein Zugangstoken kann keine Tokens widerrufen."
     },
     "abort": {
       "already_configured": "Dieses Mitglied und dieser Standort sind bereits eingerichtet.",
@@ -151,7 +180,8 @@
       "no_metering_points": "Der Standort hat keine Zählpunkte.",
       "too_many_communities": "Mehr Energiegemeinschaften, als diese Version unterstützt.",
       "reauth_successful": "Der Token wurde aktualisiert.",
-      "reconfigure_successful": "Der Eintrag wurde aktualisiert."
+      "reconfigure_successful": "Der Eintrag wurde aktualisiert.",
+      "token_revoked": "Der Zugangstoken wurde widerrufen und der Eintrag aktualisiert."
     }
   },
   "options": {

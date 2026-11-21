@@ -415,39 +415,54 @@ class EgAustriaClient:
     def _raise_for_status(
         self, status: int, body: bytes, retry_after: str | None
     ) -> None:
-        detail = self._error_detail(body)
-        message = f"HTTP {status}" + (f": {detail}" if detail else "")
-        if detail:
-            _LOGGER.debug("Portal error body: %s", detail)
-        if status == 401:
+        raise_for_status(status, body, retry_after, self._redact)
+
+
+def error_detail(body: bytes, redact: Callable[[str], str]) -> str:
+    """Return the redacted ``detail``/``message`` (never ``instance``)."""
+
+    try:
+        data = json.loads(body) if body.strip() else None
+    except ValueError:
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    texts = []
+    for key in ("detail", "message"):
+        value = data.get(key)
+        if isinstance(value, str) and value and value not in texts:
+            texts.append(value)
+    return redact(" / ".join(texts))[:300]
+
+
+def raise_for_status(
+    status: int,
+    body: bytes,
+    retry_after: str | None,
+    redact: Callable[[str], str],
+) -> None:
+    """Raise the typed error for a status >= 300 (spec 01 "Errors").
+
+    Shared with the token module (``token_api.py``).
+    """
+
+    detail = error_detail(body, redact)
+    message = f"HTTP {status}" + (f": {detail}" if detail else "")
+    if detail:
+        _LOGGER.debug("Portal error body: %s", detail)
+    if status == 401:
+        raise AuthError(message)
+    if status == 403:
+        if any(word in detail.lower() for word in _AUTH_WORDS):
             raise AuthError(message)
-        if status == 403:
-            if any(word in detail.lower() for word in _AUTH_WORDS):
-                raise AuthError(message)
-            raise ForbiddenError(message)
-        if status == 429:
-            raise RateLimitedError(message, retry_after=_retry_after(retry_after))
-        if status >= 500:
-            raise PortalUnavailableError(
-                message, status=status, retryable=status in RETRY_STATUSES
-            )
-        if status == 400 and "aktualisiert" in detail.lower():
-            raise StaleClientError(message, status=status)
-        # Other 4xx (400, 404, 405, 422, ...) and unexpected 3xx redirects.
-        raise ApiChangedError(message, status=status)
-
-    def _error_detail(self, body: bytes) -> str:
-        """Return the redacted ``detail``/``message`` (never ``instance``)."""
-
-        try:
-            data = json.loads(body) if body.strip() else None
-        except ValueError:
-            return ""
-        if not isinstance(data, dict):
-            return ""
-        texts = []
-        for key in ("detail", "message"):
-            value = data.get(key)
-            if isinstance(value, str) and value and value not in texts:
-                texts.append(value)
-        return self._redact(" / ".join(texts))[:300]
+        raise ForbiddenError(message)
+    if status == 429:
+        raise RateLimitedError(message, retry_after=_retry_after(retry_after))
+    if status >= 500:
+        raise PortalUnavailableError(
+            message, status=status, retryable=status in RETRY_STATUSES
+        )
+    if status == 400 and "aktualisiert" in detail.lower():
+        raise StaleClientError(message, status=status)
+    # Other 4xx (400, 404, 405, 422, ...) and unexpected 3xx redirects.
+    raise ApiChangedError(message, status=status)

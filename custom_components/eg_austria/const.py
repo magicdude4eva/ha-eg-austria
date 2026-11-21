@@ -9,6 +9,8 @@ VERSION: Final = "0.0.0"  # keep equal to manifest.json "version"
 CONF_TOKEN: Final = "token"  # noqa: S105 - key name
 CONF_TOKEN_KIND: Final = "token_kind"  # noqa: S105 - key name
 CONF_TOKEN_EXP: Final = "token_exp"  # noqa: S105 - key name
+# Id of a token the config flow created (ADR 0007); absent otherwise.
+CONF_TOKEN_ID: Final = "token_id"  # noqa: S105 - key name
 CONF_MEMBER_NUMBER: Final = "member_number"
 CONF_LOCATION_ID: Final = "location_id"
 CONF_MP_IDS: Final = "mp_ids"
@@ -29,3 +31,5 @@ DEFAULT_IMPORT_HISTORY: Final = True
 
 # Personal token: default stated lifetime (ADR 0007).
 PERSONAL_TOKEN_DEFAULT_DAYS: Final = 365
+# Name of a token the config flow creates (ADR 0007).
+CREATED_TOKEN_NAME: Final = "Home Assistant"  # noqa: S105 - not a secret

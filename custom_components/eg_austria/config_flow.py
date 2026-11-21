@@ -1,12 +1,17 @@
 """Config flow for EG Austria (spec 02, ADR 0007, ADR 0012).
 
-Steps of a new entry: ``user`` (token) → ``token_expiry`` (personal token
-only) → ``expiring_soon`` / ``member`` / ``accept_terms`` (only when needed) →
-``location`` (several locations only) → ``site`` → ``communities``.
+Steps of a new entry: ``user`` (session cookie or token) → ``token_expiry``
+(pasted personal token only) → ``member`` / ``accept_terms`` (only when
+needed) → ``location`` (several locations only) → ``create_token`` (session
+cookie: consent, then one create call; ``create_failed`` falls back to the
+cookie) → ``expiring_soon`` (cookie kept, < 7 days) → ``site`` →
+``communities`` → ``community_slugs`` (only when asked for).
 
-Privacy: the token is never logged or shown back. Member display names,
-addresses and community names appear only as labels in the flow; only the
-community name is stored (as ``name``, the statistic display name, ADR 0012).
+Privacy: tokens and cookies are never logged or shown back; a cookie used to
+create or revoke a token is not stored (ADR 0007). Member display names,
+addresses, metering point numbers and names and community names appear only
+as labels in the flow; only the community name is stored (as ``name``, the
+statistic display name, ADR 0012).
 """
 
 from __future__ import annotations
@@ -61,7 +66,9 @@ from .const import (
     CONF_SITE_SLUG,
     CONF_TOKEN,
     CONF_TOKEN_EXP,
+    CONF_TOKEN_ID,
     CONF_TOKEN_KIND,
+    CREATED_TOKEN_NAME,
     DEFAULT_DAILY_WINDOW_DAYS,
     DEFAULT_IMPORT_HISTORY,
     DEFAULT_LONG_REFETCH_MONTHS,
@@ -87,6 +94,7 @@ from .models import (
     SessionInfo,
 )
 from .token import ParsedToken, TokenFormatError, TokenKind, parse_token
+from .token_api import PortalTokenClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,6 +105,8 @@ SESSION_NOTICE_DAYS: Final = 7
 MAX_COMMUNITIES: Final = 9  # rows with translated labels in strings.json
 RUN_MINUTE_RANGE: Final = (180, 359)  # ADR 0004
 README_TOKEN_URL: Final = f"{REPO_URL}#token"
+PORTAL_URL: Final = "https://portal.eg-austria.at"
+_TOKEN_PLACEHOLDERS: Final = {"readme_url": README_TOKEN_URL, "portal_url": PORTAL_URL}
 _EXPIRES: Final = "token_expires"
 
 # Community type code → default slug stem and label (spec 02, ADR 0012).
@@ -106,6 +116,7 @@ _DIRECTION_LABEL: Final = {
     "en": {Direction.CONSUMPTION: "Consumption", Direction.GENERATION: "Generation"},
     "de": {Direction.CONSUMPTION: "Bezug", Direction.GENERATION: "Einspeisung"},
 }
+_SINCE_LABEL: Final = {"en": "member since", "de": "Mitglied seit"}
 
 _TOKEN_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 _SLUG_SELECTOR = TextSelector()
@@ -158,6 +169,18 @@ def _error_key(err: Exception) -> str:
     return "unknown"
 
 
+def _create_error_key(err: Exception) -> str:
+    """Map a token-create error to a ``create_failed`` error key (spec 02)."""
+
+    if isinstance(err, AuthError):
+        return "create_failed_auth"
+    if isinstance(err, PortalUnavailableError | RateLimitedError):
+        return "create_failed_connect"
+    if not isinstance(err, ApiChangedError | SchemaError):
+        _LOGGER.error("Unexpected error creating the token: %s", type(err).__name__)
+    return "create_failed_response"
+
+
 @asynccontextmanager
 async def _portal_client(
     hass: HomeAssistant, token: str, kind: TokenKind, token_exp: int | None
@@ -205,10 +228,56 @@ def _communities_of(location: Location, mp_ids: list[int]) -> list[_Community]:
     return list(found.values())
 
 
-def _community_line(n: int, c: _Community, slug: str | None = None) -> str:
+def _lang(hass: HomeAssistant) -> str:
+    return "de" if hass.config.language.startswith("de") else "en"
+
+
+def _format_day(day: date, lang: str) -> str:
+    return day.strftime("%d.%m.%Y") if lang == "de" else day.isoformat()
+
+
+def _community_label(c: _Community, slug: str, lang: str) -> str:
+    """``<name> (BEG, member since <date>) → <slug>`` (issue #20)."""
+
     kind = _TYPE_LABEL.get(c.type, c.type)
-    line = f"{n}. {c.name} ({kind}, {c.active_from.isoformat()})"
-    return f"{line} → `{slug}`" if slug else line
+    since = f"{_SINCE_LABEL[lang]} {_format_day(c.active_from, lang)}"
+    return f"{c.name} ({kind}, {since}) → {slug}"
+
+
+def _slug_lines(rows: list[_Community]) -> str:
+    """Map each slug field number to its community (step description)."""
+
+    return "\n".join(
+        f"{n}: {c.name} ({_TYPE_LABEL.get(c.type, c.type)})"
+        for n, c in enumerate(rows, start=1)
+    )
+
+
+def _factor(value: float) -> str:
+    return f"{value:g} %"
+
+
+def _mp_label(mp: MeteringPoint, lang: str, today: date) -> str:
+    """Direction, full number, facility name and type, part factors (#19)."""
+
+    parts = [f"{_DIRECTION_LABEL[lang][mp.direction]} {mp.number or mp.number_tail}"]
+    facility = mp.name or ""
+    if mp.source_of_production:
+        facility = f"{facility} ({mp.source_of_production})".strip()
+    if facility:
+        parts.append(facility)
+    factors: dict[int, str] = {}
+    for act in mp.activations:
+        current = act.status == "Active" and (
+            act.active_to is None or act.active_to >= today
+        )
+        if current and act.active_part_factor is not None:
+            factors[act.community_id] = (
+                f"{act.community_name} {_factor(act.active_part_factor)}"
+            )
+    if factors:
+        parts.append(", ".join(factors.values()))
+    return " · ".join(parts)
 
 
 class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -222,6 +291,9 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
 
         self._parsed: ParsedToken | None = None
         self._token_exp: int | None = None
+        self._token_id: str | None = None  # set only for a created token
+        self._token_decided = False  # consent step answered
+        self._create_error = "create_failed_response"
         self._flow_step = "user"  # step that asked for the token
         self._session: SessionInfo | None = None
         self._member: Member | None = None
@@ -230,6 +302,8 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
         self._mp_ids: list[int] = []
         self._site_slug = DEFAULT_SITE_SLUG
         self._found: list[_Community] = []
+        self._slugs: dict[int, str] = {}  # community id → default slug
+        self._chosen: list[_Community] = []
         self._notice_expiring = False
         self._notice_terms = False
         # Reconfigure only.
@@ -256,6 +330,8 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
             self._notice_expiring = False
         self._parsed = parsed
         self._token_exp = parsed.exp
+        self._token_id = None
+        self._token_decided = False
         return None
 
     def _client(self) -> Any:
@@ -285,7 +361,7 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._token_exp = exp
                     error = await self._async_validate_online()
                     if error is None:
-                        return await self._async_after_validation()
+                        return await self._async_after_check()
                     errors["base"] = error
         return self.async_show_form(
             step_id="token_expiry",
@@ -308,7 +384,7 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self.async_step_token_expiry()
         if error := await self._async_validate_online():
             return error
-        return await self._async_after_validation()
+        return await self._async_after_check()
 
     async def _async_validate_online(self) -> str | None:
         """Call the portal for the step that asked for the token."""
@@ -317,12 +393,92 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self._async_validate_new()
         return await self._async_validate_same_member()
 
-    async def _async_after_validation(self) -> ConfigFlowResult:
+    async def _async_after_check(self) -> ConfigFlowResult:
+        """Next step once the pasted value passed its checks.
+
+        A new entry asks for consent only after the location is known and
+        the duplicate check passed (``_async_after_location``), so a
+        duplicate never creates a token.
+        """
+
+        assert self._parsed is not None  # noqa: S101
         if self._flow_step == "user":
             return await self._async_next_new()
+        if self._parsed.kind is TokenKind.SESSION:
+            return await self.async_step_create_token()
+        return await self._async_after_token()
+
+    async def _async_after_token(self) -> ConfigFlowResult:
+        """Next step once the token to store is decided."""
+
+        self._token_decided = True
+        if self._flow_step == "user":
+            return await self._async_after_location()
         if self._flow_step == "reauth_confirm":
             return self._finish_reauth()
+        if self._flow_step == "revoke_token":
+            return self._finish_revoke()
         return await self._async_reconfigure_location()
+
+    # ------------------------------------------------------------------
+    # Token creation from a session cookie (ADR 0007, issue #18)
+
+    async def async_step_create_token(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Consent: create a read-only token, or keep the session cookie."""
+
+        assert self._token_exp is not None  # noqa: S101
+        days = max(0, (self._token_exp - _now_ts()) // 86400)
+        return self.async_show_menu(
+            step_id="create_token",
+            menu_options=["create_token_confirm", "use_session"],
+            description_placeholders={
+                "token_name": CREATED_TOKEN_NAME,
+                "days": str(days),
+            },
+        )
+
+    async def async_step_create_token_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Exactly one create call with the cookie; the cookie is then dropped."""
+
+        assert self._parsed is not None  # noqa: S101
+        assert self._parsed.kind is TokenKind.SESSION  # noqa: S101
+        client = PortalTokenClient(get_portal_session(self.hass), self._parsed.token)
+        expires = dt_util.utcnow() + timedelta(days=PERSONAL_TOKEN_DEFAULT_DAYS)
+        try:
+            created = await client.create_token(CREATED_TOKEN_NAME, expires)
+        except Exception as err:
+            self._create_error = _create_error_key(err)
+            return await self.async_step_create_failed()
+        self._parsed = ParsedToken(created.token, TokenKind.PERSONAL)
+        self._token_exp = int(created.expires_at.timestamp())
+        self._token_id = created.id
+        self._notice_expiring = False
+        return await self._async_after_token()
+
+    async def async_step_create_failed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the create error, then continue with the session cookie."""
+
+        if user_input is not None:
+            return await self.async_step_use_session()
+        return self.async_show_form(
+            step_id="create_failed",
+            data_schema=vol.Schema({}),
+            errors={"base": self._create_error},
+        )
+
+    async def async_step_use_session(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Keep the session cookie as the stored token (fallback)."""
+
+        self._token_id = None
+        return await self._async_after_token()
 
     # ------------------------------------------------------------------
     # New entry
@@ -330,7 +486,7 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Ask for the token (personal token recommended, session JWT fallback)."""
+        """Ask for the session cookie (or a personal token)."""
 
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -342,7 +498,7 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema({vol.Required(CONF_TOKEN): _TOKEN_SELECTOR}),
             errors=errors,
-            description_placeholders={"readme_url": README_TOKEN_URL},
+            description_placeholders=_TOKEN_PLACEHOLDERS,
         )
 
     async def _async_validate_new(self) -> str | None:
@@ -374,10 +530,8 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
         return _error_key(err)
 
     async def _async_next_new(self) -> ConfigFlowResult:
-        """Notices, member choice and location in that order."""
+        """Member choice, terms notice and location in that order."""
 
-        if self._notice_expiring:
-            return await self.async_step_expiring_soon()
         if self._member is None:
             return await self.async_step_member()
         if self._member.must_accept_platform_terms and not self._notice_terms:
@@ -391,7 +545,7 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._notice_expiring = False
-            return await self._async_next_new()
+            return await self._async_after_location()
         assert self._token_exp is not None  # noqa: S101
         days = max(0, (self._token_exp - _now_ts()) // 86400)
         return self.async_show_form(
@@ -478,16 +632,24 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
         if not self._location.metering_points:
             return self.async_abort(reason="no_metering_points")
+        return await self._async_after_location()
+
+    async def _async_after_location(self) -> ConfigFlowResult:
+        """Ask for consent (session cookie), show the 7-day notice, then site."""
+
+        assert self._parsed is not None  # noqa: S101
+        if self._parsed.kind is TokenKind.SESSION and not self._token_decided:
+            return await self.async_step_create_token()
+        if self._notice_expiring:
+            return await self.async_step_expiring_soon()
         return await self.async_step_site()
 
     def _mp_schema(self, default: list[str]) -> vol.Schema:
         assert self._location is not None  # noqa: S101
-        lang = "de" if self.hass.config.language.startswith("de") else "en"
-        labels = _DIRECTION_LABEL[lang]
+        lang = _lang(self.hass)
+        today = dt_util.now().date()
         options = [
-            SelectOptionDict(
-                value=str(mp.id), label=f"{labels[mp.direction]} …{mp.number_tail}"
-            )
+            SelectOptionDict(value=str(mp.id), label=_mp_label(mp, lang, today))
             for mp in self._location.metering_points
         ]
         return vol.Schema(
@@ -550,40 +712,76 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
             for e in self._async_current_entries(include_ignore=False)
         } - {None}
 
+    def _community_schema(
+        self, rows: list[_Community], selected: list[str], edit: bool
+    ) -> vol.Schema:
+        """Multi-select labelled per community, plus the slug-edit checkbox."""
+
+        lang = _lang(self.hass)
+        options = [
+            SelectOptionDict(
+                value=str(c.id), label=_community_label(c, self._slugs[c.id], lang)
+            )
+            for c in rows
+        ]
+        return vol.Schema(
+            {
+                vol.Required("communities", default=selected): SelectSelector(
+                    SelectSelectorConfig(
+                        options=options, multiple=True, mode=SelectSelectorMode.LIST
+                    )
+                ),
+                vol.Required("edit_slugs", default=edit): BooleanSelector(),
+            }
+        )
+
     async def async_step_communities(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """One row per community: include and slug (frozen after setup)."""
+        """Choose communities (labelled per community, issue #20)."""
 
         errors: dict[str, str] = {}
         taken: set[str] = set()
-        defaults = []
+        self._slugs = {}
         for c in self._found:
-            slug = default_slug(c.type, taken)
-            taken.add(slug)
-            defaults.append(slug)
+            self._slugs[c.id] = default_slug(c.type, taken)
+            taken.add(self._slugs[c.id])
+        selected = [str(c.id) for c in self._found]
+        edit = False
         if user_input is not None:
-            chosen, errors = _read_rows(user_input, self._found, reserved=set())
-            if not errors and not chosen:
+            selected = [str(v) for v in user_input.get("communities", [])]
+            edit = bool(user_input.get("edit_slugs", False))
+            chosen = [c for c in self._found if str(c.id) in selected]
+            if not chosen:
                 errors["base"] = "no_community"
-            if not errors:
-                return self._create_entry(chosen)
-            defaults = [
-                str(user_input.get(f"slug_{i + 1}", d)) for i, d in enumerate(defaults)
-            ]
-        schema: dict[Any, Any] = {}
-        for i, slug in enumerate(defaults):
-            include = user_input.get(f"include_{i + 1}", True) if user_input else True
-            schema[vol.Required(f"include_{i + 1}", default=include)] = (
-                BooleanSelector()
-            )
-            schema[vol.Required(f"slug_{i + 1}", default=slug)] = _SLUG_SELECTOR
-        lines = [_community_line(i + 1, c) for i, c in enumerate(self._found)]
+            elif edit:
+                self._chosen = chosen
+                return await self.async_step_community_slugs()
+            else:
+                return self._create_entry([(c, self._slugs[c.id]) for c in chosen])
         return self.async_show_form(
             step_id="communities",
-            data_schema=vol.Schema(schema),
+            data_schema=self._community_schema(self._found, selected, edit),
             errors=errors,
-            description_placeholders={"communities": "\n".join(lines)},
+        )
+
+    async def async_step_community_slugs(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Slugs of the chosen communities (frozen after setup)."""
+
+        errors: dict[str, str] = {}
+        defaults = [self._slugs[c.id] for c in self._chosen]
+        if user_input is not None:
+            chosen, errors = _read_slugs(user_input, self._chosen, reserved=set())
+            if not errors:
+                return self._create_entry(chosen)
+            defaults = _entered_slugs(user_input, defaults)
+        return self.async_show_form(
+            step_id="community_slugs",
+            data_schema=_slug_schema(defaults),
+            errors=errors,
+            description_placeholders={"communities": _slug_lines(self._chosen)},
         )
 
     def _create_entry(self, chosen: list[tuple[_Community, str]]) -> ConfigFlowResult:
@@ -605,6 +803,8 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_SITE_SLUG: self._site_slug,
             CONF_RUN_MINUTE: random.randint(*RUN_MINUTE_RANGE),  # noqa: S311
         }
+        if self._token_id is not None:
+            data[CONF_TOKEN_ID] = self._token_id
         return self.async_create_entry(
             title=ENTRY_TITLE, data=data, options=default_options()
         )
@@ -622,7 +822,7 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Paste a new token of either kind for the same member."""
+        """Paste a new session cookie (or token) of the same member."""
 
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -636,7 +836,7 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reauth_confirm",
             data_schema=vol.Schema({vol.Required(CONF_TOKEN): _TOKEN_SELECTOR}),
             errors=errors,
-            description_placeholders={"readme_url": README_TOKEN_URL},
+            description_placeholders=_TOKEN_PLACEHOLDERS,
         )
 
     def _existing_entry(self) -> ConfigEntry:
@@ -660,13 +860,20 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
             return _error_key(err)
         return None
 
-    def _token_updates(self) -> dict[str, Any]:
+    def _with_token(self, data: Mapping[str, Any]) -> dict[str, Any]:
+        """Return ``data`` with the new token fields (``token_id`` if created)."""
+
         assert self._parsed is not None  # noqa: S101
-        return {
+        new = {
+            **data,
             CONF_TOKEN: self._parsed.token,
             CONF_TOKEN_KIND: self._parsed.kind.value,
             CONF_TOKEN_EXP: self._token_exp,
         }
+        new.pop(CONF_TOKEN_ID, None)
+        if self._token_id is not None:
+            new[CONF_TOKEN_ID] = self._token_id
+        return new
 
     def _clear_token_expiring(self, entry: ConfigEntry) -> None:
         ir.async_delete_issue(self.hass, DOMAIN, f"token_expiring_{entry.entry_id}")
@@ -675,7 +882,14 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
         entry = self._get_reauth_entry()
         self._clear_token_expiring(entry)
         return self.async_update_reload_and_abort(
-            entry, data_updates=self._token_updates()
+            entry, data=self._with_token(entry.data)
+        )
+
+    def _finish_revoke(self) -> ConfigFlowResult:
+        entry = self._get_reconfigure_entry()
+        self._clear_token_expiring(entry)
+        return self.async_update_reload_and_abort(
+            entry, data=self._with_token(entry.data), reason="token_revoked"
         )
 
     # ------------------------------------------------------------------
@@ -684,15 +898,27 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Menu with "revoke token" when the flow created the stored token."""
+
+        if self._get_reconfigure_entry().data.get(CONF_TOKEN_ID):
+            return self.async_show_menu(
+                step_id="reconfigure",
+                menu_options=["reconfigure_token", "revoke_token"],
+            )
+        return await self.async_step_reconfigure_token()
+
+    async def async_step_reconfigure_token(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Optionally paste a new token; then metering points and communities."""
 
         errors: dict[str, str] = {}
         if user_input is not None:
             raw = str(user_input.get(CONF_TOKEN) or "").strip()
             if raw:
-                result = await self._async_token_submitted("reconfigure", raw)
+                result = await self._async_token_submitted("reconfigure_token", raw)
             else:
-                self._flow_step = "reconfigure"
+                self._flow_step = "reconfigure_token"
                 entry = self._get_reconfigure_entry()
                 stored = ParsedToken(
                     entry.data[CONF_TOKEN], TokenKind(entry.data[CONF_TOKEN_KIND])
@@ -705,11 +931,51 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
                 return result
             errors["base"] = result
         return self.async_show_form(
-            step_id="reconfigure",
+            step_id="reconfigure_token",
             data_schema=vol.Schema({vol.Optional(CONF_TOKEN): _TOKEN_SELECTOR}),
             errors=errors,
             description_placeholders={"readme_url": README_TOKEN_URL},
         )
+
+    async def async_step_revoke_token(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Revoke the token the flow created, with a fresh session cookie."""
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._flow_step = "revoke_token"
+            error = self._accept_token(user_input[CONF_TOKEN])
+            if error is None:
+                assert self._parsed is not None  # noqa: S101
+                if self._parsed.kind is not TokenKind.SESSION:
+                    error = "session_cookie_required"
+            error = (
+                error
+                or await self._async_validate_same_member()
+                or await self._async_revoke()
+            )
+            if error is None:
+                return await self.async_step_create_token()
+            errors["base"] = error
+        return self.async_show_form(
+            step_id="revoke_token",
+            data_schema=vol.Schema({vol.Required(CONF_TOKEN): _TOKEN_SELECTOR}),
+            errors=errors,
+            description_placeholders=_TOKEN_PLACEHOLDERS,
+        )
+
+    async def _async_revoke(self) -> str | None:
+        """Exactly one revoke call for the stored token id."""
+
+        assert self._parsed is not None  # noqa: S101
+        token_id = str(self._get_reconfigure_entry().data[CONF_TOKEN_ID])
+        client = PortalTokenClient(get_portal_session(self.hass), self._parsed.token)
+        try:
+            await client.revoke_token(token_id)
+        except Exception as err:
+            return _error_key(err)
+        return None
 
     async def _async_reconfigure_location(self) -> ConfigFlowResult:
         assert self._mp_info is not None  # noqa: S101
@@ -806,49 +1072,68 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
         kept_slugs = {k["slug"] for k in self._kept}
         orphan_slugs = {o["slug"] for o in self._orphans}
         taken = kept_slugs | orphan_slugs | retired
-        defaults = []
+        self._slugs = {}
         for c in self._new:
             match = next(
                 (o["slug"] for o in self._orphans if o.get("name") == c.name), None
             )
-            if match is not None and match not in defaults:
-                defaults.append(match)
+            if match is not None and match not in self._slugs.values():
+                self._slugs[c.id] = match
                 continue
-            slug = default_slug(c.type, taken)
-            taken.add(slug)
-            defaults.append(slug)
+            self._slugs[c.id] = default_slug(c.type, taken)
+            taken.add(self._slugs[c.id])
         errors: dict[str, str] = {}
+        selected = [str(c.id) for c in self._new]
+        edit = False
         if user_input is not None:
-            chosen, errors = _read_rows(user_input, self._new, reserved=kept_slugs)
-            if not errors and not chosen and not self._kept:
+            selected = [str(v) for v in user_input.get("communities", [])]
+            edit = bool(user_input.get("edit_slugs", False))
+            chosen = [c for c in self._new if str(c.id) in selected]
+            if not chosen and not self._kept:
                 errors["base"] = "no_community"
-            if not errors:
-                return self._finish_reconfigure(chosen)
-            defaults = [
-                str(user_input.get(f"slug_{i + 1}", d)) for i, d in enumerate(defaults)
-            ]
-        schema: dict[Any, Any] = {}
-        for i, slug in enumerate(defaults):
-            include = user_input.get(f"include_{i + 1}", True) if user_input else True
-            schema[vol.Required(f"include_{i + 1}", default=include)] = (
-                BooleanSelector()
-            )
-            schema[vol.Required(f"slug_{i + 1}", default=slug)] = _SLUG_SELECTOR
+            elif edit and chosen:
+                self._chosen = chosen
+                return await self.async_step_reconfigure_community_slugs()
+            else:
+                return self._finish_reconfigure(
+                    [(c, self._slugs[c.id]) for c in chosen]
+                )
+        schema = (
+            self._community_schema(self._new, selected, edit)
+            if self._new
+            else vol.Schema({})
+        )
         kept_lines = [f"- {k['name']} → `{k['slug']}`" for k in self._kept]
         orphan_lines = [f"- {o['name']} → `{o['slug']}`" for o in self._orphans]
         return self.async_show_form(
             step_id="reconfigure_communities",
-            data_schema=vol.Schema(schema),
+            data_schema=schema,
             errors=errors,
             description_placeholders={
                 "kept": "\n".join(kept_lines) or "-",
                 "orphans": "\n".join(orphan_lines) or "-",
                 "retired": ", ".join(f"`{s}`" for s in sorted(retired)) or "-",
-                "new": "\n".join(
-                    _community_line(i + 1, c) for i, c in enumerate(self._new)
-                )
-                or "-",
             },
+        )
+
+    async def async_step_reconfigure_community_slugs(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Slugs of the new communities; kept slugs can't be reused."""
+
+        kept_slugs = {k["slug"] for k in self._kept}
+        errors: dict[str, str] = {}
+        defaults = [self._slugs[c.id] for c in self._chosen]
+        if user_input is not None:
+            chosen, errors = _read_slugs(user_input, self._chosen, reserved=kept_slugs)
+            if not errors:
+                return self._finish_reconfigure(chosen)
+            defaults = _entered_slugs(user_input, defaults)
+        return self.async_show_form(
+            step_id="reconfigure_community_slugs",
+            data_schema=_slug_schema(defaults),
+            errors=errors,
+            description_placeholders={"communities": _slug_lines(self._chosen)},
         )
 
     def _finish_reconfigure(
@@ -863,19 +1148,18 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
         communities = self._kept + [
             {"id": c.id, "slug": slug, "name": c.name} for c, slug in chosen
         ]
-        updates: dict[str, Any] = {
+        data: dict[str, Any] = {
+            **entry.data,
             CONF_LOCATION_ID: self._location.id,
             CONF_MP_IDS: self._mp_ids,
             CONF_COMMUNITIES: communities,
             CONF_RETIRED_SLUGS: sorted(retired),
         }
         if self._parsed is not None:
-            updates |= self._token_updates()
+            data = self._with_token(data)
             self._clear_token_expiring(entry)
         unique_id = entry_unique_id(entry.data[CONF_MEMBER_NUMBER], self._location.id)
-        return self.async_update_reload_and_abort(
-            entry, unique_id=unique_id, data_updates=updates
-        )
+        return self.async_update_reload_and_abort(entry, unique_id=unique_id, data=data)
 
     # ------------------------------------------------------------------
 
@@ -894,17 +1178,30 @@ def _location_options(locations: tuple[Location, ...]) -> list[SelectOptionDict]
     ]
 
 
-def _read_rows(
+def _slug_schema(defaults: list[str]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(f"slug_{i}", default=slug): _SLUG_SELECTOR
+            for i, slug in enumerate(defaults, start=1)
+        }
+    )
+
+
+def _entered_slugs(user_input: Mapping[str, Any], defaults: list[str]) -> list[str]:
+    return [
+        str(user_input.get(f"slug_{i}", d)) for i, d in enumerate(defaults, start=1)
+    ]
+
+
+def _read_slugs(
     user_input: Mapping[str, Any], rows: list[_Community], *, reserved: set[str]
 ) -> tuple[list[tuple[_Community, str]], dict[str, str]]:
-    """Read include/slug rows; slugs must match the pattern and be unique."""
+    """Read ``slug_<n>`` fields; slugs must match the pattern and be unique."""
 
     chosen: list[tuple[_Community, str]] = []
     errors: dict[str, str] = {}
     seen = set(reserved)
     for i, c in enumerate(rows, start=1):
-        if not user_input.get(f"include_{i}", True):
-            continue
         slug = str(user_input.get(f"slug_{i}", "")).strip()
         if not SLUG_RE.fullmatch(slug):
             errors[f"slug_{i}"] = "invalid_slug"

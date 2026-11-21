@@ -156,6 +156,7 @@ async def test_diagnostics_redacted(
         "kind": "session",
         "expires": datetime.fromtimestamp(exp, UTC).isoformat(),
         "days_left": 20,
+        "created_by_flow": False,
         "issued_at": datetime.fromtimestamp(iat, UTC).isoformat(),
     }
     assert output["store"]["last_success"] == NOW.isoformat()
@@ -241,6 +242,24 @@ async def test_diagnostics_not_loaded(hass: HomeAssistant, env: Any) -> None:
     assert output["store"] is None
     assert output["last_run"] is None
     assert output["token"]["days_left"] == 10
+    assert_clean(output, entry.data["token"])
+
+
+async def test_diagnostics_created_token(hass: HomeAssistant, env: Any) -> None:
+    """A token the flow created: flagged, its id redacted (ADR 0007)."""
+
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from .conftest import entry_data
+
+    token_id = "token-id-" + secrets.token_hex(4)
+    data = entry_data(int(NOW.timestamp()) + 86400 * 300) | {"token_id": token_id}
+    entry = MockConfigEntry(domain="eg_austria", title="EG Austria Home", data=data)
+    entry.add_to_hass(hass)
+    output = await async_get_config_entry_diagnostics(hass, entry)
+    assert output["token"]["created_by_flow"] is True
+    assert output["entry"]["data"]["token_id"] == REDACTED
+    assert token_id not in json.dumps(output)
     assert_clean(output, entry.data["token"])
 
 

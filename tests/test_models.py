@@ -444,3 +444,36 @@ def test_version() -> None:
     assert a.git_commit != b.git_commit
     with pytest.raises(SchemaError, match="gitCommit"):
         parse_version({"buildTime": "x"})
+
+
+def test_metering_point_label_fields() -> None:
+    """Full number, name, type and part factor for the flow labels (#19)."""
+
+    info = parse_metering_points(load_fixture("metering_point_single.json"))
+    cons, gen = info.locations[0].metering_points
+    assert cons.number == "AT0000000000000000000000000001001"
+    assert cons.name == "Example consumption"
+    assert cons.source_of_production is None
+    assert gen.source_of_production == "Sun"
+    assert [a.active_part_factor for a in cons.activations] == [50.0, 50.0]
+    # Label-only fields are sensitive: never in repr.
+    assert cons.number not in repr(cons)
+    assert "Example consumption" not in repr(cons)
+
+
+def test_metering_point_label_fields_lenient() -> None:
+    """Odd label values never fail validation: they are left out."""
+
+    raw = copy.deepcopy(load_fixture("metering_point_single.json"))
+    mp = raw[0]["memberMeteringpoints"][0]
+    mp["name"] = 5
+    mp["sourceOfProduction"] = ""
+    mp["activations"][0]["activePartFactor"] = True
+    mp["activations"][1]["activePartFactor"] = "50"
+    del raw[0]["memberMeteringpoints"][1]["name"]
+    info = parse_metering_points(raw)
+    cons, gen = info.locations[0].metering_points
+    assert cons.name is None
+    assert cons.source_of_production is None
+    assert [a.active_part_factor for a in cons.activations] == [None, None]
+    assert gen.name is None

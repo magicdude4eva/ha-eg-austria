@@ -28,6 +28,7 @@ from .const import (
     CONF_RETIRED_SLUGS,
     CONF_SITE_SLUG,
     CONF_TOKEN,
+    CONF_TOKEN_ID,
     CONF_TOKEN_KIND,
 )
 from .models import Direction
@@ -86,6 +87,8 @@ def _token_section(entry: ConfigEntry) -> dict[str, Any]:
         "kind": kind,
         "expires": _iso(exp),
         "days_left": (exp - dt_util.utcnow()).days if exp is not None else None,
+        # ADR 0007: the token was created by the config flow (id never shown).
+        "created_by_flow": bool(entry.data.get(CONF_TOKEN_ID)),
     }
     if kind == TokenKind.SESSION:
         iat = jwt_issued_at(str(entry.data.get(CONF_TOKEN, "")))

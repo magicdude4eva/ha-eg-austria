@@ -96,6 +96,20 @@ def _opt_str(value: Any, path: str) -> str | None:
     return None if value is None else _str(value, path)
 
 
+def _label_str(value: Any) -> str | None:
+    """Lenient: label-only fields never fail validation (issue #19)."""
+
+    return value if isinstance(value, str) and value else None
+
+
+def _label_number(value: Any) -> float | None:
+    """Lenient: label-only fields never fail validation (issue #19)."""
+
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)
+
+
 def _int(value: Any, path: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise SchemaError("S3", path, f"expected integer, got {type(value).__name__}")
@@ -451,6 +465,8 @@ class Activation:
     status: str
     community_name: str = field(repr=False)  # sensitive
     extra: Mapping[str, Any] = field(default_factory=dict, repr=False)
+    # Config-flow label only (issue #19); never stored.
+    active_part_factor: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -462,6 +478,10 @@ class MeteringPoint:
     activations: tuple[Activation, ...]
     number_tail: str = field(repr=False)  # last 4 characters, labels only
     extra: Mapping[str, Any] = field(default_factory=dict, repr=False)
+    # Config-flow labels only (issue #19): never logged, stored or diagnosed.
+    number: str = field(default="", repr=False)
+    name: str | None = field(default=None, repr=False)
+    source_of_production: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -529,6 +549,7 @@ def _parse_activation(raw: Any, path: str) -> Activation:
         active_to=_opt_date(_get(obj, "end", path), _key(path, "end")),
         status=_str(_get(obj, "status", path), _key(path, "status")),
         extra=_extra(obj, _ACTIVATION_KEYS),
+        active_part_factor=_label_number(obj.get("activePartFactor")),
     )
 
 
@@ -547,9 +568,13 @@ def _parse_metering_point(raw: Any, path: str) -> MeteringPoint:
     activations = _require_list(
         _get(obj, "activations", path), _key(path, "activations")
     )
+    number = _str(_get(obj, "number", path), _key(path, "number"))
     return MeteringPoint(
         id=_int(_get(obj, "id", path), _key(path, "id")),
-        number_tail=_str(_get(obj, "number", path), _key(path, "number"))[-4:],
+        number=number,
+        number_tail=number[-4:],
+        name=_label_str(obj.get("name")),
+        source_of_production=_label_str(obj.get("sourceOfProduction")),
         direction=direction,
         activations=tuple(
             _parse_activation(a, f"{path}.activations[{i}]")
