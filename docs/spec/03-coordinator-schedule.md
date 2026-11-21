@@ -67,7 +67,7 @@ initial_done: bool
 rate_limited: bool                    # the last run got 429
 ```
 
-No energy values are cached; statistics are the store of record. `held_days` inside a run's window are replaced by that run's H1 result; days outside it are kept. `complete_until` walks the completeness list of the run from its first day; if the stored value ends before that day, it is kept (the gap was not re-checked). The store is deleted with the entry (`async_remove_entry`).
+No energy values are cached; statistics are the store of record. `held_days` inside a run's window are replaced by that run's H1 result; days outside it are kept. `complete_until` walks the completeness list of the run from its first day; if the stored value ends before that day, it is kept (the gap was not re-checked). The store is deleted with the entry (`async_remove_entry`). Setup loads the store (`coordinator.async_load()`) before the sensor platform is forwarded, so the diagnostic sensors show the stored dates right after a restart, before any run (issue #26); `async_start()` then registers the schedule.
 
 ## Error handling per run
 
