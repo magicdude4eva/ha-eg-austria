@@ -139,7 +139,7 @@ def fake_client():
     # Flow tests stop at the entry: no setup (which needs the recorder, S4).
     with (
         patch.object(cf, "EgAustriaClient", FakeClient),
-        patch.object(cf, "create_portal_session", return_value=portal_session),
+        patch.object(cf, "get_portal_session", return_value=portal_session),
         patch(
             "homeassistant.config_entries.ConfigEntries.async_setup",
             AsyncMock(return_value=True),
@@ -356,8 +356,8 @@ async def test_user_flow_session_jwt(hass: HomeAssistant, fake_client) -> None:
     dumped = json.dumps(data)
     for secret in ("Example Member", "Example street", "example.invalid", "AT0000"):
         assert secret not in dumped
-    # The short-lived session is closed after each step that used it.
-    assert fake_client.close.await_count == 1
+    # The shared session belongs to Home Assistant: never closed (issue #17).
+    fake_client.close.assert_not_called()
 
 
 async def test_user_flow_personal_token(hass: HomeAssistant) -> None:

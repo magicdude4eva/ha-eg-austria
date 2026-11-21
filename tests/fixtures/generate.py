@@ -110,6 +110,9 @@ class Scenario:
     meter_missing: set[date] = field(default_factory=set)
     null_hours: set[datetime] = field(default_factory=set)  # meter values null
     seed: int = 7
+    # Communities the metering points are members of (residual = meter minus
+    # their parts); None = every community in SHARES.
+    members: frozenset[int] | None = None
 
 
 def hour_values(moment: datetime, rng_factor: float) -> tuple[float, float]:
@@ -161,8 +164,9 @@ def build_hour(sc: Scenario, moment: datetime) -> Hour:
         return Hour(moment, cons, gen, 0, 0, cons, gen, False, True, False)
     to_all = {c: round(gen * SHARES[c][0], 3) for c in SHARES}
     from_all = {c: round(cons * SHARES[c][1], 3) for c in SHARES}
-    c_excess = round(cons - sum(from_all.values()), 3)
-    g_excess = round(gen - sum(to_all.values()), 3)
+    members = SHARES if sc.members is None else sc.members
+    c_excess = round(cons - sum(v for c, v in from_all.items() if c in members), 3)
+    g_excess = round(gen - sum(v for c, v in to_all.items() if c in members), 3)
     return Hour(
         moment,
         cons,
@@ -443,8 +447,8 @@ def completeness(
 # Static responses
 
 
-def activation(community: int, begin: str) -> Json:
-    """Return one activation entry."""
+def activation(community: int, begin: str, end: str | None = None) -> Json:
+    """Return one activation entry (``end``: last active day, None = open)."""
 
     name, kind = {BEG: ("Example BEG", "CC"), EEG: ("Example EEG", "RC_R")}[community]
     return {
@@ -455,7 +459,7 @@ def activation(community: int, begin: str) -> Json:
         "anforderungMsgDate": "2026-01-01",
         "desiredBegin": None,
         "begin": begin,
-        "end": None,
+        "end": end,
         "activePartFactor": PART_FACTOR,
         "pendingPartFactor": PART_FACTOR,
         "confirmedPartFactor": PART_FACTOR,

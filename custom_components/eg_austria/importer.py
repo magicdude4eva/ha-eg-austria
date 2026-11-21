@@ -2,10 +2,11 @@
 
 Two layers:
 
-* pure planning helpers: run window, month-aligned chunks, autumn DST days,
-  what the selected metering points say about the entry (``SiteInfo``);
-* ``async_import()``: the request loop for one window (``Hour`` per
-  community and chunk, ``Day`` for the autumn DST day), S3 validation of every
+* pure planning helpers: run window, month-aligned chunks cut at activation
+  boundaries, autumn DST days, what the selected metering points say about
+  the entry (``SiteInfo``);
+* ``async_import()``: the request loop for one window (``Hour`` per chunk
+  and community active in it, ``Day`` for the autumn DST day), S3 validation of every
   chunk, the history guard against what the recorder holds, and the S4 write.
   Nothing is written unless shape validation passed for the whole run;
   plausibility and history findings hold back only the statistics and days
@@ -22,6 +23,7 @@ from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
+import itertools
 import logging
 import math
 from typing import Any, Final
@@ -206,19 +208,31 @@ def autumn_dst_days(start: date, end: date) -> list[date]:
 
 
 def request_count(
-    chunks: Sequence[tuple[date, date]], communities: int, *, fixed: int = 4
+    plan: Sequence[PlannedChunk] | Sequence[tuple[date, date]],
+    communities: int | None = None,
+    *,
+    fixed: int = 4,
 ) -> int:
     """Return the request count of a run (spec 03 "Run sequence").
 
     Maintenance, version, metering-point and completeness, then one ``Hour``
-    per community and chunk and one ``Day`` per community and DST day.
+    per planned chunk and community active in it, and one ``Day`` per autumn
+    DST day and community active on it.
 
-    ``fixed`` counts the per-run requests (a completeness range over 13
-    months adds one, see the client).
+    ``plan`` is ``plan_chunks()`` output; plain ``(first, last)`` chunks with
+    ``communities`` count every community in every chunk. ``fixed`` counts
+    the per-run requests (a completeness range over 13 months adds one, see
+    the client).
     """
 
-    dst = sum(len(autumn_dst_days(s, e)) for s, e in chunks)
-    return fixed + communities * (len(chunks) + dst)
+    total = fixed
+    for chunk in plan:
+        if isinstance(chunk, PlannedChunk):
+            first, last, count = chunk.first, chunk.last, len(chunk.communities)
+        else:
+            (first, last), count = chunk, communities or 0
+        total += count * (1 + len(autumn_dst_days(first, last)))
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +278,30 @@ class EntrySetup:
         ]
 
 
+DateRange = tuple[date, date | None]  # first and last active day; None = open
+
+
+def merge_ranges(ranges: Iterable[DateRange]) -> tuple[DateRange, ...]:
+    """Merge overlapping or adjacent activation ranges (both ends inclusive)."""
+
+    out: list[DateRange] = []
+    for begin, end in sorted(ranges, key=lambda r: r[0]):
+        if out:
+            last_begin, last_end = out[-1]
+            if last_end is None:
+                continue
+            if begin <= last_end + timedelta(days=1):
+                merged = None if end is None else max(last_end, end)
+                out[-1] = (last_begin, merged)
+                continue
+        out.append((begin, end))
+    return tuple(out)
+
+
+def _in_ranges(ranges: Iterable[DateRange], day: date) -> bool:
+    return any(b <= day and (e is None or day <= e) for b, e in ranges)
+
+
 @dataclass(frozen=True, slots=True)
 class SiteInfo:
     """What ``metering-point`` says about the selected metering points."""
@@ -271,8 +309,29 @@ class SiteInfo:
     directions: frozenset[Direction]
     earliest_activation: date | None
     names: Mapping[int, str]  # community id -> current portal name
-    all_communities: bool  # the entry selects every active community (P4)
+    all_communities: bool  # the entry selects every community ever active (P4)
     missing_mp_ids: tuple[int, ...] = ()
+    # Community id -> merged activation ranges over the selected metering
+    # points, for every community they are or were in (selected or not).
+    # Empty: no activation data (tests); every community counts as active.
+    activations: Mapping[int, tuple[DateRange, ...]] = field(default_factory=dict)
+
+    def active_on(self, community_id: int, day: date) -> bool:
+        """Return True when the community is active on ``day`` (spec 03)."""
+
+        if not self.activations:
+            return True
+        return _in_ranges(self.activations.get(community_id, ()), day)
+
+    def active_between(self, community_id: int, first: date, last: date) -> bool:
+        """Return True when the community is active on any day of the range."""
+
+        if not self.activations:
+            return True
+        return any(
+            b <= last and (e is None or first <= e)
+            for b, e in self.activations.get(community_id, ())
+        )
 
 
 def site_info(
@@ -281,7 +340,10 @@ def site_info(
     mp_ids: Collection[int],
     community_ids: Collection[int],
 ) -> SiteInfo:
-    """Read directions, activation start and names for the selected points.
+    """Read directions, activation ranges and names for the selected points.
+
+    A community's range is the union over the selected metering points: it
+    is active on a day when at least one of them is active in it.
 
     Raises ``ApiChangedError`` when none of the selected metering points is
     found: the portal ids changed (as on 2026-10-22) and nothing can be
@@ -298,11 +360,13 @@ def site_info(
     directions = frozenset(mp.direction for mp in points)
     selected = set(community_ids)
     names: dict[int, str] = {}
-    active: set[int] = set()
+    ranges: dict[int, list[DateRange]] = defaultdict(list)
     starts: list[date] = []
     for mp in points:
         for act in mp.activations:
-            active.add(act.community_id)
+            if act.active_to is not None and act.active_to < act.active_from:
+                continue  # never active (withdrawn before the start)
+            ranges[act.community_id].append((act.active_from, act.active_to))
             if act.community_id in selected:
                 names[act.community_id] = act.community_name
                 starts.append(act.active_from)
@@ -310,9 +374,72 @@ def site_info(
         directions=directions,
         earliest_activation=min(starts) if starts else None,
         names=names,
-        all_communities=active <= selected,
+        all_communities=set(ranges) <= selected,
         missing_mp_ids=tuple(sorted(set(mp_ids) - found)),
+        activations={cid: merge_ranges(r) for cid, r in ranges.items()},
     )
+
+
+@dataclass(frozen=True, slots=True)
+class PlannedChunk:
+    """One request range and the selected communities active in all of it."""
+
+    first: date
+    last: date
+    communities: tuple[CommunityConf, ...]
+    all_communities: bool  # every community active in the range is selected
+
+    @property
+    def slugs(self) -> list[str]:
+        """Slugs of the communities requested for this chunk."""
+
+        return [c.slug for c in self.communities]
+
+
+def plan_chunks(
+    setup: EntrySetup, site: SiteInfo, start: date, end: date
+) -> list[PlannedChunk]:
+    """Split ``start..end`` into request chunks (spec 03 "Chunks", issue #16).
+
+    Month-aligned chunks are cut again where a selected community's
+    activation begins or ends, so the set of active communities is the same
+    on every day of a chunk and each community is requested only inside its
+    own activation. Chunks where no selected community is active are left
+    out (nothing to request; those days stay unknown).
+    """
+
+    cuts: set[date] = set()
+    for community in setup.communities:
+        for begin, last in site.activations.get(community.id, ()):
+            cuts.add(begin)
+            if last is not None:
+                cuts.add(last + timedelta(days=1))
+    plan: list[PlannedChunk] = []
+    for first, last in chunk_window(start, end):
+        edges = sorted({first, *(c for c in cuts if first < c <= last)})
+        bounds = [*edges, last + timedelta(days=1)]
+        for lo, hi in itertools.pairwise(bounds):
+            hi_day = hi - timedelta(days=1)
+            active = tuple(c for c in setup.communities if site.active_on(c.id, lo))
+            if not active:
+                continue
+            selected = {c.id for c in active}
+            others = {
+                cid
+                for cid in site.activations
+                if cid not in selected and site.active_between(cid, lo, hi_day)
+            }
+            plan.append(
+                PlannedChunk(
+                    lo,
+                    hi_day,
+                    active,
+                    all_communities=site.all_communities
+                    if not site.activations
+                    else not others,
+                )
+            )
+    return plan
 
 
 def statistic_defs(setup: EntrySetup, site: SiteInfo) -> list[StatisticDef]:
@@ -431,16 +558,17 @@ async def async_import(
     result = validation if validation is not None else ValidationResult()
     sensitive = setup.sensitive()
     defs = statistic_defs(setup, site)
-    chunks = chunk_window(start, end)
+    plan = plan_chunks(setup, site, start, end)
     hourly: dict[str, list[AnalysisData]] = {c.slug: [] for c in setup.communities}
     day_values: dict[str, list[AnalysisData]] = {c.slug: [] for c in setup.communities}
+    active_days: dict[str, set[date]] = {c.slug: set() for c in setup.communities}
     fetched: list[dict[str, AnalysisData]] = []
 
     async def fetch(
-        aggregation: Aggregation, first: date, last: date
+        chunk: PlannedChunk, aggregation: Aggregation, first: date, last: date
     ) -> dict[str, AnalysisData]:
         responses: dict[str, AnalysisData] = {}
-        for community in setup.communities:
+        for community in chunk.communities:
             check_stop()
             try:
                 responses[community.slug] = await client.get_analysis(
@@ -462,7 +590,7 @@ async def async_import(
             responses,
             site=setup.site_slug,
             aggregation=aggregation,
-            all_communities=site.all_communities,
+            all_communities=chunk.all_communities,
             max_hourly_kwh=setup.max_hourly_kwh,
             sensitive=sensitive,
         )
@@ -471,13 +599,14 @@ async def async_import(
             raise RunAborted(result)
         return responses
 
-    for first, last in chunks:
-        responses = await fetch(Aggregation.HOUR, first, last)
+    for chunk in plan:
+        responses = await fetch(chunk, Aggregation.HOUR, chunk.first, chunk.last)
         fetched.append(responses)
         for slug, data in responses.items():
             hourly[slug].append(data)
-        for day in autumn_dst_days(first, last):
-            for slug, data in (await fetch(Aggregation.DAY, day, day)).items():
+            active_days[slug].update(days_between(chunk.first, chunk.last))
+        for day in autumn_dst_days(chunk.first, chunk.last):
+            for slug, data in (await fetch(chunk, Aggregation.DAY, day, day)).items():
                 day_values[slug].append(data)
 
     stored = await async_load_day_totals(hass, defs, start, end)
@@ -510,7 +639,8 @@ async def async_import(
         end,
         day_values=day_values,
         held_days=blocked,
+        active_days=active_days,
     )
     return ImportResult(
-        validation=result, writes=writes, chunks=len(chunks), blocked=blocked
+        validation=result, writes=writes, chunks=len(plan), blocked=blocked
     )

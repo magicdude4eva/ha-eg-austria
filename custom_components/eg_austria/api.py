@@ -29,9 +29,10 @@ from typing import Any, Final
 import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.util.hass_dict import HassKey
 from yarl import URL
 
-from .const import VERSION
+from .const import DOMAIN, VERSION
 from .exceptions import (
     ApiChangedError,
     AuthError,
@@ -109,10 +110,22 @@ _AUTH_WORDS = ("token", "auth", "jwt", "session", "login", "anmeld")
 _JSON_TYPES = ("application/json", "application/problem+json")
 
 
-def create_portal_session(hass: HomeAssistant) -> aiohttp.ClientSession:
-    """Create the dedicated session: HA's factory, no cookie jar (ADR 0007)."""
+_SESSION_KEY: HassKey[aiohttp.ClientSession] = HassKey(f"{DOMAIN}_portal_session")
 
-    return async_create_clientsession(hass, cookie_jar=aiohttp.DummyCookieJar())
+
+def get_portal_session(hass: HomeAssistant) -> aiohttp.ClientSession:
+    """Return the integration's dedicated session (ADR 0007).
+
+    One session per Home Assistant instance, shared by every entry and
+    config flow: HA's factory, no cookie jar. Home Assistant owns it and
+    closes it on shutdown; the integration never closes it (issue #17).
+    """
+
+    session = hass.data.get(_SESSION_KEY)
+    if session is None or session.closed:
+        session = async_create_clientsession(hass, cookie_jar=aiohttp.DummyCookieJar())
+        hass.data[_SESSION_KEY] = session
+    return session
 
 
 def _add_months(day: date, months: int) -> date:

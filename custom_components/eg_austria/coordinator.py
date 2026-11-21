@@ -279,13 +279,8 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         entry: ConfigEntry,
         client: Any,
         store: Store[dict[str, Any]],
-        *,
-        session: Any = None,
     ) -> None:
-        """Set up; nothing is scheduled until ``async_start()``.
-
-        ``session`` is the client's HTTP session, closed on unload.
-        """
+        """Set up; nothing is scheduled until ``async_start()``."""
 
         super().__init__(
             hass,
@@ -295,7 +290,6 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             update_interval=None,
         )
         self.client = client
-        self.session = session
         self._store = store
         self.state = StoreData()
         self._lock = asyncio.Lock()

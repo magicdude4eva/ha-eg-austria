@@ -21,7 +21,7 @@ community name and are refreshed through the metadata on every import.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
@@ -297,6 +297,7 @@ def build_series(
     *,
     day_values: Mapping[str, Sequence[AnalysisData]] | None = None,
     held_days: Mapping[str, Collection[date]] | None = None,
+    active_days: Mapping[str, Collection[date]] | None = None,
 ) -> dict[str, Series]:
     """Build the known hourly values per statistic key (spec 04 "Hourly series").
 
@@ -306,6 +307,13 @@ def build_series(
     over all communities. ``day_values`` maps community slug → ``Day``
     responses for autumn DST days. ``first_day``/``last_day`` are the window's
     local dates, both inclusive.
+
+    ``active_days`` maps community slug → the days it was requested for (its
+    activation, issue #16). On other days the community is not a member: it
+    has no statistic value of its own, adds nothing to the site community
+    sums and the site meter and residual come from the first community that
+    is active. Without ``active_days`` every community counts as active on
+    every day.
     """
 
     # The entry's communities in order (from the per-community statistics); a
@@ -324,18 +332,35 @@ def build_series(
         )
     )
 
+    active = (
+        {slug: set(active_days.get(slug, ())) for slug in slugs}
+        if active_days is not None
+        else None
+    )
+
     result: dict[str, Series] = {}
     for sdef in defs:
         sources = [sdef.community] if sdef.community else slugs
-        if sdef.community is None and sdef.info.attr != "community":
-            sources = slugs[:1]
+        first_only = sdef.community is None and sdef.info.attr != "community"
+        if first_only:
+            sources = sources if active is not None else slugs[:1]
         if not sources or any(s not in points for s in sources):
             result[sdef.key] = Series()
             continue
+
+        def pick(
+            d: date, sources: list[str] = sources, first_only: bool = first_only
+        ) -> list[str]:
+            chosen = sources
+            if active is not None:
+                chosen = [s for s in sources if d in active[s]]
+            return chosen[:1] if first_only else chosen
+
         reader = _Reader(
             sdef,
-            [points[s][sdef.info.direction] for s in sources],
-            [days[s][sdef.info.direction] for s in sources],
+            {s: points[s][sdef.info.direction] for s in sources},
+            {s: days[s][sdef.info.direction] for s in sources},
+            pick,
         )
         series = Series()
         held_here = set(held.get(sdef.key, ()))
@@ -352,8 +377,9 @@ class _Reader:
     """Field values of one statistic, summed over its source communities."""
 
     sdef: StatisticDef
-    hours: list[dict[datetime, EnergyPoint]]  # per source community
-    days: list[dict[date, EnergyPoint]]  # per source community (Day responses)
+    hours: dict[str, dict[datetime, EnergyPoint]]  # per source community
+    days: dict[str, dict[date, EnergyPoint]]  # per source community (Day responses)
+    sources: Callable[[date], list[str]]  # source communities active on a day
 
     @staticmethod
     def _sum(points: Iterable[EnergyPoint | None], attr: str) -> float | None:
@@ -368,12 +394,18 @@ class _Reader:
     def hour(self, h: datetime) -> float | None:
         """Return the hour's raw field value, None if any source lacks it."""
 
-        return self._sum((idx.get(h) for idx in self.hours), self.sdef.info.attr)
+        slugs = self.sources(local_date(h))
+        if not slugs:
+            return None
+        return self._sum((self.hours[s].get(h) for s in slugs), self.sdef.info.attr)
 
     def day(self, d: date) -> float | None:
         """Return the ``Day`` field value, None if any source lacks it."""
 
-        return self._sum((idx.get(d) for idx in self.days), self.sdef.info.attr)
+        slugs = self.sources(d)
+        if not slugs:
+            return None
+        return self._sum((self.days[s].get(d) for s in slugs), self.sdef.info.attr)
 
     def state(
         self,
@@ -390,7 +422,10 @@ class _Reader:
         side_complete = entry is not None and entry.complete(info.direction)
         if d in held:  # rule 5
             return None
-        point = self.hours[0].get(h)
+        slugs = self.sources(d)
+        if not slugs:  # no source community active that day: unknown
+            return None
+        point = self.hours[slugs[0]].get(h)
         if point is None:
             # Rule 1, except the autumn DST gap: Day residual once complete.
             if h != dst_gap_hour(d) or not side_complete:
@@ -586,6 +621,7 @@ async def async_import_window(
     *,
     day_values: Mapping[str, Sequence[AnalysisData]] | None = None,
     held_days: Mapping[str, Collection[date]] | None = None,
+    active_days: Mapping[str, Collection[date]] | None = None,
 ) -> dict[str, WriteResult]:
     """Build and write all statistics for one fetch window (S5 entry point).
 
@@ -601,5 +637,6 @@ async def async_import_window(
         last_day,
         day_values=day_values,
         held_days=held_days,
+        active_days=active_days,
     )
     return await async_write_statistics(hass, defs, series, local_day_start(first_day))
