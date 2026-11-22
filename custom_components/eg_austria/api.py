@@ -87,6 +87,7 @@ PATH_SESSION: Final = "/v1/portal/portal-session"
 _FINGERPRINTED: Final = {
     PATH_ANALYSIS: "analysis-data",
     PATH_DAY_COMPLETENESS: "day-completeness",
+    PATH_METERING_POINT: "metering-point",
 }
 
 # ADR 0002: the only (method, path template) pairs this client can send.
