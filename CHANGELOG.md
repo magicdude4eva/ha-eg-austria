@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-22
+
+Maintenance release with no change in behaviour. Requires Home Assistant
+2026.11.0 or later.
+
+### Changed
+
+- **Strict typing:** the integration passes mypy in strict mode with Home
+  Assistant core's settings, checked in CI and pre-commit (#37).
+- Schemas use `probatio`, as Home Assistant itself does, and the recorder
+  helpers come from `homeassistant.helpers.recorder`.
+- The actions `eg_austria.refetch` and `eg_austria.release_held` moved to
+  `services.py`; they work as before.
+
+### Added
+
+- `quality_scale.yaml`: a self-assessment against all 54 rules of the Home
+  Assistant integration quality scale.
+
 ## [0.1.0] - 2026-11-22
 
 First release. Requires Home Assistant 2026.11.0 or later.
@@ -59,5 +78,6 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.0...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.1...HEAD
+[0.1.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/magicdude4eva/ha-eg-austria/releases/tag/0.1.0
