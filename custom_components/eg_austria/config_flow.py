@@ -44,6 +44,7 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
+    StatisticSelector,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -75,6 +76,7 @@ from .const import (
     DEFAULT_MAX_HOURLY_KWH,
     DOMAIN,
     PERSONAL_TOKEN_DEFAULT_DAYS,
+    SOURCE_KEYS,
 )
 from .exceptions import (
     ApiChangedError,
@@ -92,6 +94,12 @@ from .models import (
     MeteringPoint,
     MeteringPointInfo,
     SessionInfo,
+)
+from .sources import (
+    async_energy_defaults,
+    async_validate_sources,
+    configured_sources,
+    sources_configured,
 )
 from .token import ParsedToken, TokenFormatError, TokenKind, parse_token
 from .token_api import PortalTokenClient
@@ -1232,16 +1240,30 @@ def _number(low: float, high: float, step: float = 1) -> NumberSelector:
 
 
 class EgAustriaOptionsFlow(OptionsFlowWithReload):
-    """Plausibility bound, fetch windows and history import (spec 02)."""
+    """Import settings and comparison sources (spec 02, issue #50).
+
+    ``init`` is a menu; each step saves only its own fields and keeps the
+    others. The entry reloads when the options change.
+    """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Show and store the options; the entry reloads on change."""
+        """Let the user pick which options to change."""
+
+        return self.async_show_menu(
+            step_id="init", menu_options=["import_settings", "sources"]
+        )
+
+    async def async_step_import_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Plausibility bound, fetch windows and history import."""
 
         if user_input is not None:
             return self.async_create_entry(
-                data={
+                data=dict(self.config_entry.options)
+                | {
                     CONF_MAX_HOURLY_KWH: float(user_input[CONF_MAX_HOURLY_KWH]),
                     CONF_DAILY_WINDOW_DAYS: int(user_input[CONF_DAILY_WINDOW_DAYS]),
                     CONF_LONG_REFETCH_MONTHS: int(user_input[CONF_LONG_REFETCH_MONTHS]),
@@ -1266,4 +1288,40 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
                 ): BooleanSelector(),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="import_settings", data_schema=schema)
+
+    async def async_step_sources(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick optional feed-in, grid consumption and PV statistics (issue #50).
+
+        Prefilled from the Energy dashboard preferences until the step is
+        saved once; after that the saved values (empty included) are shown.
+        """
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            values = {
+                key: str(user_input.get(key) or "").strip() or None
+                for key in SOURCE_KEYS
+            }
+            errors = await async_validate_sources(self.hass, values)
+            if not errors:
+                return self.async_create_entry(
+                    data=dict(self.config_entry.options) | values
+                )
+            suggested: Mapping[str, str | None] = values
+        elif sources_configured(self.config_entry.options):
+            suggested = configured_sources(self.config_entry)
+        else:
+            suggested = await async_energy_defaults(self.hass)
+        schema = vol.Schema(
+            {vol.Optional(key): StatisticSelector() for key in SOURCE_KEYS}
+        )
+        return self.async_show_form(
+            step_id="sources",
+            data_schema=self.add_suggested_values_to_schema(
+                schema, {k: v for k, v in suggested.items() if v}
+            ),
+            errors=errors,
+        )

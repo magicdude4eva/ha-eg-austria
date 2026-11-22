@@ -29,6 +29,12 @@ DEFAULT_DAILY_WINDOW_DAYS: Final = 62
 DEFAULT_LONG_REFETCH_MONTHS: Final = 13
 DEFAULT_IMPORT_HISTORY: Final = True
 
+# Comparison sources (options, issue #50): the user's own energy statistics.
+CONF_SOURCE_FEED_IN: Final = "source_feed_in"
+CONF_SOURCE_GRID_CONSUMPTION: Final = "source_grid_consumption"
+CONF_SOURCE_PV: Final = "source_pv"
+SOURCE_KEYS: Final = (CONF_SOURCE_FEED_IN, CONF_SOURCE_GRID_CONSUMPTION, CONF_SOURCE_PV)
+
 # Personal token: default stated lifetime (ADR 0007).
 PERSONAL_TOKEN_DEFAULT_DAYS: Final = 365
 # Name of a token the config flow creates (ADR 0007).

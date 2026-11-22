@@ -1,6 +1,7 @@
 {
   "domain": "eg_austria",
   "name": "EG Austria (unofficial)",
+  "after_dependencies": ["energy"],
   "categories": ["energy.meters_monitoring"],
   "codeowners": ["@magicdude4eva"],
   "config_flow": true,
