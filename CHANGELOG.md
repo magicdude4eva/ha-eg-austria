@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-22
+
+Reworks the *Energy community* dashboard after its first real use. Requires
+Home Assistant 2026.11.0 or later. No configuration changes are needed; after
+the update, reload the dashboard page in the browser once.
+
 ### Changed
 
 - *Energy community* dashboard reworked after the first real use (#61). The
@@ -114,7 +120,8 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.2...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.3...HEAD
+[0.1.3]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/magicdude4eva/ha-eg-austria/releases/tag/0.1.0
