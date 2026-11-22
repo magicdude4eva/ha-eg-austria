@@ -130,23 +130,27 @@ Noch nicht umgesetzt (Phasen, siehe [ADR 0010](docs/adr/0010-phasing.md)):
 
 ## Installation
 
-**Stand:** frühe Entwicklung. Version 0.1.0 ist noch nicht veröffentlicht, und
-die Integration ist noch nicht im Marketplace gelistet.
-
-Sobald sie im Home Assistant Marketplace (früher HACS) gelistet ist:
+**Stand:** veröffentlicht (0.1.0). Die Aufnahme in den Home Assistant
+Marketplace (früher HACS) ist beantragt
+([#38](https://github.com/magicdude4eva/ha-eg-austria/issues/38)); bis sie
+gelistet ist, installierst du sie per Link als benutzerdefiniertes Repository:
 
 1. Öffne den **Marketplace** in Home Assistant.
-2. Suche nach **EG Austria**.
-3. Öffne den Eintrag und wähle **Herunterladen**.
+2. Drei-Punkte-Menü → **Benutzerdefinierte Repositories**,
+   `https://github.com/magicdude4eva/ha-eg-austria` mit dem Typ
+   **Integration** eintragen und **Hinzufügen** wählen.
+3. Suche nach **EG Austria**, öffne den Eintrag und wähle **Herunterladen**.
 4. Starte Home Assistant neu.
 5. Gehe zu **Einstellungen → Geräte & Dienste → Integration hinzufügen → EG
    Austria**.
 
 > [!NOTE]
-> **Bis die Integration gelistet ist**, füge sie als benutzerdefiniertes
-> Repository hinzu: im Marketplace Drei-Punkte-Menü → **Benutzerdefinierte
-> Repositories**, `https://github.com/magicdude4eva/ha-eg-austria` mit dem Typ
-> **Integration** eintragen, dann weiter mit Schritt 2.
+> **Sobald die Integration gelistet ist**, entfällt Schritt 2: such im
+> Marketplace direkt nach **EG Austria**. Ein bereits hinzugefügtes
+> benutzerdefiniertes Repository funktioniert weiter.
+
+Was sich in jedem Release geändert hat, steht im
+[Changelog](CHANGELOG.md) (englisch).
 
 Nach dem Hinzufügen öffnet Home Assistant den Dialog **Benennen und
 zuweisen** für das Dienstgerät "EG Austria". Ein Bereich ergibt für diesen
