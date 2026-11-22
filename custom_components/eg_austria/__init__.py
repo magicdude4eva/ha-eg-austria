@@ -34,6 +34,7 @@ from .coordinator import (
     EgAustriaCoordinator,
     entry_store,
 )
+from .dashboard import async_setup_dashboard
 from .exceptions import (
     ApiChangedError,
     AuthError,
@@ -55,9 +56,10 @@ SETUP_CHECK_TIMEOUT: Final = 30.0
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register the service actions (``services.py``)."""
+    """Register the service actions and the dashboard strategy (issue #52)."""
 
     async_setup_services(hass)
+    await async_setup_dashboard(hass)
     return True
 
 

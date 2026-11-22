@@ -52,6 +52,7 @@ and unofficial.**
 - [Getting your data flowing](#getting-your-data-flowing)
 - [What you get](#what-you-get)
 - [Options](#options)
+- [Energy community dashboard](#energy-community-dashboard)
 - [Actions](#actions)
 - [Examples](#examples)
 - [Data updates](#data-updates)
@@ -418,6 +419,34 @@ dashboard: the first grid source's *Return to grid* and *Grid consumption*,
 and the first solar source. The integration only reads those settings and
 never changes them. Leave a field empty if you don't have that source; the
 integration's own `eg_austria:` statistics can't be picked here.
+
+## Energy community dashboard
+
+The integration brings a ready-made dashboard built only from core cards. It
+uses your entry's statistics, the [summary sensors](#summary-sensors) and the
+[comparison sources](#comparison-sources) you picked, and leaves out cards for
+sources you didn't set.
+
+**Add it once:** **Settings → Dashboards → Add dashboard**, then under
+*Custom* pick **EG Austria energy community**. The integration never creates
+or changes dashboards by itself. The dashboard is rebuilt on every load, so a
+new source or community shows up without editing it. To change it by hand,
+use *Take control* in the dashboard menu; from then on it stays as you edited
+it.
+
+What it shows, one view per EG Austria entry:
+
+| Section | Cards |
+|---|---|
+| Import status | *Data complete until*, *Meter data until*, *Last run status*, *Last import*, a note on the two delays, a link to the Energy dashboard |
+| Shares | Gauges for feed-in to and import from communities and, with a PV source, PV self-consumed (month so far and last month) |
+| Totals | A date picker and the totals for the picked period: fed into communities, to the surplus buyer, drawn from communities, from the supplier |
+| Charts | Where the feed-in went and where the import came from (per community and the rest), by month and by day; with a PV source, PV production vs feed-in vs communities; with a feed-in or grid consumption source, metered vs your source |
+| Communities | The summary sensors per community |
+
+The labels follow your profile language (English or German). The newest days
+show feed-in and import but no community split until the portal has it
+(*Data complete until*).
 
 ## Actions
 
