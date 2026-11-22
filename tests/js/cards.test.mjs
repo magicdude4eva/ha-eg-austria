@@ -8,7 +8,11 @@ import {
   communityCardIds,
   completeCutoff,
   currentMonth,
+  fetchDaily,
   fetchTotals,
+  applySelection,
+  previousPeriod,
+  segmentDetail,
   infoIcon,
   periodCardIds,
   periodTitle,
@@ -22,6 +26,7 @@ import {
 
 const TEXT = {
   info: "Totals & more.",
+  best: "Best day {date}: {kwh}",
   total: "Total",
   until: "so far, until {date}",
   noData: "No community data for this period yet.",
@@ -311,4 +316,172 @@ test("status element renders only when its entities change, opens more-info", ()
   card._click({ target: { closest: (sel) => (sel === ".item" ? { dataset: { entity: "sensor.run" } } : null) } });
   assert.equal(events[0].type, "hass-more-info");
   assert.deepEqual(events[0].detail, { entityId: "sensor.run" });
+});
+
+test("previous period: month, year, cut month, days", () => {
+  const month = previousPeriod(clipPeriod(october, null), "en");
+  assert.deepEqual([month.start, month.until, month.label], [new Date(2030, 8, 1), new Date(2030, 9, 1), "September 2030"]);
+  const year = previousPeriod(
+    clipPeriod({ start: new Date(2030, 0, 1), end: new Date(2030, 11, 31, 23, 59, 59, 999) }, null),
+    "en"
+  );
+  assert.equal(year.label, "2029");
+  // Month so far until 6 Oct: the same days of September.
+  const cut = previousPeriod(clipPeriod(october, new Date(2030, 9, 7)), "en");
+  assert.deepEqual([cut.start, cut.until], [new Date(2030, 8, 1), new Date(2030, 8, 7)]);
+  assert.equal(cut.label, "Sep 1, 2030 – Sep 6, 2030");
+  // 31 March cut: 28 February at most.
+  const march = previousPeriod(
+    clipPeriod({ start: new Date(2030, 2, 1), end: new Date(2030, 2, 31, 23, 59, 59, 999) }, new Date(2030, 2, 31)),
+    "en"
+  );
+  assert.deepEqual(march.until, new Date(2030, 1, 28));
+  // A week: the seven days before.
+  const week = previousPeriod(
+    clipPeriod({ start: new Date(2030, 9, 7), end: new Date(2030, 9, 13, 23, 59, 59, 999) }, null),
+    "en"
+  );
+  assert.deepEqual([week.start, week.until], [new Date(2030, 8, 30), new Date(2030, 9, 6, 23, 59, 59, 999)]);
+});
+
+test("daily values: one request for all ids, failures become empty", async () => {
+  const calls = [];
+  const hass = {
+    callWS: async (msg) => {
+      calls.push(msg);
+      return { "s:a": [] };
+    },
+  };
+  const start = new Date(Date.UTC(2030, 9, 1));
+  const end = new Date(Date.UTC(2030, 9, 7));
+  assert.deepEqual(await fetchDaily(hass, ["s:a", "s:a", "s:b"], start, end), { "s:a": [] });
+  assert.deepEqual(calls[0], {
+    type: "recorder/statistics_during_period",
+    start_time: "2030-10-01T00:00:00.000Z",
+    end_time: "2030-10-07T00:00:00.000Z",
+    statistic_ids: ["s:a", "s:b"],
+    period: "day",
+    types: ["change"],
+    units: { energy: "kWh" },
+  });
+  assert.deepEqual(await fetchDaily({ callWS: async () => { throw new Error("x"); } }, ["s:a"], start, end), {});
+});
+
+const day = (d) => +new Date(2030, 9, d);
+const EXTRA = {
+  previous: { totals: { "s:a_in": 50, "s:pv": 180, "s:gen": 100 }, label: "September 2030" },
+  daily: {
+    "s:a_in": [
+      { start: day(1), change: 3 },
+      { start: day(2), change: 9.25 },
+      { start: day(7), change: 99 },
+    ],
+    "s:pv": [
+      { start: day(1), change: 40 },
+      { start: day(2), change: 30 },
+    ],
+    "s:gen": [
+      { start: day(1), change: 25 },
+      { start: day(2), change: 28 },
+    ],
+  },
+  until: new Date(2030, 9, 7),
+};
+
+test("segment detail: previous period with change, best day before the cut", () => {
+  const part = PERIOD.donuts[0].parts[0];
+  assert.equal(
+    segmentDetail(part, 25, EXTRA, "en", TEXT),
+    "September 2030: 50.0 kWh (-50 %) · Best day Oct 2: 9.3 kWh"
+  );
+  // PV self-consumed per day: PV minus feed-in (15 on the 1st, 2 on the 2nd).
+  const pv = PERIOD.donuts[1].parts[0];
+  assert.equal(segmentDetail(pv, 50, EXTRA, "en", TEXT), "September 2030: 80.0 kWh (-38 %) · Best day Oct 1: 15.0 kWh");
+  // Nothing before: no change; nothing at all: empty.
+  assert.equal(
+    segmentDetail(part, 25, { previous: { totals: { "s:a_in": 0 }, label: "Sep" } }, "en", TEXT),
+    "Sep: 0.0 kWh"
+  );
+  assert.equal(segmentDetail(part, 25, {}, "en", TEXT), "");
+});
+
+test("period card: segments and legend rows carry share, kWh and detail", () => {
+  const period = clipPeriod(october, new Date(2030, 9, 7));
+  const html = renderPeriodCard(PERIOD, TOTALS, period, "en", EXTRA);
+  assert.match(html, /<circle data-seg="0-0" /);
+  assert.match(
+    html,
+    /<button type="button" class="part" data-seg="0-0" data-pct="25\.0 %" data-kwh="25\.0 kWh" data-detail="September 2030: 50\.0 kWh \(-50 %\) · Best day Oct 2: 9\.3 kWh">/
+  );
+  assert.match(html, /<span class="say" data-key="detail" data-default="Communities covered 25\.0 % of your import">/);
+  assert.match(html, /<text data-key="kwh" data-default="100\.0 kWh"/);
+  // Without details yet: empty detail, the sentence stays.
+  assert.match(renderPeriodCard(PERIOD, TOTALS, period, "en"), /data-detail=""/);
+});
+
+// A minimal DOM for applySelection.
+const node = (attrs) => {
+  const classes = new Set();
+  return {
+    dataset: { ...attrs },
+    textContent: attrs.default || "",
+    classList: {
+      toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
+      contains: (c) => classes.has(c),
+    },
+  };
+};
+
+test("selection: highlights one segment and swaps the texts, null restores", () => {
+  const row = node({ seg: "0-1", pct: "75.0 %", kwh: "75.0 kWh", detail: "Sep: 1 kWh" });
+  const other = node({ seg: "0-0", pct: "25.0 %", kwh: "25.0 kWh", detail: "" });
+  const ring = node({ seg: "0-1" });
+  const keyed = [
+    node({ key: "pct", default: "Total" }),
+    node({ key: "kwh", default: "100.0 kWh" }),
+    node({ key: "detail", default: "Communities covered 25.0 %" }),
+  ];
+  const donut = {
+    ...node({}),
+    querySelector: (sel) => [row, other].find((r) => sel.includes(`"${r.dataset.seg}"`)) || null,
+    querySelectorAll: (sel) => (sel === "[data-seg]" ? [row, other, ring] : keyed),
+  };
+  const root = { querySelectorAll: () => [donut] };
+  applySelection(root, "0-1");
+  assert.equal(donut.classList.contains("focus"), true);
+  assert.deepEqual([row, other, ring].map((n) => n.classList.contains("sel")), [true, false, true]);
+  assert.deepEqual(keyed.map((n) => n.textContent), ["75.0 %", "75.0 kWh", "Sep: 1 kWh"]);
+  applySelection(root, "0-0");
+  // An empty detail keeps the sentence.
+  assert.equal(keyed[2].textContent, "Communities covered 25.0 %");
+  applySelection(root, null);
+  assert.equal(donut.classList.contains("focus"), false);
+  assert.deepEqual(keyed.map((n) => n.textContent), ["Total", "100.0 kWh", "Communities covered 25.0 %"]);
+});
+
+test("period card element: second render with previous period and best day", async () => {
+  const asked = [];
+  const hass = {
+    locale: { language: "en" },
+    states: {},
+    connection: {
+      _energy_eg_austria_home_dashboard: { start: october.start, end: october.end, subscribe: () => () => {} },
+    },
+    callWS: async (msg) => {
+      asked.push(msg.type);
+      if (msg.type === "recorder/statistics_during_period") return EXTRA.daily;
+      const sept = msg.fixed_period.start_time.startsWith("2030-08-31") || msg.fixed_period.start_time.startsWith("2030-09-01");
+      return { change: sept ? EXTRA.previous.totals[msg.statistic_id] ?? 0 : TOTALS[msg.statistic_id] };
+    },
+  };
+  const Card = pickerCard(FakeElement, renderPeriodCard, periodCardIds, 4, true);
+  const card = new Card();
+  card.setConfig(PERIOD);
+  card.hass = hass;
+  card.connectedCallback();
+  await settle();
+  await settle();
+  assert.ok(asked.includes("recorder/statistics_during_period"));
+  assert.match(card.shadowRoot.innerHTML, /data-detail="September 2030: 50\.0 kWh/);
+  card.disconnectedCallback();
 });

@@ -152,7 +152,8 @@ test("period card: donuts from the statistics, cut at Data complete until", () =
     total: "Total",
     until: "so far, until {date}",
     noData: "No community data for this period yet.",
-    info: "Totals for the picked period, counted up to Data complete until, so all numbers cover the same days.",
+    info: "Totals for the picked period, counted up to Data complete until, so all numbers cover the same days. Hover or tap a segment for the previous period and the best day.",
+    best: "Best day {date}: {kwh}",
   });
   assert.deepEqual(
     card.donuts.map((d) => d.info.split(":")[0]),

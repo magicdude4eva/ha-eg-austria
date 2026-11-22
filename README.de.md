@@ -497,7 +497,10 @@ Wochen später. Die neuesten Tage zeigen Einspeisung und Bezug, aber noch keine
 Gemeinschaftsaufteilung, bis das Portal sie hat (*Daten vollständig bis*).
 
 Das (i) in der Ecke der Zeitraum- und Gemeinschaftskarten erklärt, wie ihre
-Zahlen zustande kommen. Zeitraum- und Gemeinschaftskarten zählen nur bis *Daten vollständig bis*,
+Zahlen zustande kommen. Fahre über ein Ringsegment oder seine Legendenzeile
+(am Handy antippen), dann zeigt die Mitte Anteil und kWh, darunter steht
+derselbe Teil im Vorzeitraum mit der Änderung in % und der beste Tag; ein
+Klick oder Tippen hält die Auswahl, bis du erneut klickst. Zeitraum- und Gemeinschaftskarten zählen nur bis *Daten vollständig bis*,
 damit alle Zahlen darin dieselben Tage abdecken; im aktuellen Monat steht dort
 *bisher, bis* zu diesem Tag. Den gewählten Zeitraum lesen sie über ein
 Detail des Frontends, das keine öffentliche Schnittstelle ist; ändert ein

@@ -61,8 +61,9 @@ const TEXT = {
     total: "Total",
     until: "so far, until {date}",
     noData: "No community data for this period yet.",
+    best: "Best day {date}: {kwh}",
     infoTotals:
-      "Totals for the picked period, counted up to Data complete until, so all numbers cover the same days.",
+      "Totals for the picked period, counted up to Data complete until, so all numbers cover the same days. Hover or tap a segment for the previous period and the best day.",
     infoImport: "Import: what each community supplied; the rest came from your supplier.",
     infoFeedIn: "Feed-in: what each community took; the rest went to the surplus buyer.",
     infoPv: "PV: production minus metered feed-in is what you used yourself.",
@@ -117,8 +118,9 @@ const TEXT = {
     total: "Gesamt",
     until: "bisher, bis {date}",
     noData: "Für diesen Zeitraum gibt es noch keine Gemeinschaftsdaten.",
+    best: "Bester Tag {date}: {kwh}",
     infoTotals:
-      "Summen für den gewählten Zeitraum, gezählt bis Daten vollständig bis, damit alle Zahlen dieselben Tage abdecken.",
+      "Summen für den gewählten Zeitraum, gezählt bis Daten vollständig bis, damit alle Zahlen dieselben Tage abdecken. Fahre über ein Segment oder tippe darauf für den Vorzeitraum und den besten Tag.",
     infoImport: "Bezug: was jede Gemeinschaft geliefert hat; der Rest kam vom Lieferanten.",
     infoFeedIn:
       "Einspeisung: was jede Gemeinschaft abgenommen hat; der Rest ging an den Überschussabnehmer.",
@@ -329,7 +331,7 @@ const periodCard = (entry, t, collection) => {
         collection_key: collection,
         complete_until: entry.entities.data_complete_until || null,
         donuts: list,
-        text: cardText(t, t.infoTotals),
+        text: { ...cardText(t, t.infoTotals), best: t.best },
         grid_options: FULL,
       }
     : null;
@@ -557,6 +559,60 @@ export const fetchTotals = async (hass, ids, start, end) => {
   return totals;
 };
 
+// Daily changes for the best day: { id: [{ start (ms), change }] }. HA also
+// returns the day that starts at the end time; callers filter on `until`.
+export const fetchDaily = async (hass, ids, start, end) => {
+  try {
+    const result = await hass.callWS({
+      type: "recorder/statistics_during_period",
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      statistic_ids: [...new Set(ids)],
+      period: "day",
+      types: ["change"],
+      units: { energy: "kWh" },
+    });
+    return result || {};
+  } catch (err) {
+    return {};
+  }
+};
+
+const shiftMonths = (d, n) => {
+  const t = new Date(d.getFullYear(), d.getMonth() - n, 1, d.getHours(), d.getMinutes());
+  t.setDate(Math.min(d.getDate(), new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate()));
+  return t;
+};
+const shiftDays = (d, n) => {
+  const t = new Date(+d);
+  t.setDate(t.getDate() - n);
+  return t;
+};
+
+// The period before, as long as this one: the previous month or year, else
+// the same number of days back. A cut period compares the same days
+// (1-6 Nov with 1-6 Oct).
+export const previousPeriod = (period, lang) => {
+  const { start, end, until, clipped } = period;
+  const y = start.getFullYear();
+  const m = start.getMonth();
+  const monthStart = start.getDate() === 1 && start.getHours() === 0 && start.getMinutes() === 0;
+  let months = 0;
+  if (monthStart && sameTime(end, new Date(y, m + 1, 1))) months = 1;
+  else if (monthStart && m === 0 && sameTime(end, new Date(y + 1, 0, 1))) months = 12;
+  let prevStart;
+  let prevUntil;
+  if (months) {
+    prevStart = shiftMonths(start, months);
+    prevUntil = clipped ? shiftMonths(until, months) : new Date(+start);
+  } else {
+    const days = Math.max(1, Math.round((end - start) / DAY));
+    prevStart = shiftDays(start, days);
+    prevUntil = shiftDays(until, days);
+  }
+  return { start: prevStart, until: prevUntil, label: periodTitle(prevStart, prevUntil, lang) };
+};
+
 const escapeHtml = (value) =>
   String(value).replace(
     /[&<>"']/g,
@@ -577,6 +633,61 @@ const partValue = (part, totals) => {
   return Math.max(value - (minus || 0), 0);
 };
 
+// The day with the most kWh for a part (PV self-consumed: per day PV minus
+// feed-in), only days before `until`.
+const bestDay = (part, daily, until) => {
+  const minus = new Map(
+    (part.subtract ? daily[part.subtract] || [] : []).map((r) => [r.start, r.change || 0])
+  );
+  let best = null;
+  for (const r of daily[part.statistic] || []) {
+    if (r.start >= +until || typeof r.change !== "number") continue;
+    const value = Math.max(r.change - (minus.get(r.start) || 0), 0);
+    if (value > 0 && (!best || value > best.value)) best = { start: r.start, value };
+  }
+  return best;
+};
+
+const change = (lang, now, before) =>
+  `${new Intl.NumberFormat(lang, { maximumFractionDigits: 0, signDisplay: "exceptZero" }).format((100 * (now - before)) / before)} %`;
+
+// The line under the donut title while a segment is selected.
+export const segmentDetail = (part, value, extra, lang, text) => {
+  const bits = [];
+  if (extra.previous) {
+    const before = partValue(part, extra.previous.totals);
+    if (before !== null) {
+      const delta = before > 0 ? ` (${change(lang, value, before)})` : "";
+      bits.push(`${extra.previous.label}: ${kwh(lang, before)}${delta}`);
+    }
+  }
+  if (extra.daily && text.best) {
+    const best = bestDay(part, extra.daily, extra.until);
+    if (best) {
+      const date = new Date(best.start).toLocaleDateString(lang, { day: "numeric", month: "short" });
+      bits.push(text.best.replace("{date}", date).replace("{kwh}", kwh(lang, best.value)));
+    }
+  }
+  return bits.join(" · ");
+};
+
+// Highlights one segment (`d-p`: donut and part index) and shows its share,
+// kWh and detail in place of the defaults; null restores them. Only classes
+// and text change, so focus and hover stay where they are.
+export const applySelection = (root, seg) => {
+  for (const donut of root.querySelectorAll(".donut")) {
+    const row = seg ? donut.querySelector(`.part[data-seg="${seg}"]`) : null;
+    donut.classList.toggle("focus", Boolean(row));
+    for (const el of donut.querySelectorAll("[data-seg]")) {
+      el.classList.toggle("sel", Boolean(row) && el.dataset.seg === seg);
+    }
+    for (const el of donut.querySelectorAll("[data-key]")) {
+      const value = row ? row.dataset[el.dataset.key] : "";
+      el.textContent = value || el.dataset.default;
+    }
+  }
+};
+
 const STYLE = `<style>
 ha-card{position:relative;padding:16px;display:flex;flex-direction:column;gap:14px;height:100%;box-sizing:border-box}
 #info{position:absolute;top:4px;inset-inline-end:4px;color:var(--secondary-text-color)}
@@ -589,7 +700,13 @@ h2{margin:0;font-size:1.2em;font-weight:500;color:var(--primary-text-color)}
 svg{flex:none;width:120px;height:120px}
 .text{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 h3{margin:0;font-size:1em;font-weight:500}
-.row{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums}
+.row,.part{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums}
+.part{all:unset;display:flex;align-items:center;gap:8px;cursor:pointer;border-radius:4px;font-variant-numeric:tabular-nums}
+.part:focus-visible{outline:2px solid var(--primary-color)}
+circle[data-seg]{cursor:pointer;transition:opacity .15s}
+.part{transition:opacity .15s}
+.focus [data-seg]:not(.sel){opacity:.35}
+@media (prefers-reduced-motion:reduce){circle[data-seg],.part{transition:none}}
 .dot{width:10px;height:10px;border-radius:3px;flex:none}
 .value{margin-left:auto;padding-left:8px;font-weight:500;white-space:nowrap}
 .name{min-width:0;overflow-wrap:anywhere}
@@ -598,19 +715,19 @@ h3{margin:0;font-size:1em;font-weight:500}
 .track i{display:block;height:100%;border-radius:4px}
 </style>`;
 
-const donutSvg = (parts, total, lang, label) => {
+const donutSvg = (parts, total, lang, label, d) => {
   const r = 48;
   const c = 2 * Math.PI * r;
   let offset = 0;
   const rings = parts
     .map((p) => {
       const len = total > 0 ? (c * p.value) / total : 0;
-      const ring = `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${p.color}" stroke-width="16" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-offset}" transform="rotate(-90 60 60)"></circle>`;
+      const ring = `<circle data-seg="${d}-${p.index}" cx="60" cy="60" r="${r}" fill="none" stroke="${p.color}" stroke-width="16" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-offset}" transform="rotate(-90 60 60)"></circle>`;
       offset += len;
       return ring;
     })
     .join("");
-  return `<svg viewBox="0 0 120 120" role="img" aria-label="${escapeHtml(label)} ${kwh(lang, total)}"><circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--divider-color)" stroke-width="16"></circle>${rings}<text x="60" y="56" text-anchor="middle" font-size="11" fill="var(--secondary-text-color)">${escapeHtml(label)}</text><text x="60" y="73" text-anchor="middle" font-size="13" font-weight="500" fill="var(--primary-text-color)">${kwh(lang, total)}</text></svg>`;
+  return `<svg viewBox="0 0 120 120" role="img" aria-label="${escapeHtml(label)} ${kwh(lang, total)}"><circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--divider-color)" stroke-width="16"></circle>${rings}<text data-key="pct" data-default="${escapeHtml(label)}" x="60" y="56" text-anchor="middle" font-size="11" fill="var(--secondary-text-color)">${escapeHtml(label)}</text><text data-key="kwh" data-default="${kwh(lang, total)}" x="60" y="73" text-anchor="middle" font-size="13" font-weight="500" fill="var(--primary-text-color)">${kwh(lang, total)}</text></svg>`;
 };
 
 const untilText = (config, period, lang) =>
@@ -653,25 +770,29 @@ export const infoIcon = (lines) => {
   return `<ha-svg-icon id="info" path="${INFO_PATH}" title="${escapeHtml(text.join("\n\n"))}"></ha-svg-icon>`;
 };
 
-export const renderPeriodCard = (config, totals, period, lang) => {
+// `extra` (after a second fetch): { previous: { totals, label }, daily,
+// until } for the segment details.
+export const renderPeriodCard = (config, totals, period, lang, extra = {}) => {
   let body;
   if (period.empty) {
     body = `<div class="empty">${escapeHtml(config.text.noData)}</div>`;
   } else {
+    const details = { ...extra, until: period.until };
     body = `<div class="donuts">${config.donuts
-      .map((d) => {
+      .map((d, di) => {
         const parts = d.parts
-          .map((p) => ({ ...p, value: partValue(p, totals) }))
+          .map((p, index) => ({ ...p, index, value: partValue(p, totals) }))
           .filter((p) => p.value !== null);
         const total = parts.reduce((sum, p) => sum + p.value, 0);
         const share = parts.filter((p) => p.share).reduce((sum, p) => sum + p.value, 0);
         const rows = parts
-          .map(
-            (p) =>
-              `<div class="row"><span class="dot" style="background:${p.color}"></span><span class="name">${escapeHtml(p.name)}</span><span class="value">${kwh(lang, p.value)}</span></div>`
-          )
+          .map((p) => {
+            const detail = segmentDetail(p, p.value, details, lang, config.text);
+            return `<button type="button" class="part" data-seg="${di}-${p.index}" data-pct="${percent(lang, p.value, total)}" data-kwh="${kwh(lang, p.value)}" data-detail="${escapeHtml(detail)}"><span class="dot" style="background:${p.color}"></span><span class="name">${escapeHtml(p.name)}</span><span class="value">${kwh(lang, p.value)}</span></button>`;
+          })
           .join("");
-        return `<div class="donut">${donutSvg(parts, total, lang, config.text.total)}<div class="text"><h3>${escapeHtml(d.title)}</h3><span class="say">${escapeHtml(d.say.replace("{pct}", percent(lang, share, total)))}</span>${rows}</div></div>`;
+        const say = escapeHtml(d.say.replace("{pct}", percent(lang, share, total)));
+        return `<div class="donut">${donutSvg(parts, total, lang, config.text.total, di)}<div class="text"><h3>${escapeHtml(d.title)}</h3><span class="say" data-key="detail" data-default="${say}">${say}</span>${rows}</div></div>`;
       })
       .join("")}</div>`;
   }
@@ -704,7 +825,9 @@ export const communityCardIds = (config) =>
 
 // The element: finds the picker's collection (it may appear a moment after
 // the card), follows its period and renders when period or cutoff change.
-export const pickerCard = (Base, render, ids, size) =>
+// With `details` (the period card): a second fetch for the previous period
+// and the daily values, and segment selection by hover, focus or tap.
+export const pickerCard = (Base, render, ids, size, details = false) =>
   class extends Base {
     setConfig(config) {
       this._config = config;
@@ -766,14 +889,68 @@ export const pickerCard = (Base, render, ids, size) =>
         this._show(render(this._config, {}, period, lang));
         return;
       }
-      fetchTotals(this._hass, ids(this._config), period.start, period.until).then((totals) => {
-        if (this._key === key) this._show(render(this._config, totals, period, lang));
+      const list = ids(this._config);
+      fetchTotals(this._hass, list, period.start, period.until).then((totals) => {
+        if (this._key !== key) return;
+        this._show(render(this._config, totals, period, lang));
+        if (!details) return;
+        const prev = previousPeriod(period, lang);
+        Promise.all([
+          fetchTotals(this._hass, list, prev.start, prev.until),
+          period.until - period.start > DAY
+            ? fetchDaily(this._hass, list, period.start, period.until)
+            : Promise.resolve(null),
+        ]).then(([before, daily]) => {
+          if (this._key !== key) return;
+          const extra = { previous: { totals: before, label: prev.label }, daily };
+          this._show(render(this._config, totals, period, lang, extra));
+        });
       });
     }
 
     _show(html) {
-      if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+      if (!this.shadowRoot) {
+        this.attachShadow({ mode: "open" });
+        if (details && this.shadowRoot.addEventListener) this._listen(this.shadowRoot);
+      }
       this.shadowRoot.innerHTML = html;
+      if (details && this._sel) applySelection(this.shadowRoot, this._sel);
+    }
+
+    // Hover or focus shows a segment; a click or tap keeps it until the same
+    // segment or anything else in the card is clicked.
+    _listen(root) {
+      const seg = (el) => {
+        const hit = el && el.closest ? el.closest("[data-seg]") : null;
+        return hit ? hit.dataset.seg : null;
+      };
+      const hover = (s) => {
+        if (!this._pinned) this._select(s);
+      };
+      root.addEventListener("pointerover", (ev) => hover(seg(ev.target)));
+      root.addEventListener("pointerout", (ev) => {
+        if (!seg(ev.relatedTarget)) hover(null);
+      });
+      root.addEventListener("focusin", (ev) => hover(seg(ev.target)));
+      root.addEventListener("focusout", (ev) => {
+        if (!seg(ev.relatedTarget)) hover(null);
+      });
+      root.addEventListener("click", (ev) => {
+        const s = seg(ev.target);
+        if (s && this._pinned !== s) {
+          this._pinned = s;
+          this._select(s);
+        } else {
+          this._pinned = null;
+          if (!s) this._select(null);
+        }
+      });
+    }
+
+    _select(s) {
+      if (s === this._sel) return;
+      this._sel = s;
+      applySelection(this.shadowRoot, s);
     }
   };
 
@@ -970,12 +1147,12 @@ if (typeof customElements !== "undefined" && !customElements.get(TAG)) {
   });
 }
 if (typeof customElements !== "undefined") {
-  for (const [tag, render, ids, size] of [
-    [PERIOD_TAG, renderPeriodCard, periodCardIds, 4],
-    [COMMUNITY_TAG, renderCommunityCard, communityCardIds, 2],
+  for (const [tag, render, ids, size, details] of [
+    [PERIOD_TAG, renderPeriodCard, periodCardIds, 4, true],
+    [COMMUNITY_TAG, renderCommunityCard, communityCardIds, 2, false],
   ]) {
     if (!customElements.get(tag)) {
-      customElements.define(tag, pickerCard(HTMLElement, render, ids, size));
+      customElements.define(tag, pickerCard(HTMLElement, render, ids, size, details));
     }
   }
   if (!customElements.get(STATUS_TAG)) customElements.define(STATUS_TAG, statusElement(HTMLElement));
