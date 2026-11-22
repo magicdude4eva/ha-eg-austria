@@ -87,7 +87,7 @@ const titles = (view) => graphs(view).map((c) => c.title);
 const headings = (view) =>
   view.sections.map((s) => (s.cards[0].type === "heading" ? s.cards[0].heading : null));
 
-const COLLECTION = "energy_eg_austria_home";
+const COLLECTION = "energy_eg_austria_home_dashboard";
 
 test("only core cards, sections view per entry", () => {
   const view = buildView(entry(), EN);
@@ -352,10 +352,10 @@ test("default period: This month is seeded once, never overwritten", () => {
   };
   assert.equal(collectionKey(entry()), COLLECTION);
   seedDefaultPeriod(COLLECTION, storage);
-  assert.deepEqual([...store], [["energy-default-period-_energy_eg_austria_home", "this_month"]]);
-  store.set("energy-default-period-_energy_eg_austria_home", "this_year");
+  assert.deepEqual([...store], [["energy-default-period-_energy_eg_austria_home_dashboard", "this_month"]]);
+  store.set("energy-default-period-_energy_eg_austria_home_dashboard", "this_year");
   seedDefaultPeriod(COLLECTION, storage);
-  assert.equal(store.get("energy-default-period-_energy_eg_austria_home"), "this_year");
+  assert.equal(store.get("energy-default-period-_energy_eg_austria_home_dashboard"), "this_year");
   // Blocked storage doesn't break the dashboard.
   seedDefaultPeriod(COLLECTION, {
     getItem: () => {

@@ -274,7 +274,9 @@ const overviewSection = (entry, t) =>
 // one, which has no community data yet. Seed "This month" once, only when
 // nothing is stored: a browser preference, not Home Assistant config. If the
 // frontend renames the key, the picker just opens on "Today" again.
-export const collectionKey = (entry) => `energy_eg_austria_${entry.site}`;
+// The key differs from 0.1.2's (`energy_eg_austria_<site>`), whose picker
+// opened on "Today" and may have left a day preset stored in the browser.
+export const collectionKey = (entry) => `energy_eg_austria_${entry.site}_dashboard`;
 export const DEFAULT_PERIOD = "this_month";
 
 export const seedDefaultPeriod = (key, storage) => {
