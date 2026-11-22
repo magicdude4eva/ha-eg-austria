@@ -34,11 +34,15 @@ from .const import (
 from .models import Direction
 from .redact import redact_tree
 from .repairs import token_expiry
+from .snapshot import run_snapshot
 from .statistics import CommunityRef, build_statistic_defs
 from .token import TokenKind, jwt_issued_at
 
 if TYPE_CHECKING:
-    from .coordinator import EgAustriaConfigEntry, EgAustriaCoordinator, RunSummary
+    from .coordinator import EgAustriaConfigEntry, EgAustriaCoordinator
+
+
+_SNAPSHOT_KEYS = ("last_run", "setup", "schema_fingerprints")
 
 
 def _iso(value: date | datetime | None) -> str | None:
@@ -96,61 +100,6 @@ def _token_section(entry: ConfigEntry) -> dict[str, Any]:
             _iso(datetime.fromtimestamp(iat, UTC)) if iat is not None else None
         )
     return section
-
-
-def _run_section(summary: RunSummary | None) -> dict[str, Any] | None:
-    if summary is None:
-        return None
-    validation = summary.validation
-    return {
-        "run_type": str(summary.run_type),
-        "status": str(summary.status),
-        "started": _iso(summary.started),
-        "finished": _iso(summary.finished),
-        "duration_s": round(summary.duration, 1),
-        "window": [_iso(d) for d in summary.window] if summary.window else None,
-        "chunks": summary.chunks,
-        "requests": summary.requests,
-        "portal_version_changed": summary.portal_version_changed,
-        "rescheduled_for": _iso(summary.rescheduled_for),
-        "stale_client": summary.stale_client,
-        "error": summary.error,
-        "issues": {
-            "api_changed": summary.issues.api_changed,
-            "implausible_data": summary.issues.implausible_data,
-            "portal_unreachable": summary.issues.portal_unreachable,
-        },
-        "written_rows": dict(summary.written_rows),
-        "kept_stored_hours": dict(summary.kept_stored_hours),
-        "blocked": {k: [_iso(d) for d in v] for k, v in summary.blocked.items()},
-        "validation": (
-            {
-                # Rule ids, statistic keys and dates only; messages may
-                # contain values and are left out.
-                "findings": [
-                    {
-                        "rule": f.rule,
-                        "severity": str(f.severity),
-                        "statistic": f.statistic,
-                        "chunk": [_iso(d) for d in f.chunk] if f.chunk else None,
-                        "day": _iso(f.day),
-                    }
-                    for f in validation.findings
-                ],
-                "schema_extra": sorted(validation.schema_extra),
-                "corrections": [
-                    {
-                        "day": _iso(c.day),
-                        "statistic": c.statistic,
-                        "relative_change": c.relative_change,
-                    }
-                    for c in validation.corrections
-                ],
-            }
-            if validation is not None
-            else None
-        ),
-    }
 
 
 def _portal_section(coordinator: EgAustriaCoordinator | None) -> dict[str, Any]:
@@ -218,13 +167,30 @@ async def async_get_config_entry_diagnostics(
 
     coordinator: EgAustriaCoordinator | None = getattr(entry, "runtime_data", None)
     client = coordinator.client if coordinator is not None else None
+    state = coordinator.state if coordinator is not None else None
+    store = state.as_dict() if state is not None else None
+    if store is not None:
+        # Shown as their own sections below, not twice.
+        for key in _SNAPSHOT_KEYS:
+            store.pop(key, None)
+    # Live values from this run, else the snapshots stored by the last run
+    # (issue #78: diagnostics taken after a restart still show them).
+    live_prints = dict(getattr(client, "schema_fingerprints", {}) or {})
     result = {
         "entry": _entry_section(entry, coordinator),
         "token": _token_section(entry),
-        "store": coordinator.state.as_dict() if coordinator is not None else None,
-        "last_run": _run_section(coordinator.data if coordinator else None),
+        "store": store,
+        "last_run": (
+            run_snapshot(coordinator.data)
+            if coordinator is not None and coordinator.data is not None
+            else (state.last_run if state is not None else None)
+        ),
+        "setup": state.setup if state is not None else None,
         "portal": _portal_section(coordinator),
-        "schema_fingerprint": dict(getattr(client, "schema_fingerprints", {}) or {}),
+        "schema_fingerprint": {
+            **(state.schema_fingerprints if state is not None else {}),
+            **live_prints,
+        },
         "statistics": await _statistics_section(hass, entry),
     }
     # Section names are ours (one is called "token"); redact inside them.

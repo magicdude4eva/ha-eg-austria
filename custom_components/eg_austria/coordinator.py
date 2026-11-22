@@ -90,6 +90,7 @@ from .importer import (
 )
 from .models import Maintenance, PortalVersion
 from .redact import redact_text
+from .snapshot import run_snapshot, setup_shape, slug_map
 from .sources import configured_sources
 from .statistics import Quantity
 from .summary import (
@@ -136,6 +137,10 @@ def _status(value: Any) -> RunStatus | None:
         return None
 
 
+def _mapping(value: Any) -> dict[str, Any] | None:
+    return dict(value) if isinstance(value, dict) else None
+
+
 def _text(value: Any) -> str | None:
     return value[:500] if isinstance(value, str) and value else None
 
@@ -170,6 +175,11 @@ class StoreData:
     # Redacted error of the last finished run (issue #78), for diagnostics
     # after a restart; None when that run had none.
     last_run_error: str | None = None
+    # Value-free snapshots for diagnostics after a restart (issue #78,
+    # snapshot.py): last run section, setup shape, response shapes.
+    last_run: dict[str, Any] | None = None
+    setup: dict[str, Any] | None = None
+    schema_fingerprints: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any] | None) -> StoreData:
@@ -192,6 +202,9 @@ class StoreData:
             rate_limited=bool(raw.get("rate_limited")),
             last_run_status=_status(raw.get("last_run_status")),
             last_run_error=_text(raw.get("last_run_error")),
+            last_run=_mapping(raw.get("last_run")),
+            setup=_mapping(raw.get("setup")),
+            schema_fingerprints=_mapping(raw.get("schema_fingerprints")) or {},
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -220,6 +233,9 @@ class StoreData:
                 self.last_run_status.value if self.last_run_status else None
             ),
             "last_run_error": self.last_run_error,
+            "last_run": self.last_run,
+            "setup": self.setup,
+            "schema_fingerprints": dict(self.schema_fingerprints),
         }
 
 
@@ -719,8 +735,12 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
 
         # Metering points: directions, activation start, community names.
         self._check_stop()
+        mp_info = await client.get_metering_points(setup.member)
+        self.state.setup = setup_shape(
+            mp_info, setup.location_id, setup.mp_ids, slug_map(setup.communities)
+        )
         site = site_info(
-            await client.get_metering_points(setup.member),
+            mp_info,
             setup.location_id,
             setup.mp_ids,
             setup.community_ids,
@@ -872,6 +892,11 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             summary.requests,
             f", {summary.error}" if summary.error else "",
         )
+        self.state.last_run = run_snapshot(summary)
+        self.state.schema_fingerprints = {
+            **self.state.schema_fingerprints,
+            **dict(getattr(self.client, "schema_fingerprints", {}) or {}),
+        }
         self._async_save()
 
     @callback
