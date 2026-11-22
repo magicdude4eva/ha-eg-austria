@@ -104,7 +104,9 @@ Structural, no setting changes them:
 
 Not done yet (phases, see [ADR 0010](docs/adr/0010-phasing.md)):
 
-- **kWh only.** Money (tariffs, compensation) is planned for phase 2.
+- **Money is provisional.** The € statistics use the portal's standard-rate
+  amounts; the Zero tariff and the monthly invoices follow
+  ([#55](https://github.com/magicdude4eva/ha-eg-austria/issues/55)).
 - **One site per entry, sums per site.** Per-metering-point statistics,
   several sites, Zero to other locations and new community models are planned
   for phase 3, with testers from the community. Add one entry per location in
@@ -343,6 +345,35 @@ generation, if you only selected a consumption point) are not created. A
 community's own statistics start at its activation date. The names follow the
 Home Assistant language.
 
+### Money
+
+Statistics in € (unit `€`, hourly, with a running sum), next to the kWh ones:
+
+| Statistic id | Name | Meaning |
+|---|---|---|
+| `eg_austria:<site>_feed_in_eur` | Home Feed-in income from communities | What your communities pay for your feed-in |
+| `eg_austria:<site>_consumption_eur` | Home Cost of consumption from communities | What you pay your communities |
+| `eg_austria:<site>_<c>_feed_in_eur` | *community name* Feed-in income | The same for community `<c>` |
+| `eg_austria:<site>_<c>_consumption_eur` | *community name* Cost of consumption | The same for community `<c>` |
+| `eg_austria:<site>_surplus_eur` | Home Surplus income | Surplus kWh × your [surplus price](#surplus-price) (only with a surplus price) |
+| `eg_austria:<site>_feed_in_total_eur` | Home Feed-in compensation | Community income + surplus income (only with a surplus price) |
+
+- **No tariffs to enter.** The community amounts are the hourly amounts the
+  portal itself shows (`earnings`, `spendings`); they already contain the
+  service fee and VAT or levy, and follow EG Austria's price change every
+  1 January.
+- **Not yet considered:** the Zero tariff (the portal prices Zero kWh at the
+  standard rate, so both directions are a little too high for Zero members)
+  and the monthly invoices. Both come with the settlement from the portal's
+  invoices ([#74](https://github.com/magicdude4eva/ha-eg-austria/issues/74)).
+- **Feed-in compensation** prices community kWh at the community rate and
+  only the surplus at the surplus price. It is meant as the compensation of
+  your feed-in in the Energy dashboard instead of one that prices all feed-in
+  at the surplus price; compare them over a few months before switching.
+- Hours without a surplus price stay empty and raise the
+  [price missing](#price-missing) repair (except the current and previous
+  month of a monthly price table, whose prices are published later).
+
 ### Diagnostic sensors
 
 On the "EG Austria" service device:
@@ -432,6 +463,20 @@ dashboard: the first grid source's *Return to grid* and *Grid consumption*,
 and the first solar source. The integration only reads those settings and
 never changes them. Leave a field empty if you don't have that source; the
 integration's own `eg_austria:` statistics can't be picked here.
+
+### Surplus price
+
+Optional. The price your surplus buyer (for example ÖMAG) pays for the feed-in
+your communities did not take. With it you get *Surplus income* and *Feed-in
+compensation* (see [Money](#money)). Pick one source:
+
+| Source | Use |
+|---|---|
+| Fixed price | One line per period, start date and ct/kWh incl. VAT: `2026-01-01: 7.5`. A period runs until the next one starts. |
+| Price sensor | A sensor in EUR/kWh or ct/kWh with long-term statistics (a state class). The hourly mean is used, because community data arrives weeks late. |
+| Monthly price table | An entity attribute that maps months to prices, for example the price table sensor of the [ÖMAG integration](https://github.com/nn-homeassistant/ha-oemag) (attribute `preise`, ct/kWh). It is suggested when found. |
+
+*None* removes the price; the surplus statistics stop, their history stays.
 
 ## Energy community dashboard
 
@@ -663,6 +708,13 @@ those days again. If the portal shows the values as correct, the action
 
 No run succeeded on three calendar days in a row. Imports resume by
 themselves; the portal keeps the data, so nothing is lost while it is down.
+
+### Price missing
+
+There are surplus kWh on days without a [surplus price](#surplus-price), so
+surplus income and feed-in compensation stay empty for those hours. Add a
+period, or check the price source, in the options. The repair clears after a
+run finds a price for every overdue hour.
 
 ### Diagnostic sensors
 

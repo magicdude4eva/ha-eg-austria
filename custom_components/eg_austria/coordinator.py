@@ -54,6 +54,7 @@ from .const import (
     CONF_MP_IDS,
     CONF_RUN_MINUTE,
     CONF_SITE_SLUG,
+    CONF_SURPLUS_PRICE,
     CONF_TOKEN_EXP,
     DEFAULT_DAILY_WINDOW_DAYS,
     DEFAULT_IMPORT_HISTORY,
@@ -89,6 +90,7 @@ from .importer import (
     site_info,
 )
 from .models import Maintenance, PortalVersion
+from .prices import PriceSource
 from .redact import redact_text
 from .sources import configured_sources
 from .statistics import Quantity
@@ -235,6 +237,7 @@ class IssueHints:
     api_changed: bool | None = None
     implausible_data: bool | None = None
     portal_unreachable: bool | None = None
+    price_missing: bool | None = None
 
 
 @dataclass(slots=True)
@@ -261,6 +264,7 @@ class RunSummary:
     error: str | None = None  # redacted message
     stale_client: bool = False  # api_changed came from a "portal updated" 400
     rescheduled_for: datetime | None = None  # after maintenance
+    price_missing_from: date | None = None  # first overdue day without a price
     issues: IssueHints = field(default_factory=IssueHints)
 
     @property
@@ -531,6 +535,9 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             max_hourly_kwh=float(self._options[CONF_MAX_HOURLY_KWH]),
             site_label=self.site_label,
             labels=labels,
+            surplus_price=PriceSource.from_options(
+                self.config_entry.options.get(CONF_SURPLUS_PRICE)
+            ),
         )
 
     def _summary_defs(self) -> list[SummaryDef]:
@@ -767,10 +774,12 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             k: w.kept_stored_hours for k, w in result.writes.items()
         }
         summary.status = RunStatus.PARTIAL if result.partial else RunStatus.OK
+        summary.price_missing_from = result.price_missing
         summary.issues = IssueHints(
             api_changed=False,
             implausible_data=result.partial,
             portal_unreachable=False,
+            price_missing=result.price_missing is not None,
         )
 
         # 9. Store bookkeeping.

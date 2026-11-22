@@ -38,7 +38,7 @@ from homeassistant.components.recorder.statistics import (
     async_add_external_statistics,
     statistics_during_period,
 )
-from homeassistant.const import UnitOfEnergy
+from homeassistant.const import CURRENCY_EURO, UnitOfEnergy
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.recorder import get_instance
 
@@ -50,6 +50,9 @@ _LOGGER = logging.getLogger(__name__)
 SOURCE: Final = DOMAIN
 UNIT: Final = UnitOfEnergy.KILO_WATT_HOUR
 UNIT_CLASS: Final = "energy"
+MONEY_UNIT: Final = CURRENCY_EURO
+# Money values are rounded to this many decimals (well below a cent per hour).
+MONEY_DIGITS: Final = 6
 # Dates in the portal (window, day-completeness, Day aggregation) are Austrian
 # local dates, independent of the Home Assistant time zone.
 PORTAL_TZ: Final = ZoneInfo("Europe/Vienna")
@@ -62,7 +65,7 @@ DEFAULT_SITE_LABEL: Final = "Home"
 
 
 class Quantity(StrEnum):
-    """Phase 1 quantity keys (spec 04 "Mapping")."""
+    """Quantity keys (spec 04 "Mapping"); the ``*_eur`` ones are phase 2."""
 
     CONSUMPTION = "consumption"
     GENERATION = "generation"
@@ -70,6 +73,14 @@ class Quantity(StrEnum):
     GENERATION_TO_COMMUNITY = "generation_to_community"
     CONSUMPTION_FROM_SUPPLIER = "consumption_from_supplier"
     GENERATION_TO_SURPLUS = "generation_to_surplus"
+    FEED_IN_EUR = "feed_in_eur"
+    CONSUMPTION_EUR = "consumption_eur"
+    SURPLUS_EUR = "surplus_eur"
+    FEED_IN_TOTAL_EUR = "feed_in_total_eur"
+
+
+# ``attr`` of quantities computed from other statistics, not from a point.
+DERIVED: Final = "derived"
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,10 +88,26 @@ class QuantityInfo:
     """How one quantity maps onto an ``EnergyPoint``."""
 
     direction: Direction
-    attr: str  # EnergyPoint attribute: "value", "community" or "excess"
+    attr: str  # EnergyPoint attribute: "value", "community", "excess", "money"
     gated: bool  # True: needs day-completeness of its side (community values)
     site_label: str  # default English label for site statistics
     community_label: str | None  # label for per-community statistics, or None
+    unit: str = UNIT
+    unit_class: str | None = UNIT_CLASS
+    # kWh quantities whose held days also hold this one (money, ADR 0008).
+    gates: tuple[str, ...] = ()
+
+    @property
+    def derived(self) -> bool:
+        """Return True for quantities computed from other statistics."""
+
+        return self.attr == DERIVED
+
+    @property
+    def summed(self) -> bool:
+        """Return True if site values are the sum over the communities."""
+
+        return self.attr in ("community", "money")
 
 
 QUANTITIES: Final[Mapping[Quantity, QuantityInfo]] = {
@@ -109,6 +136,46 @@ QUANTITIES: Final[Mapping[Quantity, QuantityInfo]] = {
     ),
     Quantity.GENERATION_TO_SURPLUS: QuantityInfo(
         Direction.GENERATION, "excess", True, "Generation to surplus buyer", None
+    ),
+    Quantity.FEED_IN_EUR: QuantityInfo(
+        Direction.GENERATION,
+        "money",
+        True,
+        "Feed-in income from communities",
+        "Feed-in income",
+        MONEY_UNIT,
+        None,
+        (Quantity.GENERATION_TO_COMMUNITY,),
+    ),
+    Quantity.CONSUMPTION_EUR: QuantityInfo(
+        Direction.CONSUMPTION,
+        "money",
+        True,
+        "Cost of consumption from communities",
+        "Cost of consumption",
+        MONEY_UNIT,
+        None,
+        (Quantity.CONSUMPTION_FROM_COMMUNITY,),
+    ),
+    Quantity.SURPLUS_EUR: QuantityInfo(
+        Direction.GENERATION,
+        DERIVED,
+        True,
+        "Surplus income",
+        None,
+        MONEY_UNIT,
+        None,
+        (Quantity.GENERATION_TO_SURPLUS,),
+    ),
+    Quantity.FEED_IN_TOTAL_EUR: QuantityInfo(
+        Direction.GENERATION,
+        DERIVED,
+        True,
+        "Feed-in compensation",
+        None,
+        MONEY_UNIT,
+        None,
+        (Quantity.GENERATION_TO_COMMUNITY, Quantity.GENERATION_TO_SURPLUS),
     ),
 }
 
@@ -142,6 +209,18 @@ class StatisticDef:
 
         return QUANTITIES[self.quantity]
 
+    @property
+    def gate_keys(self) -> tuple[str, ...]:
+        """Statistic keys whose held days hold this statistic too.
+
+        A money statistic is held whenever the kWh it is computed from is.
+        """
+
+        if not self.info.gates:
+            return (self.key,)
+        prefix = self.key[: -len(self.quantity)]
+        return tuple(prefix + gate for gate in self.info.gates)
+
     def metadata(self) -> StatisticMetaData:
         """Return the recorder metadata (spec 04 table)."""
 
@@ -149,8 +228,8 @@ class StatisticDef:
             source=SOURCE,
             statistic_id=self.statistic_id,
             name=self.name,
-            unit_of_measurement=UNIT,
-            unit_class=UNIT_CLASS,
+            unit_of_measurement=self.info.unit,
+            unit_class=self.info.unit_class,
             has_sum=True,
             mean_type=StatisticMeanType.NONE,
         )
@@ -163,19 +242,21 @@ def build_statistic_defs(
     *,
     site_label: str = DEFAULT_SITE_LABEL,
     labels: Mapping[str, str] | None = None,
+    surplus: bool = False,
 ) -> list[StatisticDef]:
     """Return the statistics of one entry, site statistics first.
 
     ``directions`` are the directions of the selected metering points;
     quantities of a missing direction are not created. ``site_label`` and
     ``labels`` (keys ``site.<quantity>`` and ``community.<quantity>``) let the
-    caller pass translated labels; the defaults are English.
+    caller pass translated labels; the defaults are English. ``surplus`` adds
+    the statistics that need a surplus price (ADR 0015).
     """
 
     labels = labels or {}
     defs: list[StatisticDef] = []
     for quantity, info in QUANTITIES.items():
-        if info.direction not in directions:
+        if info.direction not in directions or (info.derived and not surplus):
             continue
         label = labels.get(f"site.{quantity}", info.site_label)
         defs.append(
@@ -260,6 +341,8 @@ class Series:
     values: dict[datetime, float] = field(default_factory=dict)
     dst_filled: list[datetime] = field(default_factory=list)
     dst_negative: list[date] = field(default_factory=list)
+    # Derived money: hours whose kWh are known but whose price is not.
+    unpriced: list[datetime] = field(default_factory=list)
 
 
 _PointIndex = dict[Direction, dict[datetime, EnergyPoint]]
@@ -340,8 +423,11 @@ def build_series(
 
     result: dict[str, Series] = {}
     for sdef in defs:
+        if sdef.info.derived:  # filled by derive_series()
+            result[sdef.key] = Series()
+            continue
         sources = [sdef.community] if sdef.community else slugs
-        first_only = sdef.community is None and sdef.info.attr != "community"
+        first_only = sdef.community is None and not sdef.info.summed
         if first_only:
             sources = sources if active is not None else slugs[:1]
         if not sources or any(s not in points for s in sources):
@@ -469,6 +555,51 @@ class _Reader:
         return residual + 0.0  # normalise -0.0
 
 
+def derive_series(
+    defs: Sequence[StatisticDef],
+    series: dict[str, Series],
+    prices: Mapping[datetime, float] | None,
+) -> None:
+    """Fill the statistics computed from others (ADR 0008, 0015), in place.
+
+    ``prices`` maps UTC hours to the surplus price in EUR/kWh; an hour without
+    a price or without surplus kWh has no surplus income (ADR 0005). The
+    feed-in compensation is community income plus surplus income, known only
+    where both are.
+    """
+
+    by_quantity = {(d.community, d.quantity): d for d in defs}
+    prices = prices or {}
+
+    def values(quantity: Quantity) -> dict[datetime, float]:
+        sdef = by_quantity.get((None, quantity))
+        return series[sdef.key].values if sdef and sdef.key in series else {}
+
+    surplus_def = by_quantity.get((None, Quantity.SURPLUS_EUR))
+    if surplus_def is None:
+        return
+    kwh = values(Quantity.GENERATION_TO_SURPLUS)
+    surplus = Series(
+        {
+            h: round(v * prices[h], MONEY_DIGITS) + 0.0
+            for h, v in kwh.items()
+            if h in prices
+        },
+        unpriced=sorted(h for h in kwh if h not in prices),
+    )
+    series[surplus_def.key] = surplus
+    total_def = by_quantity.get((None, Quantity.FEED_IN_TOTAL_EUR))
+    if total_def is not None:
+        community = values(Quantity.FEED_IN_EUR)
+        series[total_def.key] = Series(
+            {
+                h: round(community[h] + v, MONEY_DIGITS) + 0.0
+                for h, v in surplus.values.items()
+                if h in community
+            }
+        )
+
+
 # ---------------------------------------------------------------------------
 # Writing
 
@@ -494,6 +625,7 @@ class WriteResult:
     newest_hour: datetime | None = None
     dst_filled: list[datetime] = field(default_factory=list)
     dst_negative: list[date] = field(default_factory=list)
+    unpriced: list[datetime] = field(default_factory=list)
 
 
 def _load_stored(
@@ -605,6 +737,7 @@ async def async_write_statistics(
         result.key = sdef.key
         result.dst_filled = list(s.dst_filled)
         result.dst_negative = list(s.dst_negative)
+        result.unpriced = list(s.unpriced)
         results[sdef.key] = result
         if rows:
             async_add_external_statistics(hass, sdef.metadata(), rows)
@@ -622,11 +755,13 @@ async def async_import_window(
     day_values: Mapping[str, Sequence[AnalysisData]] | None = None,
     held_days: Mapping[str, Collection[date]] | None = None,
     active_days: Mapping[str, Collection[date]] | None = None,
+    prices: Mapping[datetime, float] | None = None,
 ) -> dict[str, WriteResult]:
     """Build and write all statistics for one fetch window (S5 entry point).
 
     ``first_day``/``last_day`` are the window's local dates, both inclusive;
-    rows before the local start of ``first_day`` are never touched.
+    rows before the local start of ``first_day`` are never touched. ``prices``
+    is the surplus price per UTC hour in EUR/kWh (ADR 0015).
     """
 
     series = build_series(
@@ -639,4 +774,5 @@ async def async_import_window(
         held_days=held_days,
         active_days=active_days,
     )
+    derive_series(defs, series, prices)
     return await async_write_statistics(hass, defs, series, local_day_start(first_day))

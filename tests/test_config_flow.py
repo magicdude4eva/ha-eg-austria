@@ -40,6 +40,7 @@ from custom_components.eg_austria.const import (
     CONF_SOURCE_FEED_IN,
     CONF_SOURCE_GRID_CONSUMPTION,
     CONF_SOURCE_PV,
+    CONF_SURPLUS_PRICE,
     CONF_TOKEN,
     CONF_TOKEN_EXP,
     CONF_TOKEN_ID,
@@ -1261,7 +1262,7 @@ async def test_options_flow(hass: HomeAssistant) -> None:
     entry = make_entry(hass, options_extra={CONF_SOURCE_PV: "sensor.pv"})
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU
-    assert result["menu_options"] == ["import_settings", "sources"]
+    assert result["menu_options"] == ["import_settings", "sources", "surplus_price"]
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "import_settings"}
     )
@@ -2032,3 +2033,125 @@ async def test_reconfigure_points_without_community(hass: HomeAssistant) -> None
     assert result["reason"] == "reconfigure_successful"
     assert entry.data[CONF_MP_IDS] == [1001]
     assert entry.unique_id == cf.entry_unique_id(MEMBER, "5001")
+
+
+# Surplus price (ADR 0015)
+
+
+async def _open_surplus(hass: HomeAssistant, entry, source: str):
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "surplus_price"}
+    )
+    assert result["step_id"] == "surplus_price"
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], {"source": source}
+    )
+
+
+async def test_options_surplus_number(hass: HomeAssistant) -> None:
+    """Periods are validated and stored; the form shows them again."""
+
+    entry = make_entry(hass)
+    result = await _open_surplus(hass, entry, "number")
+    assert result["step_id"] == "surplus_number"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"periods": "2026-01-01 8.5"}
+    )
+    assert result["errors"] == {"periods": "bad_periods"}
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"periods": "2031-01-01: 8,5\n2030-04-01: 7"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_SURPLUS_PRICE] == {
+        "source": "number",
+        "periods": [["2030-04-01", 7.0], ["2031-01-01", 8.5]],
+    }
+    result = await _open_surplus(hass, entry, "number")
+    defaults = {str(k): k.default() for k in result["data_schema"].schema}
+    assert defaults == {"periods": "2030-04-01: 7\n2031-01-01: 8.5"}
+
+
+async def test_options_surplus_sensor(hass: HomeAssistant) -> None:
+    """A sensor needs a price unit and a state class."""
+
+    entry = make_entry(hass)
+    hass.states.async_set("sensor.watt", "1", {"unit_of_measurement": "W"})
+    hass.states.async_set("sensor.plain", "1", {"unit_of_measurement": "ct/kWh"})
+    hass.states.async_set(
+        "sensor.spot",
+        "0.1",
+        {"unit_of_measurement": "EUR/kWh", "state_class": "measurement"},
+    )
+    result = await _open_surplus(hass, entry, "sensor")
+    assert result["step_id"] == "surplus_sensor"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"entity": "sensor.watt"}
+    )
+    assert result["errors"] == {"entity": "bad_price_unit"}
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"entity": "sensor.plain"}
+    )
+    assert result["errors"] == {"entity": "no_price_statistics"}
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"entity": "sensor.spot"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_SURPLUS_PRICE] == {
+        "source": "sensor",
+        "entity": "sensor.spot",
+    }
+    result = await _open_surplus(hass, entry, "sensor")
+    assert result["step_id"] == "surplus_sensor"
+
+
+async def test_options_surplus_table_and_none(hass: HomeAssistant) -> None:
+    """A month table is found and checked; "none" removes the price."""
+
+    entry = make_entry(hass)
+    hass.states.async_set("sensor.other", "1", {"preise": "x"})
+    hass.states.async_set(
+        "sensor.oemag_price_table", "10", {"preise": {"2026-10": 14.874}}
+    )
+    result = await _open_surplus(hass, entry, "table")
+    assert result["step_id"] == "surplus_table"
+    schema = result["data_schema"].schema
+    suggested = {str(k): (k.description or {}).get("suggested_value") for k in schema}
+    assert suggested["entity"] == "sensor.oemag_price_table"
+    assert suggested["attribute"] == "preise"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {"entity": "sensor.other", "attribute": "preise", "unit": "ct/kWh"},
+    )
+    assert result["errors"] == {"base": "bad_price_table"}
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {"entity": "sensor.oemag_price_table", "attribute": "preise", "unit": "ct/kWh"},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_SURPLUS_PRICE]["source"] == "table"
+    result = await _open_surplus(hass, entry, "table")
+    schema = result["data_schema"].schema
+    suggested = {str(k): (k.description or {}).get("suggested_value") for k in schema}
+    assert suggested["entity"] == "sensor.oemag_price_table"
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "surplus_price"}
+    )
+    defaults = {str(k): k.default() for k in result["data_schema"].schema}
+    assert defaults == {"source": "table"}
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"source": "none"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert CONF_SURPLUS_PRICE not in entry.options
+
+
+async def test_options_surplus_table_none_found(hass: HomeAssistant) -> None:
+    """Without a table entity nothing is suggested."""
+
+    entry = make_entry(hass)
+    result = await _open_surplus(hass, entry, "table")
+    schema = result["data_schema"].schema
+    suggested = {str(k): (k.description or {}).get("suggested_value") for k in schema}
+    assert suggested["entity"] is None

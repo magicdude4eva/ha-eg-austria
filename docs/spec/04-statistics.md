@@ -46,7 +46,25 @@ Scope: `site` = the whole location; `c` = only community c. Every value comes fr
 
 Statistics for a direction with no selected metering point of that direction are not created.
 
-Not mapped in phase 1: `*Complete`, `*ByFactor`, percent, part factor, energy mix, `earnings`, `spendings`.
+Not mapped: `*Complete`, `*ByFactor`, percent, part factor, energy mix.
+
+### Money (phase 2, ADR 0008, 0015, issue #72)
+
+| Quantity key | Label | Scope | Point list | Field / source | Completeness side | Held with |
+|---|---|---|---|---|---|---|
+| `feed_in_eur` | Feed-in income from communities | site (sum) | generation | `earnings` | generation | `generation_to_community` |
+| `consumption_eur` | Cost of consumption from communities | site (sum) | consumption | `spendings` | consumption | `consumption_from_community` |
+| `<c>_feed_in_eur` | Feed-in income | c | generation | `earnings` | generation | `<c>_generation_to_community` |
+| `<c>_consumption_eur` | Cost of consumption | c | consumption | `spendings` | consumption | `<c>_consumption_from_community` |
+| `surplus_eur` | Surplus income | site | — | `generation_to_surplus` × surplus price | (from its kWh) | `generation_to_surplus` |
+| `feed_in_total_eur` | Feed-in compensation | site | — | `feed_in_eur` + `surplus_eur` | (from both) | both kWh keys |
+
+- Metadata: unit `€` (`CURRENCY_EURO`), `unit_class` none, `has_sum` true, no mean. Ids and names follow the kWh rules above.
+- `earnings`/`spendings` are the portal's standard-rate amounts (ADR 0008); they follow the hourly rules 1-6 like community kWh (gated by the side's completeness, DST residual from `Day`). Site values are the sum over the active communities, unknown if any is unknown.
+- Held days: a money statistic is not written on a day its kWh statistic(s) are held (`StatisticDef.gate_keys`).
+- `surplus_eur` and `feed_in_total_eur` exist only when a surplus price is set (option `surplus_price`, spec 02). Per hour: `surplus_eur = round(kWh × price, 6)` where both are known; `feed_in_total_eur = round(feed_in_eur + surplus_eur, 6)` where both are known. Price sources (`prices.py`): `number` (dated periods in ct/kWh, per Austrian local date), `sensor` (hourly `mean` from long-term statistics, unit `EUR/kWh` or `ct/kWh` from the entity), `table` (entity attribute `{"YYYY-MM": price}`, unit from the option).
+- Hours with surplus kWh but no price are listed per run (`WriteResult.unpriced`). The first overdue local date raises `price_missing` (spec 06); for a `table` source the current and the previous month are not overdue yet.
+- The Zero correction (daily estimate, derived Zero rates) and the monthly settlement come with #74; until then the € values are the portal's standard-rate amounts.
 
 ## Hourly series
 

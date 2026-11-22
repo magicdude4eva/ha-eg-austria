@@ -245,7 +245,8 @@
         "title": "EG Austria options",
         "menu_options": {
           "import_settings": "Import settings",
-          "sources": "Comparison sources"
+          "sources": "Comparison sources",
+          "surplus_price": "Surplus price"
         }
       },
       "import_settings": {
@@ -276,13 +277,61 @@
           "source_grid_consumption": "Energy drawn from the grid, as measured by your live meter or inverter (kWh total).",
           "source_pv": "Total energy produced by your PV system (kWh total). Without it, PV cards and values are left out."
         }
+      },
+      "surplus_price": {
+        "title": "Surplus price",
+        "description": "How the surplus buyer pays for feed-in the communities did not take (for example ÖMAG). With a price, the integration adds surplus income and a feed-in compensation statistic that prices community kWh at the community rate and only the surplus at this price.",
+        "data": {
+          "source": "Price source"
+        },
+        "data_description": {
+          "source": "None removes the surplus price and stops the surplus statistics (their history stays)."
+        }
+      },
+      "surplus_number": {
+        "title": "Surplus price: fixed",
+        "description": "One line per period: start date and price in ct/kWh, for example `2026-01-01: 8.5`. A period runs until the next one starts.",
+        "data": {
+          "periods": "Periods"
+        },
+        "data_description": {
+          "periods": "Prices in ct/kWh including VAT, as paid to you."
+        }
+      },
+      "surplus_sensor": {
+        "title": "Surplus price: sensor",
+        "description": "A sensor with the price in EUR/kWh or ct/kWh and long-term statistics. The hourly mean is used, because community data arrives weeks late.",
+        "data": {
+          "entity": "Price sensor"
+        },
+        "data_description": {
+          "entity": "Its unit must be EUR/kWh or ct/kWh, and it needs a state class so the recorder keeps hourly means."
+        }
+      },
+      "surplus_table": {
+        "title": "Surplus price: monthly table",
+        "description": "An entity attribute that maps months (`YYYY-MM`) to a price, for example the price table of the ÖMAG integration (attribute `preise`, ct/kWh). Months not in the table yet stay empty until their price is published.",
+        "data": {
+          "entity": "Entity",
+          "attribute": "Attribute",
+          "unit": "Unit"
+        },
+        "data_description": {
+          "entity": "For the ÖMAG integration: its price table sensor.",
+          "attribute": "Name of the attribute with the month table, for example `preise`.",
+          "unit": "Unit of the prices in the table."
+        }
       }
     },
     "error": {
       "source_not_statistic": "No long-term statistic with a total (sum) found for this. Pick an energy sensor with state class total or total_increasing.",
       "source_not_energy": "This statistic isn't in an energy unit (Wh, kWh, MWh, …).",
       "source_own_statistic": "Pick your own meter's statistic here, not one of this integration's.",
-      "source_duplicate": "This statistic is already used in another field."
+      "source_duplicate": "This statistic is already used in another field.",
+      "bad_periods": "Use one line per period: `YYYY-MM-DD: price`, each date once.",
+      "bad_price_unit": "Pick a sensor with unit EUR/kWh or ct/kWh.",
+      "no_price_statistics": "This sensor has no long-term statistics (no state class).",
+      "bad_price_table": "This attribute is not a table of months (`YYYY-MM`) and prices."
     }
   },
   "selector": {
@@ -296,7 +345,21 @@
         "site_consumption_from_supplier": "Consumption from supplier",
         "site_generation_to_surplus": "Generation to surplus buyer",
         "community_consumption_from_community": "Consumption from community",
-        "community_generation_to_community": "Generation to community"
+        "community_generation_to_community": "Generation to community",
+        "site_feed_in_eur": "Feed-in income from communities",
+        "site_consumption_eur": "Cost of consumption from communities",
+        "site_surplus_eur": "Surplus income",
+        "site_feed_in_total_eur": "Feed-in compensation",
+        "community_feed_in_eur": "Feed-in income",
+        "community_consumption_eur": "Cost of consumption"
+      }
+    },
+    "price_source": {
+      "options": {
+        "none": "None",
+        "number": "Fixed price",
+        "sensor": "Price sensor",
+        "table": "Monthly price table"
       }
     }
   },
@@ -387,6 +450,10 @@
     "portal_unreachable": {
       "title": "EG Austria portal unreachable",
       "description": "The EG Austria portal could not be reached for {title} on {days} consecutive days (last successful import: {last_success}). Imports continue automatically when the portal answers again; no data is lost as long as the portal still offers it."
+    },
+    "price_missing": {
+      "title": "EG Austria surplus price missing",
+      "description": "{title} has surplus kWh from {date} on without a surplus price, so surplus income and feed-in compensation stay empty for those hours. Add a period or check the price source in the integration options (Surplus price). The message clears after a run finds a price for every overdue hour."
     }
   },
   "entity": {

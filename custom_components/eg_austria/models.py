@@ -162,6 +162,7 @@ _POINT_FIELDS: dict[Direction, dict[str, tuple[str, ...]]] = {
             "consumptionByFactorComplete",
         ),
         "opt_flags": ("consumptionByFactorFaulty",),
+        "money": ("spendings",),
         "ignored": (
             "date",
             "energyMix",
@@ -170,7 +171,6 @@ _POINT_FIELDS: dict[Direction, dict[str, tuple[str, ...]]] = {
             "consumptionFromCommunityPercentComplete",
             "actualConsumptionPartFactor",
             "actualConsumptionPartFactorComplete",
-            "spendings",
             "spendingsComplete",
         ),
     },
@@ -185,13 +185,13 @@ _POINT_FIELDS: dict[Direction, dict[str, tuple[str, ...]]] = {
             "generationByFactorComplete",
         ),
         "opt_flags": ("generationByFactorFaulty",),
+        "money": ("earnings",),
         "ignored": (
             "date",
             "generationToCommunityPercent",
             "generationToCommunityPercentComplete",
             "actualGenerationPartFactor",
             "actualGenerationPartFactorComplete",
-            "earnings",
             "earningsComplete",
         ),
     },
@@ -237,6 +237,9 @@ class EnergyPoint:
     by_factor: float | None = None
     by_factor_complete: float | None = None
     by_factor_faulty: bool | None = None
+    # ``spendings`` / ``earnings``: the portal's standard-rate amount in EUR for
+    # the hour's community kWh (ADR 0008); Zero is not considered.
+    money: float | None = None
     # Local wall time with a misleading "Z"; kept raw, never parsed or used as key.
     local_wall_time: str | None = None
     extra: Mapping[str, Any] = field(default_factory=dict, repr=False)
@@ -257,6 +260,7 @@ def _parse_point(raw: Any, direction: Direction, path: str) -> EnergyPoint:
     (by_factor_faulty,) = (
         _opt_bool(obj.get(k), _key(path, k)) for k in spec["opt_flags"]
     )
+    (money,) = (_number(obj.get(k), _key(path, k)) for k in spec["money"])
     return EnergyPoint(
         direction=direction,
         start=_utc(_get(obj, "dateTimeFrom", path), _key(path, "dateTimeFrom")),
@@ -271,6 +275,7 @@ def _parse_point(raw: Any, direction: Direction, path: str) -> EnergyPoint:
         by_factor=by_factor,
         by_factor_complete=by_factor_c,
         by_factor_faulty=by_factor_faulty,
+        money=money,
         local_wall_time=_opt_str(
             obj.get("dateTimeFromLocal"), _key(path, "dateTimeFromLocal")
         ),

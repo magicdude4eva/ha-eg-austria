@@ -207,7 +207,7 @@ async def test_setup_initial_import_unload_reload(
         names["eg_austria:home_beg_generation_to_community"]
         == "Example BEG Generation to community"
     )
-    assert len(names) == 10  # 6 site + 2 x 2 community statistics
+    assert len(names) == 16  # 6 + 2 money site, 2 x (2 + 2 money) community
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()

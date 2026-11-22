@@ -75,7 +75,7 @@ Files: `config_flow.py`, `token.py` (parsing), `strings.json`, `translations/{en
 
 Number selectors (box): `max_hourly_kwh` 1-1000 in steps of 0.5, `daily_window_days` 31-400, `long_refetch_months` 1-36. The options flow reloads the entry on change (`OptionsFlowWithReload`).
 
-The options flow opens with a menu (`init`): `import_settings` (the four options above) and `sources` (below). Each step saves only its own keys and keeps the others.
+The options flow opens with a menu (`init`): `import_settings` (the four options above), `sources` and `surplus_price` (below). Each step saves only its own keys and keeps the others.
 
 ### Comparison sources (issue #50)
 
@@ -89,6 +89,18 @@ The options flow opens with a menu (`init`): `import_settings` (the four options
 - Defaults are read from the Energy manager's preferences and never written (ADR 0011); the older `flow_from`/`flow_to` lists are read too. Unreadable preferences give empty fields.
 - Validation on submit (`sources.async_validate_sources`, recorder `async_list_statistic_ids`): `has_sum`, a unit of `EnergyConverter.VALID_UNITS`, not an `eg_austria:` statistic, no statistic in two fields. Errors per field: `source_not_statistic`, `source_not_energy`, `source_own_statistic`, `source_duplicate`.
 - No statistic ids change. Consumers: summary sensors (#51), the generated dashboard (#52), live supplier statistics (#53).
+
+### Surplus price (ADR 0015, issue #72)
+
+Option `surplus_price`: a dict, or absent. Step `surplus_price` picks the source (`none`, `number`, `sensor`, `table`; `none` removes the option), then one step per source:
+
+| Step | Fields | Stored | Errors |
+|---|---|---|---|
+| `surplus_number` | `periods`: multiline text, one `YYYY-MM-DD: price` line per period (ct/kWh, comma or point) | `{"source": "number", "periods": [["YYYY-MM-DD", ct], ...]}` sorted | `bad_periods` (bad line, repeated date, empty) |
+| `surplus_sensor` | `entity` (sensor) | `{"source": "sensor", "entity": ...}` | `bad_price_unit` (unit not EUR/kWh or ct/kWh), `no_price_statistics` (no `state_class`) |
+| `surplus_table` | `entity`, `attribute` (default `preise`), `unit` (`ct/kWh` or `EUR/kWh`) | `{"source": "table", "entity", "attribute", "unit"}` | `bad_price_table` (attribute is not a non-empty `YYYY-MM` → number map) |
+
+The table step suggests the first entity whose `preise` attribute is a valid month table (for example the ha-oemag price table sensor). Saved values are shown again when the step is reopened.
 
 ## Translations
 

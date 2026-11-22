@@ -245,7 +245,8 @@
         "title": "EG-Austria-Optionen",
         "menu_options": {
           "import_settings": "Import-Einstellungen",
-          "sources": "Vergleichsquellen"
+          "sources": "Vergleichsquellen",
+          "surplus_price": "Überschusspreis"
         }
       },
       "import_settings": {
@@ -276,13 +277,61 @@
           "source_grid_consumption": "Aus dem Netz bezogene Energie, gemessen von deinem Live-Zähler oder Wechselrichter (kWh gesamt).",
           "source_pv": "Gesamte Erzeugung deiner PV-Anlage (kWh gesamt). Ohne sie entfallen PV-Karten und -Werte."
         }
+      },
+      "surplus_price": {
+        "title": "Überschusspreis",
+        "description": "Wie der Überschussabnehmer die Einspeisung vergütet, die nicht an die Gemeinschaften ging (z. B. ÖMAG). Mit einem Preis legt die Integration Statistiken für den Überschuss-Ertrag und eine Einspeisevergütung an, die Gemeinschafts-kWh zum Gemeinschaftstarif und nur den Überschuss zu diesem Preis bewertet.",
+        "data": {
+          "source": "Preisquelle"
+        },
+        "data_description": {
+          "source": "Keine entfernt den Überschusspreis und beendet die Überschuss-Statistiken (ihr Verlauf bleibt)."
+        }
+      },
+      "surplus_number": {
+        "title": "Überschusspreis: fix",
+        "description": "Eine Zeile pro Zeitraum: Startdatum und Preis in ct/kWh, z. B. `2026-01-01: 8,5`. Ein Zeitraum gilt bis zum Beginn des nächsten.",
+        "data": {
+          "periods": "Zeiträume"
+        },
+        "data_description": {
+          "periods": "Preise in ct/kWh inkl. USt., wie an dich ausbezahlt."
+        }
+      },
+      "surplus_sensor": {
+        "title": "Überschusspreis: Sensor",
+        "description": "Ein Sensor mit dem Preis in EUR/kWh oder ct/kWh und Langzeitstatistik. Verwendet wird der Stundenmittelwert, weil Gemeinschaftsdaten Wochen später kommen.",
+        "data": {
+          "entity": "Preissensor"
+        },
+        "data_description": {
+          "entity": "Einheit EUR/kWh oder ct/kWh und eine State-Class, damit der Recorder Stundenmittelwerte behält."
+        }
+      },
+      "surplus_table": {
+        "title": "Überschusspreis: Monatstabelle",
+        "description": "Ein Attribut einer Entität, das Monate (`YYYY-MM`) auf einen Preis abbildet, z. B. die Preistabelle der ÖMAG-Integration (Attribut `preise`, ct/kWh). Monate, die noch nicht in der Tabelle stehen, bleiben leer, bis ihr Preis veröffentlicht ist.",
+        "data": {
+          "entity": "Entität",
+          "attribute": "Attribut",
+          "unit": "Einheit"
+        },
+        "data_description": {
+          "entity": "Für die ÖMAG-Integration: ihr Preistabellen-Sensor.",
+          "attribute": "Name des Attributs mit der Monatstabelle, z. B. `preise`.",
+          "unit": "Einheit der Preise in der Tabelle."
+        }
       }
     },
     "error": {
       "source_not_statistic": "Dafür gibt es keine Langzeitstatistik mit Summe. Wähle einen Energiesensor mit State-Class total oder total_increasing.",
       "source_not_energy": "Diese Statistik hat keine Energieeinheit (Wh, kWh, MWh, …).",
       "source_own_statistic": "Wähle hier die Statistik deines eigenen Zählers, keine dieser Integration.",
-      "source_duplicate": "Diese Statistik wird schon in einem anderen Feld verwendet."
+      "source_duplicate": "Diese Statistik wird schon in einem anderen Feld verwendet.",
+      "bad_periods": "Eine Zeile pro Zeitraum: `JJJJ-MM-TT: Preis`, jedes Datum nur einmal.",
+      "bad_price_unit": "Bitte einen Sensor mit Einheit EUR/kWh oder ct/kWh wählen.",
+      "no_price_statistics": "Dieser Sensor hat keine Langzeitstatistik (keine State-Class).",
+      "bad_price_table": "Dieses Attribut ist keine Tabelle aus Monaten (`YYYY-MM`) und Preisen."
     }
   },
   "selector": {
@@ -296,7 +345,21 @@
         "site_consumption_from_supplier": "Bezug vom Lieferanten",
         "site_generation_to_surplus": "Einspeisung an Überschussabnehmer",
         "community_consumption_from_community": "Bezug aus Gemeinschaft",
-        "community_generation_to_community": "Einspeisung an Gemeinschaft"
+        "community_generation_to_community": "Einspeisung an Gemeinschaft",
+        "site_feed_in_eur": "Einspeiseertrag aus Gemeinschaften",
+        "site_consumption_eur": "Kosten für Bezug aus Gemeinschaften",
+        "site_surplus_eur": "Überschuss-Ertrag",
+        "site_feed_in_total_eur": "Einspeisevergütung",
+        "community_feed_in_eur": "Einspeiseertrag",
+        "community_consumption_eur": "Bezugskosten"
+      }
+    },
+    "price_source": {
+      "options": {
+        "none": "Keine",
+        "number": "Fixpreis",
+        "sensor": "Preissensor",
+        "table": "Monatliche Preistabelle"
       }
     }
   },
@@ -387,6 +450,10 @@
     "portal_unreachable": {
       "title": "EG-Austria-Portal nicht erreichbar",
       "description": "Das EG-Austria-Portal war für {title} an {days} aufeinanderfolgenden Tagen nicht erreichbar (letzter erfolgreicher Import: {last_success}). Der Import läuft automatisch weiter, sobald das Portal wieder antwortet; solange das Portal die Daten noch anbietet, geht nichts verloren."
+    },
+    "price_missing": {
+      "title": "EG Austria: Überschusspreis fehlt",
+      "description": "{title} hat ab {date} Überschuss-kWh ohne Überschusspreis; Überschuss-Ertrag und Einspeisevergütung bleiben für diese Stunden leer. Bitte in den Optionen der Integration (Überschusspreis) einen Zeitraum ergänzen oder die Preisquelle prüfen. Die Meldung verschwindet, sobald ein Lauf für jede fällige Stunde einen Preis findet."
     }
   },
   "entity": {

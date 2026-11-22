@@ -110,7 +110,9 @@ Grundsätzlich, keine Einstellung ändert sie:
 
 Noch nicht umgesetzt (Phasen, siehe [ADR 0010](docs/adr/0010-phasing.md)):
 
-- **Nur kWh.** Geld (Tarife, Vergütung) ist für Phase 2 geplant.
+- **Geld ist vorläufig.** Die €-Statistiken verwenden die Beträge des Portals
+  zum Standardtarif; Zero-Tarif und Monatsrechnungen folgen
+  ([#55](https://github.com/magicdude4eva/ha-eg-austria/issues/55)).
 - **Ein Standort pro Eintrag, Summen pro Standort.** Statistiken pro Zählpunkt,
   mehrere Standorte, Zero an andere Standorte und neue Gemeinschaftsmodelle
   sind für Phase 3 geplant, mit Testern aus der Community. Bis dahin: ein
@@ -373,6 +375,36 @@ Einspeisung, wenn du nur einen Bezugszählpunkt gewählt hast) werden nicht
 angelegt. Die eigenen Statistiken einer Gemeinschaft beginnen an ihrem
 Aktivierungsdatum. Die Namen folgen der Sprache von Home Assistant.
 
+### Geld
+
+Statistiken in € (Einheit `€`, stündlich, mit laufender Summe), neben den kWh:
+
+| Statistik-ID | Name | Bedeutung |
+|---|---|---|
+| `eg_austria:<site>_feed_in_eur` | Home Einspeiseertrag aus Gemeinschaften | Was deine Gemeinschaften für deine Einspeisung zahlen |
+| `eg_austria:<site>_consumption_eur` | Home Kosten für Bezug aus Gemeinschaften | Was du deinen Gemeinschaften zahlst |
+| `eg_austria:<site>_<c>_feed_in_eur` | *Gemeinschaftsname* Einspeiseertrag | Dasselbe für Gemeinschaft `<c>` |
+| `eg_austria:<site>_<c>_consumption_eur` | *Gemeinschaftsname* Bezugskosten | Dasselbe für Gemeinschaft `<c>` |
+| `eg_austria:<site>_surplus_eur` | Home Überschuss-Ertrag | Überschuss-kWh × dein [Überschusspreis](#überschusspreis) (nur mit Überschusspreis) |
+| `eg_austria:<site>_feed_in_total_eur` | Home Einspeisevergütung | Ertrag aus Gemeinschaften + Überschuss-Ertrag (nur mit Überschusspreis) |
+
+- **Keine Tarife einzugeben.** Die Gemeinschaftsbeträge sind die stündlichen
+  Beträge, die das Portal selbst zeigt (`earnings`, `spendings`); sie enthalten
+  bereits Servicegebühr und USt. bzw. MAT und folgen der Preisänderung der
+  EG Austria jeweils am 1. Jänner.
+- **Noch nicht berücksichtigt:** der Zero-Tarif (das Portal bewertet Zero-kWh
+  zum Standardtarif, für Zero-Mitglieder sind beide Richtungen also etwas zu
+  hoch) und die Monatsrechnungen. Beides kommt mit der Abrechnung aus den
+  Portalrechnungen ([#74](https://github.com/magicdude4eva/ha-eg-austria/issues/74)).
+- **Die Einspeisevergütung** bewertet Gemeinschafts-kWh zum
+  Gemeinschaftstarif und nur den Überschuss zum Überschusspreis. Sie ist als
+  Vergütung deiner Einspeisung im Energie-Dashboard gedacht, statt einer, die
+  die ganze Einspeisung zum Überschusspreis bewertet; vergleiche beide ein paar
+  Monate, bevor du umstellst.
+- Stunden ohne Überschusspreis bleiben leer und lösen die Reparatur
+  [Überschusspreis fehlt](#überschusspreis-fehlt) aus (außer im laufenden und
+  im Vormonat einer Monatstabelle, deren Preise später veröffentlicht werden).
+
 ### Diagnosesensoren
 
 Am Dienstgerät "EG Austria":
@@ -466,6 +498,21 @@ ersten Netzquelle und die erste Solarquelle. Die Integration liest diese
 Einstellungen nur und ändert sie nie. Lass ein Feld leer, wenn du diese Quelle
 nicht hast; die eigenen `eg_austria:`-Statistiken der Integration lassen sich
 hier nicht wählen.
+
+### Überschusspreis
+
+Optional. Der Preis, den dein Überschussabnehmer (z. B. ÖMAG) für die
+Einspeisung zahlt, die nicht an deine Gemeinschaften ging. Damit bekommst du
+*Überschuss-Ertrag* und *Einspeisevergütung* (siehe [Geld](#geld)). Wähle eine
+Quelle:
+
+| Quelle | Verwendung |
+|---|---|
+| Fixpreis | Eine Zeile pro Zeitraum, Startdatum und ct/kWh inkl. USt.: `2026-01-01: 7,5`. Ein Zeitraum gilt bis zum Beginn des nächsten. |
+| Preissensor | Ein Sensor in EUR/kWh oder ct/kWh mit Langzeitstatistik (State-Class). Verwendet wird der Stundenmittelwert, weil Gemeinschaftsdaten Wochen später kommen. |
+| Monatliche Preistabelle | Ein Attribut einer Entität, das Monate auf Preise abbildet, z. B. der Preistabellen-Sensor der [ÖMAG-Integration](https://github.com/nn-homeassistant/ha-oemag) (Attribut `preise`, ct/kWh). Wird vorgeschlagen, wenn vorhanden. |
+
+*Keine* entfernt den Preis; die Überschuss-Statistiken enden, ihr Verlauf bleibt.
 
 ## Energiegemeinschafts-Dashboard
 
@@ -712,6 +759,14 @@ schreiben.
 
 An drei Kalendertagen in Folge ist kein Lauf gelungen. Die Importe gehen von
 selbst weiter; das Portal behält die Daten, es geht also nichts verloren.
+
+### Überschusspreis fehlt
+
+Es gibt Überschuss-kWh an Tagen ohne [Überschusspreis](#überschusspreis);
+Überschuss-Ertrag und Einspeisevergütung bleiben für diese Stunden leer.
+Ergänze in den Optionen einen Zeitraum oder prüfe die Preisquelle. Die
+Reparatur verschwindet, sobald ein Lauf für jede fällige Stunde einen Preis
+findet.
 
 ## Fehlerbehebung
 

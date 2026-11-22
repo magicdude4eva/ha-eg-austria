@@ -20,7 +20,7 @@
   3. **Monthly price table:** an entity plus the name of its attribute that maps `YYYY-MM` to a price, with the unit (`ct/kWh` or `EUR/kWh`) chosen in the options. For ha-oemag: the price table sensor, attribute `preise`, unit `ct/kWh`. The month's price applies to every hour of that month. Months not in the table yet are unknown.
 - The options flow checks units and, for a table, that the attribute holds month keys and numbers.
 - The **supplier price is the energy price only**, without grid fees and fixed monthly charges (ADR 0009). The documentation says so with synthetic examples.
-- Hours without a price get no surplus or savings row (unknown, ADR 0005) and a repair `price_missing` names the price and the first uncovered date; the repair is not raised for the current month of a monthly table, whose price is expected to come later. Community money (ADR 0008) doesn't depend on these prices.
+- Hours without a price get no surplus or savings row (unknown, ADR 0005) and a repair `price_missing` names the price and the first uncovered date; the repair is not raised for the current and the previous month of a monthly table, whose price is expected to come later. Community money (ADR 0008) doesn't depend on these prices.
 - The statistics they feed: site **surplus income**, site **total feed-in compensation** (community feed-in income + surplus income), and per community and site **import savings** (ADR 0008). Surplus and savings rows are rewritten with the window, so a price published or corrected later lands in the statistics on the next run.
 
 ## Consequences

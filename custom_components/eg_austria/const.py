@@ -35,6 +35,9 @@ CONF_SOURCE_GRID_CONSUMPTION: Final = "source_grid_consumption"
 CONF_SOURCE_PV: Final = "source_pv"
 SOURCE_KEYS: Final = (CONF_SOURCE_FEED_IN, CONF_SOURCE_GRID_CONSUMPTION, CONF_SOURCE_PV)
 
+# Money (options, ADR 0015): price source dicts, see prices.py.
+CONF_SURPLUS_PRICE: Final = "surplus_price"
+
 # Personal token: default stated lifetime (ADR 0007).
 PERSONAL_TOKEN_DEFAULT_DAYS: Final = 365
 # Name of a token the config flow creates (ADR 0007).
