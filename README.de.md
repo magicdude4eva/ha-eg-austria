@@ -54,6 +54,7 @@ Home Assistant erscheinen in der Sprache deiner Installation.
 - [Damit die Daten fließen](#damit-die-daten-fließen)
 - [Was du bekommst](#was-du-bekommst)
 - [Optionen](#optionen)
+- [Energiegemeinschafts-Dashboard](#energiegemeinschafts-dashboard)
 - [Aktionen](#aktionen)
 - [Beispiele](#beispiele)
 - [Datenaktualisierung](#datenaktualisierung)
@@ -451,6 +452,35 @@ ersten Netzquelle und die erste Solarquelle. Die Integration liest diese
 Einstellungen nur und ändert sie nie. Lass ein Feld leer, wenn du diese Quelle
 nicht hast; die eigenen `eg_austria:`-Statistiken der Integration lassen sich
 hier nicht wählen.
+
+## Energiegemeinschafts-Dashboard
+
+Die Integration bringt ein fertiges Dashboard mit, nur aus Standardkarten. Es
+verwendet die Statistiken deines Eintrags, die
+[Zusammenfassungssensoren](#zusammenfassungssensoren) und die gewählten
+[Vergleichsquellen](#vergleichsquellen) und lässt Karten für nicht gesetzte
+Quellen weg.
+
+**Einmal hinzufügen:** **Einstellungen → Dashboards → Dashboard hinzufügen**,
+dann unter *Benutzerdefiniert* **EG Austria energy community** wählen. Die
+Integration legt Dashboards nie selbst an und ändert sie nicht. Das Dashboard
+wird bei jedem Laden neu aufgebaut; eine neue Quelle oder Gemeinschaft
+erscheint also ohne Bearbeiten. Um es von Hand zu ändern, im Dashboard-Menü
+*Kontrolle übernehmen* wählen; danach bleibt es so, wie du es bearbeitet hast.
+
+Was es zeigt, eine Ansicht pro EG-Austria-Eintrag:
+
+| Abschnitt | Karten |
+|---|---|
+| Importstatus | *Daten vollständig bis*, *Zählerdaten bis*, *Status des letzten Laufs*, *Letzter Import*, ein Hinweis zu den zwei Verzögerungen, ein Link zum Energie-Dashboard |
+| Anteile | Anzeigen für Einspeisung an und Bezug aus Gemeinschaften und, mit PV-Quelle, PV selbst verbraucht (Monat bisher und Vormonat) |
+| Summen | Eine Datumsauswahl und die Summen im gewählten Zeitraum: an Gemeinschaften eingespeist, an den Überschussabnehmer, aus Gemeinschaften bezogen, vom Lieferanten |
+| Diagramme | Wohin die Einspeisung ging und woher der Bezug kam (pro Gemeinschaft und der Rest), pro Monat und pro Tag; mit PV-Quelle PV-Erzeugung vs. Einspeisung vs. Gemeinschaften; mit Einspeise- oder Netzbezugsquelle gemessen vs. deine Quelle |
+| Gemeinschaften | Die Zusammenfassungssensoren pro Gemeinschaft |
+
+Die Beschriftungen folgen der Sprache deines Profils (Englisch oder Deutsch).
+Die neuesten Tage zeigen Einspeisung und Bezug, aber noch keine
+Gemeinschaftsaufteilung, bis das Portal sie hat (*Daten vollständig bis*).
 
 ## Aktionen
 

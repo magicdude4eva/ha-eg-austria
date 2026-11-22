@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Options: optional comparison sources (grid feed-in, grid consumption, PV production), prefilled from the Energy dashboard settings, which stay unchanged (#50). The options now open with a menu: *Import settings* or *Comparison sources*.
 - Summary sensors: shares in percent for the month so far and the last complete month (feed-in to and import from communities, per community, and with comparison sources the PV split and the deviation of your own meter), without long-term statistics (ADR 0014, #51).
 - Diagnostic sensor *Meter data until* (#51).
+- Ready-made *EG Austria energy community* dashboard: add it once under **Settings → Dashboards → Add dashboard**; it is built from core cards on every load from the entry's statistics, summary sensors and comparison sources (#52).
 
 ## [0.1.1] - 2026-11-22
 

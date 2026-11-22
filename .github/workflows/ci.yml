@@ -58,6 +58,17 @@ jobs:
           args: check
       - run: ruff format --check
 
+  js:
+    name: Dashboard script
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Node from the runner image (20 or newer has node:test); no packages.
+      # frontend/package.json marks the script as an ES module.
+      - run: node --version
+      - run: node --check custom_components/eg_austria/frontend/eg-austria-dashboard.js
+      - run: node --test tests/js/
+
   mypy:
     name: Mypy (strict)
     runs-on: ubuntu-latest

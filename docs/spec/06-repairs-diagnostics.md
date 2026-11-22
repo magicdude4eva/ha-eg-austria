@@ -31,6 +31,15 @@ One device per entry (`DeviceEntryType.SERVICE`, identifier and name from the en
 
 No energy sensors (ADR 0003). Summary sensors with shares in percent, not diagnostic and without `state_class`, are described in ADR 0014 and `summary.py`: key `<value>_<period>` (`month_so_far`, `last_month`), unique id `<entry_id>_<value>_<period>`, attributes `period_start`, `period_end`, `numerator_kwh`, `denominator_kwh`. They are recomputed after startup and after each successful run (once the recorder queue is empty); diagnostics contain no summary values.
 
+## Dashboard strategy (issue #52)
+
+`dashboard.py` and `frontend/eg-austria-dashboard.js` (decided in spike #49):
+
+- `async_setup` registers the websocket command `eg_austria/dashboard_config` and, when the frontend and http are loaded (after-dependencies), serves `frontend/` at `/eg_austria_frontend` and loads the script with `add_extra_js_url` (`?v=<version>` against stale caches).
+- The script defines `ll-strategy-dashboard-eg-austria` and adds `{type: "eg-austria", strategyType: "dashboard"}` to `window.customStrategies`, so *Add dashboard* lists it. The user adds the dashboard once; the integration never creates or changes dashboards.
+- `generate()` calls the websocket command, which returns per loaded entry: `entry_id`, `title`, `site`, `communities` (slug, name), `statistics` and `community_statistics` (only ids the recorder knows), `sources` (`feed_in`, `grid_consumption`, `pv`), `entities` (enabled diagnostic and summary sensors by key). One sections view per entry, core cards only; cards whose statistics, sources or sensors are missing are left out. Labels in English or German from the profile language.
+- Tests: `tests/test_dashboard.py` (registration, websocket result) and `tests/js/dashboard.test.mjs` (`node --test`, CI job "Dashboard script").
+
 ## Services
 
 | Service | Fields | Effect |
