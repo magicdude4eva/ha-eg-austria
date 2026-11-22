@@ -437,6 +437,10 @@ it.
 The dialog suggests the title *Energy community* and the icon
 `mdi:home-group`; change them as you like.
 
+![The Energy community dashboard: delay banner, date picker, import, feed-in and PV donuts, one card per community and the daily split charts](docs/images/dashboard.png)
+
+*Example with made-up data.*
+
 What it shows, one view per EG Austria entry, from top to bottom:
 
 | Part | Cards |

@@ -471,6 +471,10 @@ erscheint also ohne Bearbeiten. Um es von Hand zu ändern, im Dashboard-Menü
 Der Dialog schlägt den Titel *Energiegemeinschaft* und das Symbol
 `mdi:home-group` vor; beides lässt sich ändern.
 
+![Das Energiegemeinschafts-Dashboard: Verzögerungshinweis, Datumsauswahl, Ringe für Bezug, Einspeisung und PV, eine Karte pro Gemeinschaft und die Tagesaufteilung](docs/images/dashboard.png)
+
+*Beispiel mit erfundenen Daten.*
+
 Was es zeigt, eine Ansicht pro EG-Austria-Eintrag, von oben nach unten:
 
 | Teil | Karten |
