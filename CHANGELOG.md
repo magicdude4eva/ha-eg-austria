@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Diagnostics show the setup shape (metering point directions and community
+  activations as slugs, types and months; no ids or names), the last response
+  shapes including `metering-point`, and the last run, all kept across a
+  restart, so a failed parse can be traced from one download (#78).
+
 ## [0.1.4.1] - 2026-11-22
 
 Patch release: one fix on top of 0.1.4. No configuration changes are needed.

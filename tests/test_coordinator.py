@@ -806,6 +806,9 @@ def test_store_round_trip() -> None:
         rate_limited=True,
         last_run_status=RunStatus.PARTIAL,
         last_run_error="S2 data.x: required key missing",
+        last_run={"status": "api_changed"},
+        setup={"locations": 1, "selected": [{"direction": "Consumption"}]},
+        schema_fingerprints={"analysis-data": {"totalConsumption": "float"}},
     )
     assert StoreData.from_dict(state.as_dict()) == state
     broken = StoreData.from_dict(
@@ -816,6 +819,9 @@ def test_store_round_trip() -> None:
             "complete_until": "2026-13-01",
             "last_run_status": "no-status",
             "last_run_error": 5,
+            "last_run": [],
+            "setup": "x",
+            "schema_fingerprints": None,
         }
     )
     assert broken == StoreData()
