@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - An (i) icon on the dashboard's period and community cards explains how the numbers are counted, like the core energy cards (#63).
+- Hovering or tapping a segment of the period card's donuts (or its legend row) shows its share and kWh, the same part in the previous period with the change in %, and its best day (#65).
 - The dashboard's import status is one row above the date picker: *Last run* in green, amber or red, *Token expires* as a date (amber in the last two weeks, red once expired); a click on a value opens its details (#63).
 - *Add dashboard* pre-fills the title *Energy community* (German
   *Energiegemeinschaft*) and the icon `mdi:home-group` (#61).

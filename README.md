@@ -462,7 +462,10 @@ days show feed-in and import but no community split until the portal has it
 (*Data complete until*).
 
 The (i) in the top corner of the period and community cards explains how
-their numbers are counted. The period and community cards count only up to *Data complete until*, so
+their numbers are counted. Hover over a donut segment or its legend row (or
+tap it on a phone) to see its share and kWh in the middle, the same part in the
+previous period with the change in %, and its best day; a click or tap keeps
+the selection until you click again. The period and community cards count only up to *Data complete until*, so
 every number in them covers the same days; for the current month they say
 *so far, until* that day. They read the picked period from the date
 picker through a frontend detail that isn't a public API; if a Home Assistant
