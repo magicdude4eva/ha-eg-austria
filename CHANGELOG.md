@@ -9,14 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- *Energy community* dashboard reworked after the first real use (#61): no date
-  picker (it started on today, while community data is about two weeks late,
-  so totals showed `?` and the by-day charts were empty). Totals for the last
-  complete month and the month so far, by-day charts over 45 days. One row of
-  compact gauges (month so far, last month in a note) next to a status block
-  with short names, including *Token expires*; communities side by side; fixed
-  series colours; metered vs your source as bars, as the two lines covered
-  each other.
+- *Energy community* dashboard reworked after the first real use (#61). The
+  date picker now opens on this month (it opened on today, while community
+  data is about two weeks late, so totals showed `?` and the by-day charts
+  were empty); the dashboard stores that default in the browser until you
+  pick another preset. On top, always current: a banner with both delays,
+  compact share gauges (month so far, last month in a note) and a status
+  block with short names, including *Token expires*. Under the picker: totals,
+  kWh per community and the feed-in and import split for the picked period.
+  Charts in pairs, fixed series colours, metered vs your source as bars, as
+  the two lines covered each other.
 
 ### Added
 

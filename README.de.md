@@ -475,20 +475,23 @@ Was es zeigt, eine Ansicht pro EG-Austria-Eintrag, von oben nach unten:
 
 | Teil | Karten |
 |---|---|
-| Verzögerungen | Ein Hinweis: Gemeinschaftsanteile sind vollständig bis *Daten vollständig bis*, Zählerwerte bis *Zählerdaten bis* |
-| Anteile | Eine Reihe: Anzeigen für Einspeisung an Gemeinschaften, Bezug durch Gemeinschaften gedeckt und, mit PV-Quelle, PV selbst verbraucht; jede zeigt den Monat bisher mit dem Vormonat als Hinweis darunter (den Vormonat, solange der Monat noch keinen vollständigen Tag hat), daneben der Importstatus: *Daten vollständig bis*, *Zählerdaten bis*, *Letzter Lauf*, *Letzter Import*, *Token läuft ab* und ein Link zum Energie-Dashboard |
-| Summen | Nebeneinander: der letzte vollständige Monat und der Monat bisher, jeweils an Gemeinschaften eingespeist, an den Überschussabnehmer, aus Gemeinschaften bezogen, vom Lieferanten |
-| Gemeinschaften | Eine Karte pro Gemeinschaft mit ihren Einspeise- und Bezugsanteilen |
-| Einspeisung und Bezug | Wohin die Einspeisung ging und woher der Bezug kam (pro Gemeinschaft und der Rest), pro Monat über ein Jahr und pro Tag über 45 Tage |
-| Deine eigenen Quellen | Mit PV-Quelle PV-Erzeugung vs. gemessene Einspeisung vs. Gemeinschaften pro Monat; mit Einspeise- oder Netzbezugsquelle gemessen vs. deine Quelle pro Tag, als Balken nebeneinander (die beiden stimmen eng überein, Linien würden sich verdecken) |
+| Immer aktuell | Ein Hinweis zu den zwei Verzögerungen (Gemeinschaftsanteile vollständig bis *Daten vollständig bis*, Zählerwerte bis *Zählerdaten bis*); Anzeigen für Einspeisung an Gemeinschaften, Bezug durch Gemeinschaften gedeckt und, mit PV-Quelle, PV selbst verbraucht, jeweils Monat bisher mit dem Vormonat als Hinweis darunter (den Vormonat, solange der Monat noch keinen vollständigen Tag hat); der Importstatus: *Daten vollständig bis*, *Zählerdaten bis*, *Letzter Lauf*, *Letzter Import*, *Token läuft ab* und ein Link zum Energie-Dashboard |
+| Gewählter Zeitraum | Eine Datumsauswahl, die mit dem **aktuellen Monat** öffnet; mit ‹ › zu früheren Monaten blättern oder eine Woche, ein Jahr oder einen beliebigen Zeitraum wählen. Darunter, der Auswahl folgend: Summen (an Gemeinschaften eingespeist, an den Überschussabnehmer, aus Gemeinschaften bezogen, vom Lieferanten), pro Gemeinschaft die eingespeisten und bezogenen kWh samt Anteilssensoren, und wohin die Einspeisung ging und woher der Bezug kam |
+| Letzte 12 Monate | Dieselben zwei Aufteilungen pro Monat |
+| Deine eigenen Quellen | Mit PV-Quelle PV-Erzeugung vs. gemessene Einspeisung vs. Gemeinschaften pro Monat; mit Einspeise- oder Netzbezugsquelle gemessen vs. deine Quelle im gewählten Zeitraum, als Balken nebeneinander (die beiden stimmen eng überein, Linien würden sich verdecken) |
 
-Es gibt keine Datumsauswahl: Gemeinschaftsdaten kommen etwa zwei Wochen
-später, eine Auswahl ab heute würde leere Karten zeigen. Jede Gemeinschaft
-behält in allen Diagrammen ihre Farbe (die erste blau, die zweite grün), der
-Überschussabnehmer ist orange, der Lieferant grau. Die Beschriftungen folgen
-der Sprache deines Profils (Englisch oder Deutsch). Die neuesten Tage zeigen
-Einspeisung und Bezug, aber noch keine Gemeinschaftsaufteilung, bis das Portal
-sie hat (*Daten vollständig bis*).
+Diagramme stehen auf breiten Bildschirmen paarweise nebeneinander, am Handy
+untereinander. Jede Gemeinschaft behält in allen Diagrammen ihre Farbe (die
+erste blau, die zweite grün), der Überschussabnehmer ist orange, der
+Lieferant grau. Die Beschriftungen folgen der Sprache deines Profils
+(Englisch oder Deutsch).
+
+Die Datumsauswahl merkt sich die zuletzt gewählte Voreinstellung im Browser,
+wie das Energie-Dashboard. Solange du keine gewählt hast, legt das Dashboard
+dort *Dieser Monat* ab (nur im Browser, nie in Home Assistant), weil *Heute*
+noch keine Gemeinschaftsdaten hat: Gemeinschaftsanteile kommen etwa zwei
+Wochen später. Die neuesten Tage zeigen Einspeisung und Bezug, aber noch keine
+Gemeinschaftsaufteilung, bis das Portal sie hat (*Daten vollständig bis*).
 
 ## Aktionen
 

@@ -6,9 +6,10 @@
 // sources and sensors exist, and builds core cards only from that: cards for
 // sources that aren't set are left out. Read-only; nothing is written.
 //
-// No date picker: community data lags about two weeks, so a picker that
-// starts on today shows empty cards. Totals use fixed periods (the last
-// complete month and the month so far), charts fixed ranges.
+// Layout (#61): what is always current on top (delays, share gauges,
+// status), then a date picker that opens on this month. Totals, kWh per
+// community, the by-day split and the meter check follow the picker; the
+// 12-month charts don't. Charts sit in pairs on a wide screen.
 
 const STRATEGY_TYPE = "eg-austria";
 const DOCS_URL =
@@ -35,10 +36,6 @@ const TEXT = {
       "Community shares, feed-in and import split, and the import status of the EG Austria integration.",
     none: "No EG Austria entry is loaded. Set up the integration first.",
     dateFormat: "%-d %b %Y",
-    months: [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December",
-    ],
     delaysCommunity: "Community shares are complete until <b>{date}</b>",
     delaysMeter: ", meter values until <b>{date}</b>",
     delaysTail:
@@ -57,24 +54,21 @@ const TEXT = {
     feedInToCommunities: "Feed-in to communities",
     importFromCommunities: "Import covered by communities",
     pvSelfConsumed: "PV self-consumed",
-    totalsIn: "Totals, {period}",
-    totalsLastMonth: "Totals, last month",
-    totalsMonthSoFar: "Totals, month so far",
     toCommunities: "Fed into communities",
     toSurplus: "To surplus buyer",
     fromCommunities: "Drawn from communities",
     fromSupplier: "Drawn from supplier",
-    communities: "Communities",
+    fedIn: "Fed in",
+    drawn: "Drawn",
     feedInShareMonthSoFar: "Feed-in share, month so far",
     feedInShareLastMonth: "Feed-in share, last month",
     importShareMonthSoFar: "Import share, month so far",
     importShareLastMonth: "Import share, last month",
-    charts: "Feed-in and import",
+    last12: "Last 12 months",
     checks: "Your own sources",
     feedInSplit: "Where the feed-in went",
     importSplit: "Where the import came from",
     byMonth: "by month",
-    byDay: "by day, 45 days",
     surplusBuyer: "Surplus buyer",
     supplier: "Supplier",
     pvComparison: "PV production, feed-in and communities",
@@ -93,10 +87,6 @@ const TEXT = {
       "Gemeinschaftsanteile, Aufteilung von Einspeisung und Bezug und der Importstatus der EG-Austria-Integration.",
     none: "Kein EG-Austria-Eintrag ist geladen. Richte zuerst die Integration ein.",
     dateFormat: "%-d.%-m.%Y",
-    months: [
-      "Jänner", "Februar", "März", "April", "Mai", "Juni",
-      "Juli", "August", "September", "Oktober", "November", "Dezember",
-    ],
     delaysCommunity: "Gemeinschaftsanteile sind vollständig bis <b>{date}</b>",
     delaysMeter: ", Zählerwerte bis <b>{date}</b>",
     delaysTail:
@@ -115,24 +105,21 @@ const TEXT = {
     feedInToCommunities: "Einspeisung an Gemeinschaften",
     importFromCommunities: "Bezug durch Gemeinschaften gedeckt",
     pvSelfConsumed: "PV selbst verbraucht",
-    totalsIn: "Summen, {period}",
-    totalsLastMonth: "Summen, Vormonat",
-    totalsMonthSoFar: "Summen, Monat bisher",
     toCommunities: "An Gemeinschaften eingespeist",
     toSurplus: "An Überschussabnehmer",
     fromCommunities: "Aus Gemeinschaften bezogen",
     fromSupplier: "Vom Lieferanten bezogen",
-    communities: "Gemeinschaften",
+    fedIn: "Eingespeist",
+    drawn: "Bezogen",
     feedInShareMonthSoFar: "Einspeiseanteil, Monat bisher",
     feedInShareLastMonth: "Einspeiseanteil, Vormonat",
     importShareMonthSoFar: "Bezugsanteil, Monat bisher",
     importShareLastMonth: "Bezugsanteil, Vormonat",
-    charts: "Einspeisung und Bezug",
+    last12: "Letzte 12 Monate",
     checks: "Deine eigenen Quellen",
     feedInSplit: "Wohin die Einspeisung ging",
     importSplit: "Woher der Bezug kam",
     byMonth: "pro Monat",
-    byDay: "pro Tag, 45 Tage",
     surplusBuyer: "Überschussabnehmer",
     supplier: "Lieferant",
     pvComparison: "PV-Erzeugung, Einspeisung und Gemeinschaften",
@@ -280,35 +267,39 @@ const overviewSection = (entry, t) =>
     ].filter(Boolean)
   );
 
-// --- Totals ---------------------------------------------------------------
+// --- Picked period ---------------------------------------------------------
 
-const pad = (n) => String(n).padStart(2, "0");
+// The frontend remembers the last preset per date picker in the browser
+// (`energy-default-period-_<collection key>`) and opens on "Today" without
+// one, which has no community data yet. Seed "This month" once, only when
+// nothing is stored: a browser preference, not Home Assistant config. If the
+// frontend renames the key, the picker just opens on "Today" again.
+export const collectionKey = (entry) => `energy_eg_austria_${entry.site}`;
+export const DEFAULT_PERIOD = "this_month";
 
-// The latest calendar month whose days are all complete, from the state of
-// *Data complete until* (YYYY-MM-DD), as in the summary sensors.
-export const lastCompleteMonth = (hass, entity) => {
-  const state = entity && hass && hass.states && hass.states[entity];
-  const match = state && /^(\d{4})-(\d{2})-(\d{2})$/.exec(state.state);
-  if (!match) return null;
-  let year = Number(match[1]);
-  let month = Number(match[2]);
-  const day = Number(match[3]);
-  if (day !== new Date(Date.UTC(year, month, 0)).getUTCDate()) {
-    month -= 1;
-    if (month === 0) [year, month] = [year - 1, 12];
+export const seedDefaultPeriod = (key, storage) => {
+  try {
+    const store =
+      storage || (typeof localStorage !== "undefined" ? localStorage : null);
+    const name = `energy-default-period-_${key}`;
+    if (store && !store.getItem(name)) store.setItem(name, DEFAULT_PERIOD);
+  } catch (err) {
+    // Storage blocked (private window, policy): the picker opens on today.
   }
-  const [nextYear, nextMonth] = month === 12 ? [year + 1, 1] : [year, month + 1];
-  return {
-    label: `${text(hass).months[month - 1]} ${year}`,
-    // Naive times: the backend reads them in the HA time zone.
-    period: {
-      fixed_period: {
-        start: `${year}-${pad(month)}-01T00:00:00`,
-        end: `${nextYear}-${pad(nextMonth)}-01T00:00:00`,
-      },
-    },
-  };
 };
+
+const picked = (collection) => ({
+  energy_date_selection: true,
+  collection_key: collection,
+});
+
+// Half width each on a wide screen; an odd last card takes the full row.
+const pairs = (cards) =>
+  cards.map((card, i) => ({
+    ...card,
+    grid_options:
+      i === cards.length - 1 && cards.length % 2 ? FULL : { columns: 24 },
+  }));
 
 const TOTALS = [
   ["generation_to_community", "toCommunities"],
@@ -317,34 +308,24 @@ const TOTALS = [
   ["consumption_from_supplier", "fromSupplier"],
 ];
 
-// Half-width sections side by side; inside, four in a row on a wide screen
-// and two per row on a phone.
-const totalsSection = (entry, t, title, period) => {
-  const s = entry.statistics;
-  const cards = TOTALS.filter(([key]) => s[key]).map(([key, name]) => ({
-    type: "statistic",
-    entity: s[key],
-    name: t[name],
-    stat_type: "change",
-    period,
-    grid_options: { columns: 6 },
-  }));
-  return cards.length ? section([heading(title), ...cards], 2) : null;
-};
+const statistic = (entity, name, collection, columns) => ({
+  type: "statistic",
+  entity,
+  name,
+  stat_type: "change",
+  period: { calendar: { period: "month" } },
+  ...picked(collection),
+  grid_options: { columns },
+});
 
-const totalsSections = (entry, t, hass) => {
-  const last = lastCompleteMonth(hass, entry.entities.data_complete_until);
-  return [
-    totalsSection(
-      entry,
-      t,
-      last ? t.totalsIn.replace("{period}", last.label) : t.totalsLastMonth,
-      last ? last.period : { calendar: { period: "month", offset: -1 } }
+const pickerSection = (entry, t, collection) => {
+  const s = entry.statistics;
+  return section([
+    { type: "energy-date-selection", collection_key: collection, grid_options: FULL },
+    ...TOTALS.filter(([key]) => s[key]).map(([key, name]) =>
+      statistic(s[key], t[name], collection, 12)
     ),
-    totalsSection(entry, t, t.totalsMonthSoFar, {
-      calendar: { period: "month", offset: 0 },
-    }),
-  ];
+  ]);
 };
 
 // --- Communities ----------------------------------------------------------
@@ -356,23 +337,23 @@ const COMMUNITY_ROWS = [
   ["import_share_last_month", "importShareLastMonth"],
 ];
 
-const communitiesSection = (entry, t) => {
-  const e = entry.entities;
-  const cards = entry.communities
-    .map((c) => {
-      const rows = COMMUNITY_ROWS.filter(([key]) => e[`${c.slug}_${key}`]).map(
-        ([key, name]) => ({ entity: e[`${c.slug}_${key}`], name: t[name] })
-      );
-      return rows.length ? { type: "entities", title: c.name, entities: rows } : null;
-    })
-    .filter(Boolean);
-  // Side by side: half each for two, a third for three, a quarter from four.
-  const width = Math.max(12, Math.floor(48 / Math.max(cards.length, 1)));
-  for (const card of cards) {
-    card.grid_options = width >= 48 ? FULL : { columns: width };
-  }
-  return cards.length ? section([heading(t.communities), ...cards]) : null;
-};
+// One half-width section per community: kWh for the picked period and the
+// share sensors.
+const communitySections = (entry, t, collection) =>
+  entry.communities.map((c) => {
+    const stats = entry.community_statistics[c.slug] || {};
+    const cards = [
+      ["generation_to_community", t.fedIn],
+      ["consumption_from_community", t.drawn],
+    ]
+      .filter(([key]) => stats[key])
+      .map(([key, name]) => statistic(stats[key], name, collection, 12));
+    const rows = COMMUNITY_ROWS.filter(([key]) => entry.entities[`${c.slug}_${key}`]).map(
+      ([key, name]) => ({ entity: entry.entities[`${c.slug}_${key}`], name: t[name] })
+    );
+    if (rows.length) cards.push({ type: "entities", entities: rows, grid_options: FULL });
+    return cards.length ? section([heading(c.name), ...cards], 2) : null;
+  });
 
 // --- Charts ---------------------------------------------------------------
 
@@ -387,12 +368,10 @@ const graph = (title, entities, options) => ({
   title,
   entities,
   stat_types: ["change"],
-  grid_options: FULL,
   ...options,
 });
 
 const MONTHS = { period: "month", days_to_show: 365 };
-const DAYS = { period: "day", days_to_show: 45 };
 
 const splitSeries = (entry, quantity, rest, restName, restColor) =>
   series([
@@ -404,41 +383,46 @@ const splitSeries = (entry, quantity, rest, restName, restColor) =>
     [entry.statistics[rest], restName, restColor],
   ]);
 
-const chartsSection = (entry, t) => {
-  const feedIn = splitSeries(
-    entry,
-    "generation_to_community",
-    "generation_to_surplus",
-    t.surplusBuyer,
-    COLORS.surplus
+const splits = (entry, t) =>
+  [
+    [
+      t.feedInSplit,
+      splitSeries(
+        entry,
+        "generation_to_community",
+        "generation_to_surplus",
+        t.surplusBuyer,
+        COLORS.surplus
+      ),
+    ],
+    [
+      t.importSplit,
+      splitSeries(
+        entry,
+        "consumption_from_community",
+        "consumption_from_supplier",
+        t.supplier,
+        COLORS.supplier
+      ),
+    ],
+  ].filter(([, items]) => items.length);
+
+// The split for the picked period (by day for a month, by hour for a day).
+const pickedChartsSection = (entry, t, collection) => {
+  const cards = splits(entry, t).map(([title, items]) =>
+    graph(title, items, { chart_type: "bar-stack", ...picked(collection) })
   );
-  const imports = splitSeries(
-    entry,
-    "consumption_from_community",
-    "consumption_from_supplier",
-    t.supplier,
-    COLORS.supplier
-  );
-  const cards = [];
-  for (const [range, label] of [
-    [MONTHS, t.byMonth],
-    [DAYS, t.byDay],
-  ]) {
-    for (const [title, items] of [
-      [t.feedInSplit, feedIn],
-      [t.importSplit, imports],
-    ]) {
-      if (items.length) {
-        cards.push(
-          graph(`${title}, ${label}`, items, { chart_type: "bar-stack", ...range })
-        );
-      }
-    }
-  }
-  return cards.length ? section([heading(t.charts), ...cards]) : null;
+  return section(pairs(cards));
 };
 
-const checksSection = (entry, t) => {
+const monthChartsSection = (entry, t) => {
+  const cards = splits(entry, t).map(([title, items]) =>
+    graph(`${title}, ${t.byMonth}`, items, { chart_type: "bar-stack", ...MONTHS })
+  );
+  return cards.length ? section([heading(t.last12), ...pairs(cards)]) : null;
+};
+
+const checksSection = (entry, t, collection) => {
   const s = entry.statistics;
   const src = entry.sources;
   const cards = [];
@@ -475,24 +459,26 @@ const checksSection = (entry, t) => {
             [metered, theirs, COLORS.metered],
             [source, mine, COLORS.source],
           ]),
-          { chart_type: "bar", ...DAYS }
+          { chart_type: "bar", ...picked(collection) }
         )
       );
     }
   }
-  return cards.length ? section([heading(t.checks), ...cards]) : null;
+  return cards.length ? section([heading(t.checks), ...pairs(cards)]) : null;
 };
 
 // --- Dashboard ------------------------------------------------------------
 
 export const buildView = (entry, hass) => {
   const t = text(hass);
+  const collection = collectionKey(entry);
   const sections = [
     overviewSection(entry, t),
-    ...totalsSections(entry, t, hass),
-    communitiesSection(entry, t),
-    chartsSection(entry, t),
-    checksSection(entry, t),
+    pickerSection(entry, t, collection),
+    ...communitySections(entry, t, collection),
+    pickedChartsSection(entry, t, collection),
+    monthChartsSection(entry, t),
+    checksSection(entry, t, collection),
   ].filter(Boolean);
   return {
     title: entry.title,
@@ -524,7 +510,9 @@ export const buildDashboard = (entries, config, hass) => {
 
 export const generate = async (config, hass) => {
   const result = await hass.callWS({ type: "eg_austria/dashboard_config" });
-  return buildDashboard(result.entries || [], config, hass);
+  const dashboard = buildDashboard(result.entries || [], config, hass);
+  for (const entry of result.entries || []) seedDefaultPeriod(collectionKey(entry));
+  return dashboard;
 };
 
 // Browser only: register the strategy element and the "Add dashboard" entry.

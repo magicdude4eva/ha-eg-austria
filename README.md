@@ -441,19 +441,22 @@ What it shows, one view per EG Austria entry, from top to bottom:
 
 | Part | Cards |
 |---|---|
-| Delays | A banner: community shares are complete until *Data complete until*, meter values until *Meter data until* |
-| Shares | One row: gauges for feed-in to communities, import covered by communities and, with a PV source, PV self-consumed; each shows the month so far with last month in a note under it (last month in the gauge while the month has no complete day yet), next to the import status: *Data complete until*, *Meter data until*, *Last run*, *Last import*, *Token expires* and a link to the Energy dashboard |
-| Totals | Side by side: the last complete month and the month so far, each with fed into communities, to the surplus buyer, drawn from communities, from the supplier |
-| Communities | One card per community with its feed-in and import shares |
-| Feed-in and import | Where the feed-in went and where the import came from (per community and the rest), by month for a year and by day for 45 days |
-| Your own sources | With a PV source, PV production vs metered feed-in vs communities by month; with a feed-in or grid consumption source, metered vs your source by day, as bars side by side (the two agree closely, so lines would cover each other) |
+| Always current | A banner with the two delays (community shares complete until *Data complete until*, meter values until *Meter data until*); gauges for feed-in to communities, import covered by communities and, with a PV source, PV self-consumed, each showing the month so far with last month in a note under it (last month in the gauge while the month has no complete day yet); the import status: *Data complete until*, *Meter data until*, *Last run*, *Last import*, *Token expires* and a link to the Energy dashboard |
+| Picked period | A date picker that opens on **this month**; use ‹ › to step to earlier months, or pick a week, a year or any range. Under it, following the picker: totals (fed into communities, to the surplus buyer, drawn from communities, from the supplier), per community the kWh fed in and drawn plus its share sensors, and where the feed-in went and where the import came from |
+| Last 12 months | The same two splits by month |
+| Your own sources | With a PV source, PV production vs metered feed-in vs communities by month; with a feed-in or grid consumption source, metered vs your source for the picked period, as bars side by side (the two agree closely, so lines would cover each other) |
 
-There is no date picker: community data arrives about two weeks late, so a
-picker starting on today would show empty cards. Each community keeps its
-colour in every chart (first blue, second green), the surplus buyer is amber
-and the supplier grey. The labels follow your profile language (English or
-German). The newest days show feed-in and import but no community split until
-the portal has it (*Data complete until*).
+Charts sit in pairs on a wide screen and stack on a phone. Each community
+keeps its colour in every chart (first blue, second green), the surplus buyer
+is amber and the supplier grey. The labels follow your profile language
+(English or German).
+
+The date picker remembers the last preset you picked in your browser, like the
+Energy dashboard. Until you pick one, the dashboard stores *This month* there
+(only in the browser, never in Home Assistant), because *Today* has no
+community data yet: community shares arrive about two weeks late. The newest
+days show feed-in and import but no community split until the portal has it
+(*Data complete until*).
 
 ## Actions
 
