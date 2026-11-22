@@ -462,7 +462,10 @@ Statistiken deines Eintrags und die gewählten
 Quellen weg.
 
 **Einmal hinzufügen:** **Einstellungen → Dashboards → Dashboard hinzufügen**,
-dann unter *Benutzerdefiniert* **EG Austria energy community** wählen. Die
+dann unter *Benutzerdefiniert* **EG Austria energy community** wählen. Fehlt
+*Benutzerdefiniert* nach dem Installieren oder Aktualisieren, die Seite im
+Browser neu laden (oder die App neu starten): Das Frontend lädt das
+Dashboard-Skript nur beim Öffnen der Seite. Die
 Integration legt Dashboards nie selbst an und ändert sie nicht. Das Dashboard
 wird bei jedem Laden neu aufgebaut; eine neue Quelle oder Gemeinschaft
 erscheint also ohne Bearbeiten. Um es von Hand zu ändern, im Dashboard-Menü

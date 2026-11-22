@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- README: reload the browser page if *Custom* is missing in *Add dashboard*
+  after installing or updating.
+
 ## [0.1.3] - 2026-11-22
 
 Reworks the *Energy community* dashboard after its first real use. Requires

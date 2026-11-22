@@ -428,11 +428,13 @@ the [comparison sources](#comparison-sources) you picked, and leaves out cards
 for sources you didn't set.
 
 **Add it once:** **Settings → Dashboards → Add dashboard**, then under
-*Custom* pick **EG Austria energy community**. The integration never creates
-or changes dashboards by itself. The dashboard is rebuilt on every load, so a
-new source or community shows up without editing it. To change it by hand,
-use *Take control* in the dashboard menu; from then on it stays as you edited
-it.
+*Custom* pick **EG Austria energy community**. If *Custom* is missing after
+installing or updating, reload the browser page (or restart the app): the
+frontend loads the dashboard script only when the page opens. The integration
+never creates or changes dashboards by itself. The dashboard is rebuilt on
+every load, so a new source or community shows up without editing it. To
+change it by hand, use *Take control* in the dashboard menu; from then on it
+stays as you edited it.
 
 The dialog suggests the title *Energy community* and the icon
 `mdi:home-group`; change them as you like.
