@@ -131,7 +131,9 @@ Noch nicht umgesetzt (Phasen, siehe [ADR 0010](docs/adr/0010-phasing.md)):
 
 ## Installation
 
-**Stand:** veröffentlicht (0.1.0). Die Aufnahme in den Home Assistant
+**Stand:** veröffentlicht (siehe das
+[neueste Release](https://github.com/magicdude4eva/ha-eg-austria/releases/latest)).
+Die Aufnahme in den Home Assistant
 Marketplace (früher HACS) ist beantragt
 ([#38](https://github.com/magicdude4eva/ha-eg-austria/issues/38)); bis sie
 gelistet ist, installierst du sie per Link als benutzerdefiniertes Repository:

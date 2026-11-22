@@ -123,7 +123,9 @@ Not done yet (phases, see [ADR 0010](docs/adr/0010-phasing.md)):
 
 ## Installation
 
-**Status:** released (0.1.0). The listing in the Home Assistant Marketplace
+**Status:** released (see the
+[latest release](https://github.com/magicdude4eva/ha-eg-austria/releases/latest)).
+The listing in the Home Assistant Marketplace
 (formerly HACS) is pending
 ([#38](https://github.com/magicdude4eva/ha-eg-austria/issues/38)); until it
 is live, install it as a custom repository by link:
