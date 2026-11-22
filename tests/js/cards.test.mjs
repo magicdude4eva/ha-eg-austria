@@ -9,6 +9,7 @@ import {
   completeCutoff,
   currentMonth,
   fetchTotals,
+  infoIcon,
   periodCardIds,
   periodTitle,
   pickerCard,
@@ -18,6 +19,7 @@ import {
 } from "../../custom_components/eg_austria/frontend/eg-austria-dashboard.js";
 
 const TEXT = {
+  info: "Totals & more.",
   total: "Total",
   until: "so far, until {date}",
   noData: "No community data for this period yet.",
@@ -29,6 +31,7 @@ const PERIOD = {
   donuts: [
     {
       title: "Import",
+      info: "Import: from each community.",
       say: "Communities covered {pct} of your import",
       parts: [
         { name: "A & B", statistic: "s:a_in", color: "#2f7fd1", share: true },
@@ -115,6 +118,22 @@ test("period card: totals, shares, PV minus feed-in, names escaped", () => {
   const empty = renderPeriodCard(PERIOD, {}, { ...period, empty: true }, "en");
   assert.match(empty, /No community data for this period yet\./);
   assert.deepEqual(periodCardIds(PERIOD), ["s:a_in", "s:supplier", "s:pv", "s:gen", "s:gen"]);
+});
+
+test("info icon: native tooltip, or ha-tooltip once the frontend has it", () => {
+  const html = renderPeriodCard(PERIOD, TOTALS, clipPeriod(october, null), "en");
+  assert.match(html, /<ha-svg-icon id="info" path="M11,9H13V7H11/);
+  assert.match(html, /title="Totals &amp; more\.\n\nImport: from each community\."/);
+  assert.match(renderCommunityCard(COMMUNITY, TOTALS, clipPeriod(october, null), "en"), /title="Totals &amp; more\."/);
+  assert.equal(infoIcon([null, ""]), "");
+  globalThis.customElements = { get: (tag) => (tag === "ha-tooltip" ? class {} : undefined) };
+  try {
+    const rich = infoIcon(["A & B", "C"]);
+    assert.match(rich, /<ha-tooltip for="info" placement="left">A &amp; B<br><br>C<\/ha-tooltip>/);
+    assert.doesNotMatch(rich, /title=/);
+  } finally {
+    delete globalThis.customElements;
+  }
 });
 
 test("community card: kWh, share of the total, bar width", () => {

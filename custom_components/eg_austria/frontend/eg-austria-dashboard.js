@@ -60,6 +60,13 @@ const TEXT = {
     total: "Total",
     until: "so far, until {date}",
     noData: "No community data for this period yet.",
+    infoTotals:
+      "Totals for the picked period, counted up to Data complete until, so all numbers cover the same days.",
+    infoImport: "Import: what each community supplied; the rest came from your supplier.",
+    infoFeedIn: "Feed-in: what each community took; the rest went to the surplus buyer.",
+    infoPv: "PV: production minus metered feed-in is what you used yourself.",
+    infoCommunity:
+      "kWh this community took from your feed-in and supplied to you in the picked period, and their share of all your feed-in and import. Counted up to Data complete until.",
     ofFeedIn: "{pct} of your feed-in",
     ofImport: "{pct} of your import",
     toCommunities: "Fed into communities",
@@ -109,6 +116,14 @@ const TEXT = {
     total: "Gesamt",
     until: "bisher, bis {date}",
     noData: "Für diesen Zeitraum gibt es noch keine Gemeinschaftsdaten.",
+    infoTotals:
+      "Summen für den gewählten Zeitraum, gezählt bis Daten vollständig bis, damit alle Zahlen dieselben Tage abdecken.",
+    infoImport: "Bezug: was jede Gemeinschaft geliefert hat; der Rest kam vom Lieferanten.",
+    infoFeedIn:
+      "Einspeisung: was jede Gemeinschaft abgenommen hat; der Rest ging an den Überschussabnehmer.",
+    infoPv: "PV: Erzeugung minus gemessene Einspeisung ist, was du selbst verbraucht hast.",
+    infoCommunity:
+      "kWh, die diese Gemeinschaft im gewählten Zeitraum von deiner Einspeisung abgenommen und dir geliefert hat, und ihr Anteil an deiner gesamten Einspeisung und deinem Bezug. Gezählt bis Daten vollständig bis.",
     ofFeedIn: "{pct} deiner Einspeisung",
     ofImport: "{pct} deines Bezugs",
     toCommunities: "An Gemeinschaften eingespeist",
@@ -237,7 +252,7 @@ const pairs = (cards) =>
 const communityColor = (i) => COLORS.communities[i % COLORS.communities.length];
 
 // Labels the cards of our own need; the strategy passes them in the config.
-const cardText = (t) => ({ total: t.total, until: t.until, noData: t.noData });
+const cardText = (t, info) => ({ total: t.total, until: t.until, noData: t.noData, info });
 
 const communityParts = (entry, quantity) =>
   entry.communities
@@ -257,6 +272,7 @@ const donuts = (entry, t) => {
     {
       title: t.importTitle,
       say: t.importSay,
+      info: t.infoImport,
       parts: [
         ...communityParts(entry, "consumption_from_community"),
         s.consumption_from_supplier && {
@@ -269,6 +285,7 @@ const donuts = (entry, t) => {
     {
       title: t.feedInTitle,
       say: t.feedInSay,
+      info: t.infoFeedIn,
       parts: [
         ...communityParts(entry, "generation_to_community"),
         s.generation_to_surplus && {
@@ -283,6 +300,7 @@ const donuts = (entry, t) => {
     list.push({
       title: t.pvTitle,
       say: t.pvSay,
+      info: t.infoPv,
       parts: [
         {
           name: t.selfConsumed,
@@ -308,7 +326,7 @@ const periodCard = (entry, t, collection) => {
         collection_key: collection,
         complete_until: entry.entities.data_complete_until || null,
         donuts: list,
-        text: cardText(t),
+        text: cardText(t, t.infoTotals),
         grid_options: FULL,
       }
     : null;
@@ -335,7 +353,7 @@ const communityCards = (entry, t, collection) =>
             name: c.name,
             color: communityColor(i),
             rows,
-            text: cardText(t),
+            text: cardText(t, t.infoCommunity),
           }
         : null;
     })
@@ -556,7 +574,9 @@ const partValue = (part, totals) => {
 };
 
 const STYLE = `<style>
-ha-card{padding:16px;display:flex;flex-direction:column;gap:14px;height:100%;box-sizing:border-box}
+ha-card{position:relative;padding:16px;display:flex;flex-direction:column;gap:14px;height:100%;box-sizing:border-box}
+#info{position:absolute;top:4px;inset-inline-end:4px;color:var(--secondary-text-color)}
+ha-tooltip::part(base__popup){margin-top:4px}
 .head{display:flex;align-items:baseline;gap:6px 10px;flex-wrap:wrap}
 h2{margin:0;font-size:1.2em;font-weight:500;color:var(--primary-text-color)}
 .meta,.say,.empty,.of{color:var(--secondary-text-color);font-size:.875em}
@@ -614,6 +634,21 @@ const untilLine = (config, period, lang) => {
     : "";
 };
 
+// The (i) icon in the top corner, like the core energy cards. Its text in
+// `ha-tooltip` when the frontend has loaded it, else as a native tooltip.
+const INFO_PATH =
+  "M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z";
+
+export const infoIcon = (lines) => {
+  const text = lines.filter(Boolean);
+  if (!text.length) return "";
+  const tooltip = typeof customElements !== "undefined" && customElements.get("ha-tooltip");
+  if (tooltip) {
+    return `<ha-svg-icon id="info" path="${INFO_PATH}"></ha-svg-icon><ha-tooltip for="info" placement="left">${text.map(escapeHtml).join("<br><br>")}</ha-tooltip>`;
+  }
+  return `<ha-svg-icon id="info" path="${INFO_PATH}" title="${escapeHtml(text.join("\n\n"))}"></ha-svg-icon>`;
+};
+
 export const renderPeriodCard = (config, totals, period, lang) => {
   let body;
   if (period.empty) {
@@ -636,7 +671,8 @@ export const renderPeriodCard = (config, totals, period, lang) => {
       })
       .join("")}</div>`;
   }
-  return `${STYLE}<ha-card>${untilLine(config, period, lang)}${body}</ha-card>`;
+  const info = infoIcon([config.text.info, ...config.donuts.map((d) => d.info)]);
+  return `${STYLE}<ha-card>${info}${untilLine(config, period, lang)}${body}</ha-card>`;
 };
 
 export const renderCommunityCard = (config, totals, period, lang) => {
@@ -654,7 +690,7 @@ export const renderCommunityCard = (config, totals, period, lang) => {
       })
       .join("");
   }
-  return `${STYLE}<ha-card>${header(config, period, lang)}${body}</ha-card>`;
+  return `${STYLE}<ha-card>${infoIcon([config.text.info])}${header(config, period, lang)}${body}</ha-card>`;
 };
 
 export const periodCardIds = (config) =>

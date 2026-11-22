@@ -154,7 +154,12 @@ test("period card: donuts from the statistics, cut at Data complete until", () =
     total: "Total",
     until: "so far, until {date}",
     noData: "No community data for this period yet.",
+    info: "Totals for the picked period, counted up to Data complete until, so all numbers cover the same days.",
   });
+  assert.deepEqual(
+    card.donuts.map((d) => d.info.split(":")[0]),
+    ["Import", "Feed-in"]
+  );
   assert.deepEqual(
     card.donuts.map((d) => [d.title, d.say]),
     [
@@ -205,6 +210,7 @@ test("community cards: fed in and drawn as a share of all feed-in and import", (
   assert.equal(beg.color, "#2f7fd1");
   assert.equal(beg.collection_key, COLLECTION);
   assert.equal(beg.complete_until, COMPLETE);
+  assert.match(beg.text.info, /^kWh this community took from your feed-in/);
   assert.deepEqual(beg.rows, [
     {
       statistic: S("beg_generation_to_community"),

@@ -462,7 +462,8 @@ community data yet: community shares arrive about two weeks late. The newest
 days show feed-in and import but no community split until the portal has it
 (*Data complete until*).
 
-The period and community cards count only up to *Data complete until*, so
+The (i) in the top corner of the period and community cards explains how
+their numbers are counted. The period and community cards count only up to *Data complete until*, so
 every number in them covers the same days; for the current month they say
 *so far, until* that day. They read the picked period from the date
 picker through a frontend detail that isn't a public API; if a Home Assistant

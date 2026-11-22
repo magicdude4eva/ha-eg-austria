@@ -497,7 +497,8 @@ noch keine Gemeinschaftsdaten hat: Gemeinschaftsanteile kommen etwa zwei
 Wochen später. Die neuesten Tage zeigen Einspeisung und Bezug, aber noch keine
 Gemeinschaftsaufteilung, bis das Portal sie hat (*Daten vollständig bis*).
 
-Zeitraum- und Gemeinschaftskarten zählen nur bis *Daten vollständig bis*,
+Das (i) in der Ecke der Zeitraum- und Gemeinschaftskarten erklärt, wie ihre
+Zahlen zustande kommen. Zeitraum- und Gemeinschaftskarten zählen nur bis *Daten vollständig bis*,
 damit alle Zahlen darin dieselben Tage abdecken; im aktuellen Monat steht dort
 *bisher, bis* zu diesem Tag. Den gewählten Zeitraum lesen sie über ein
 Detail des Frontends, das keine öffentliche Schnittstelle ist; ändert ein
