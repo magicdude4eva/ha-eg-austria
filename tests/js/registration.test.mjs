@@ -22,7 +22,7 @@ test("registers the element and the Add dashboard entry", () => {
     window.customStrategies.map((s) => [s.type, s.strategyType]),
     [["eg-austria", "dashboard"]]
   );
-  for (const tag of ["eg-austria-period-card", "eg-austria-community-card"]) {
+  for (const tag of ["eg-austria-period-card", "eg-austria-community-card", "eg-austria-status-card"]) {
     assert.equal(typeof defined.get(tag).prototype.setConfig, "function", tag);
   }
 });

@@ -6,15 +6,16 @@
 // sources and sensors exist, and builds core cards only from that: cards for
 // sources that aren't set are left out. Read-only; nothing is written.
 //
-// Layout (#61): the delay banner, then a date picker that opens on this
+// Layout (#61): the delay banner, the import status in one row (#63), then a date picker that opens on this
 // month. Two small cards of our own follow the picker: the period card
 // (import, feed-in and PV donuts) and one card per community. The by-day
 // split and the meter check follow it too; the 12-month charts don't. Charts
-// sit in pairs on a wide screen, the import status at the end.
+// sit in pairs on a wide screen.
 
 const STRATEGY_TYPE = "eg-austria";
 const PERIOD_TAG = "eg-austria-period-card";
 const COMMUNITY_TAG = "eg-austria-community-card";
+const STATUS_TAG = "eg-austria-status-card";
 const DOCS_URL =
   "https://github.com/magicdude4eva/ha-eg-austria#energy-community-dashboard";
 // A group of houses: members of an energy community sharing their energy.
@@ -193,25 +194,27 @@ const delayBanner = (entry, t) => {
 
 // --- Status ----------------------------------------------------------------
 
-const statusCard = (entry, t) => {
-  const e = entry.entities;
-  const rows = [
-    ["data_complete_until", t.dataCompleteUntil],
-    ["meter_data_until", t.meterDataUntil],
-    ["last_run_status", t.lastRun],
-    ["last_import", t.lastImport],
-    ["token_expires", t.tokenExpires],
-  ]
-    .filter(([key]) => e[key])
-    .map(([key, name]) => ({ entity: e[key], name }));
-  rows.push({
-    type: "weblink",
-    name: t.energyDashboard,
-    icon: "mdi:lightning-bolt",
-    url: "/energy",
-  });
-  return { type: "entities", title: t.status, grid_options: HALF, entities: rows };
-};
+// One row above the picker (#63), drawn by the status card below: Last run
+// in colour, timestamps as dates (Token expires shows when, not "in a year").
+const STATUS_ITEMS = [
+  ["data_complete_until", "dataCompleteUntil"],
+  ["meter_data_until", "meterDataUntil"],
+  ["last_run_status", "lastRun", "run"],
+  ["last_import", "lastImport"],
+  ["token_expires", "tokenExpires", "token"],
+];
+
+const statusCard = (entry, t) => ({
+  type: `custom:${STATUS_TAG}`,
+  title: t.status,
+  items: STATUS_ITEMS.filter(([key]) => entry.entities[key]).map(([key, name, kind]) => ({
+    entity: entry.entities[key],
+    name: t[name],
+    ...(kind ? { kind } : {}),
+  })),
+  link: { name: t.energyDashboard, url: "/energy" },
+  grid_options: FULL,
+});
 
 // --- Picked period ---------------------------------------------------------
 
@@ -246,7 +249,7 @@ const pairs = (cards) =>
   cards.map((card, i) => ({
     ...card,
     grid_options:
-      i === cards.length - 1 && cards.length % 2 ? FULL : { columns: 24 },
+      i === cards.length - 1 && cards.length % 2 ? FULL : HALF,
   }));
 
 const communityColor = (i) => COLORS.communities[i % COLORS.communities.length];
@@ -363,6 +366,7 @@ const pickerSection = (entry, t, collection) =>
   section(
     [
       delayBanner(entry, t),
+      statusCard(entry, t),
       { type: "energy-date-selection", collection_key: collection, grid_options: FULL },
       periodCard(entry, t, collection),
       ...pairs(communityCards(entry, t, collection)),
@@ -773,6 +777,128 @@ export const pickerCard = (Base, render, ids, size) =>
     }
   };
 
+// --- Status card -------------------------------------------------------------
+
+const OK_COLOR = "var(--success-color, #43a047)";
+const WARN_COLOR = "var(--warning-color, #ffa600)";
+const ERROR_COLOR = "var(--error-color, #db4437)";
+// Last run: fine, passing (a later run catches up), or needs you.
+const RUN_COLORS = {
+  ok: OK_COLOR,
+  partial: WARN_COLOR,
+  skipped_maintenance: WARN_COLOR,
+  rate_limited: WARN_COLOR,
+  auth_failed: ERROR_COLOR,
+  api_changed: ERROR_COLOR,
+  unavailable: ERROR_COLOR,
+};
+// Token expires: amber in the last two weeks, red once expired.
+const TOKEN_WARN_DAYS = 14;
+
+const STATUS_STYLE = `<style>
+ha-card{padding:10px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 24px;height:100%;box-sizing:border-box}
+.title{font-weight:500;color:var(--primary-text-color)}
+.item,.link{all:unset;cursor:pointer;display:flex;align-items:baseline;gap:6px;border-radius:6px}
+.item:focus-visible,.link:focus-visible{outline:2px solid var(--primary-color)}
+.label{color:var(--secondary-text-color);font-size:.875em}
+.value{display:inline-flex;align-items:center;gap:6px;color:var(--primary-text-color);font-weight:500}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.link{margin-inline-start:auto;color:var(--primary-color)}
+</style>`;
+
+const statusColor = (item, state, now) => {
+  if (!state) return "";
+  if (item.kind === "run") return RUN_COLORS[state.state] || "";
+  if (item.kind === "token") {
+    const at = Date.parse(state.state);
+    if (Number.isNaN(at)) return "";
+    if (at <= +now) return ERROR_COLOR;
+    if (at - now < TOKEN_WARN_DAYS * DAY) return WARN_COLOR;
+  }
+  return "";
+};
+
+export const renderStatusCard = (config, hass, now = new Date()) => {
+  const items = config.items
+    .map((item) => {
+      const state = hass && hass.states ? hass.states[item.entity] : undefined;
+      const value = !state
+        ? "–"
+        : typeof hass.formatEntityState === "function"
+          ? hass.formatEntityState(state)
+          : state.state;
+      const color = statusColor(item, state, now);
+      const dot =
+        item.kind === "run"
+          ? `<span class="dot" style="background:${color || "var(--disabled-color, #9e9e9e)"}"></span>`
+          : "";
+      const style = color && item.kind !== "run" ? ` style="color:${color}"` : "";
+      return `<button class="item" data-entity="${escapeHtml(item.entity)}"><span class="label">${escapeHtml(item.name)}</span><span class="value"${style}>${dot}${escapeHtml(value)}</span></button>`;
+    })
+    .join("");
+  const link = config.link
+    ? `<a class="link" href="${escapeHtml(config.link.url)}">${escapeHtml(config.link.name)} ›</a>`
+    : "";
+  return `${STATUS_STYLE}<ha-card><span class="title">${escapeHtml(config.title)}</span>${items}${link}</ha-card>`;
+};
+
+// Re-renders only when one of its entities changes. A click on a value opens
+// its more-info dialog; the link navigates inside the frontend.
+export const statusElement = (Base) =>
+  class extends Base {
+    setConfig(config) {
+      this._config = config;
+      this._key = null;
+      this._render();
+    }
+
+    set hass(hass) {
+      this._hass = hass;
+      this._render();
+    }
+
+    getCardSize() {
+      return 1;
+    }
+
+    _render() {
+      if (!this._hass || !this._config) return;
+      const states = this._hass.states || {};
+      const key = this._config.items
+        .map((i) => (states[i.entity] ? states[i.entity].state : ""))
+        .join("|");
+      if (key === this._key) return;
+      this._key = key;
+      if (!this.shadowRoot) {
+        this.attachShadow({ mode: "open" });
+        if (this.shadowRoot.addEventListener) {
+          this.shadowRoot.addEventListener("click", (ev) => this._click(ev));
+        }
+      }
+      this.shadowRoot.innerHTML = renderStatusCard(this._config, this._hass);
+    }
+
+    _click(ev) {
+      const item = ev.target.closest && ev.target.closest(".item");
+      if (item) {
+        this.dispatchEvent(
+          new CustomEvent("hass-more-info", {
+            detail: { entityId: item.dataset.entity },
+            bubbles: true,
+            composed: true,
+          })
+        );
+        return;
+      }
+      const link = ev.target.closest && ev.target.closest(".link");
+      if (link) {
+        ev.preventDefault();
+        history.pushState(null, "", link.getAttribute("href"));
+        window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+      }
+    }
+  };
+
 // --- Dashboard ------------------------------------------------------------
 
 export const buildView = (entry, hass) => {
@@ -783,7 +909,6 @@ export const buildView = (entry, hass) => {
     pickedChartsSection(entry, t, collection),
     monthChartsSection(entry, t),
     checksSection(entry, t, collection),
-    section([statusCard(entry, t)]),
   ].filter(Boolean);
   return {
     title: entry.title,
@@ -853,4 +978,5 @@ if (typeof customElements !== "undefined") {
       customElements.define(tag, pickerCard(HTMLElement, render, ids, size));
     }
   }
+  if (!customElements.get(STATUS_TAG)) customElements.define(STATUS_TAG, statusElement(HTMLElement));
 }

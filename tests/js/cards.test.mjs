@@ -16,6 +16,8 @@ import {
   pickerCollection,
   renderCommunityCard,
   renderPeriodCard,
+  renderStatusCard,
+  statusElement,
 } from "../../custom_components/eg_austria/frontend/eg-austria-dashboard.js";
 
 const TEXT = {
@@ -245,4 +247,68 @@ test("card without a picker collection shows the current month", async () => {
   const month = now.toLocaleDateString("en", { month: "long", year: "numeric" });
   assert.match(card.shadowRoot.innerHTML, new RegExp(`<span class="meta">${month}</span>`));
   card.disconnectedCallback();
+});
+
+const STATUS = {
+  title: "Import status",
+  items: [
+    { entity: "sensor.complete", name: "Data complete until" },
+    { entity: "sensor.run", name: "Last run", kind: "run" },
+    { entity: "sensor.token", name: "Token expires", kind: "token" },
+    { entity: "sensor.missing", name: "Meter data until" },
+  ],
+  link: { name: "Energy dashboard", url: "/energy" },
+};
+const statusHass = (run, token) => ({
+  states: {
+    "sensor.complete": { state: "2030-10-06" },
+    "sensor.run": { state: run },
+    "sensor.token": { state: token },
+  },
+  formatEntityState: (s) => (s.state === "ok" ? "OK" : `fmt:${s.state}`),
+});
+const NOW = new Date(Date.UTC(2030, 9, 20));
+
+test("status row: values formatted by HA, Last run and token in colour", () => {
+  const html = renderStatusCard(STATUS, statusHass("ok", "2031-10-20T10:00:00+00:00"), NOW);
+  assert.match(html, /<span class="title">Import status<\/span>/);
+  assert.match(html, /Data complete until<\/span><span class="value">fmt:2030-10-06/);
+  assert.match(html, /background:var\(--success-color, #43a047\)"><\/span>OK/);
+  // Token expires as HA formats the timestamp (a date), no colour while far off.
+  assert.match(html, /<span class="value">fmt:2031-10-20T10:00:00\+00:00/);
+  assert.match(html, /data-entity="sensor\.missing"><span class="label">Meter data until<\/span><span class="value">–/);
+  assert.match(html, /<a class="link" href="\/energy">Energy dashboard ›<\/a>/);
+  const bad = renderStatusCard(STATUS, statusHass("auth_failed", "2030-10-25T00:00:00+00:00"), NOW);
+  assert.match(bad, /background:var\(--error-color, #db4437\)"><\/span>fmt:auth_failed/);
+  assert.match(bad, /style="color:var\(--warning-color, #ffa600\)">fmt:2030-10-25/);
+  const late = renderStatusCard(STATUS, statusHass("partial", "2030-10-01T00:00:00+00:00"), NOW);
+  assert.match(late, /background:var\(--warning-color, #ffa600\)"><\/span>fmt:partial/);
+  assert.match(late, /style="color:var\(--error-color, #db4437\)">fmt:2030-10-01/);
+  // Without formatEntityState: the raw state.
+  assert.match(renderStatusCard(STATUS, { states: { "sensor.run": { state: "ok" } } }, NOW), /<\/span>ok<\/span>/);
+});
+
+test("status element renders only when its entities change, opens more-info", () => {
+  const events = [];
+  class Base extends FakeElement {
+    dispatchEvent(ev) {
+      events.push(ev);
+    }
+  }
+  const Card = statusElement(Base);
+  const card = new Card();
+  card.setConfig(STATUS);
+  const hass = statusHass("ok", "2031-10-20T10:00:00+00:00");
+  card.hass = hass;
+  const first = card.shadowRoot.innerHTML;
+  assert.match(first, /Import status/);
+  card.shadowRoot.innerHTML = "kept";
+  card.hass = { ...hass, states: { ...hass.states, "sensor.other": { state: "x" } } };
+  assert.equal(card.shadowRoot.innerHTML, "kept");
+  card.hass = statusHass("partial", "2031-10-20T10:00:00+00:00");
+  assert.match(card.shadowRoot.innerHTML, /fmt:partial/);
+  assert.equal(card.getCardSize(), 1);
+  card._click({ target: { closest: (sel) => (sel === ".item" ? { dataset: { entity: "sensor.run" } } : null) } });
+  assert.equal(events[0].type, "hass-more-info");
+  assert.deepEqual(events[0].detail, { entityId: "sensor.run" });
 });
