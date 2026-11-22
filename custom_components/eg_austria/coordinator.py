@@ -31,11 +31,13 @@ from typing import Any, Final
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_point_in_utc_time,
     async_track_time_change,
 )
+from homeassistant.helpers.recorder import get_instance
 from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -88,7 +90,17 @@ from .importer import (
 )
 from .models import Maintenance, PortalVersion
 from .redact import redact_text
+from .sources import configured_sources
 from .statistics import Quantity
+from .summary import (
+    CommunityName,
+    Period,
+    PeriodSummary,
+    SummaryDef,
+    async_compute,
+    build_summary_defs,
+    meter_data_until,
+)
 from .validation import ValidationResult, schema_failure
 
 _LOGGER = logging.getLogger(__name__)
@@ -147,6 +159,7 @@ class StoreData:
     held_days: dict[str, list[date]] = field(default_factory=dict)
     released: dict[str, list[date]] = field(default_factory=dict)
     complete_until: date | None = None
+    meter_until: date | None = None  # issue #51: meter side, may run ahead
     initial_done: bool = False
     rate_limited: bool = False
     last_run_status: RunStatus | None = None
@@ -167,6 +180,7 @@ class StoreData:
             held_days=_days_map(raw.get("held_days")),
             released=_days_map(raw.get("released")),
             complete_until=_d(raw.get("complete_until")),
+            meter_until=_d(raw.get("meter_until")),
             initial_done=bool(raw.get("initial_done")),
             rate_limited=bool(raw.get("rate_limited")),
             last_run_status=_status(raw.get("last_run_status")),
@@ -191,6 +205,7 @@ class StoreData:
             "held_days": days(self.held_days),
             "released": days(self.released),
             "complete_until": iso(self.complete_until),
+            "meter_until": iso(self.meter_until),
             "initial_done": self.initial_done,
             "rate_limited": self.rate_limited,
             "last_run_status": (
@@ -322,6 +337,9 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         self.site: SiteInfo | None = None
         # Log-once state for an unreachable portal (issue #36).
         self._portal_lost = False
+        # Summary values (ADR 0014); computed after startup and every run.
+        self.summary_defs = self._summary_defs()
+        self.summary: dict[Period, PeriodSummary] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -384,6 +402,9 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
     def _async_started(self, _hass: HomeAssistant) -> None:
         """After Home Assistant started: maybe one delayed catch-up run."""
 
+        self.config_entry.async_create_background_task(
+            self.hass, self.async_refresh_summary(), f"{DOMAIN} summary"
+        )
         run_type = self.startup_run_type(dt_util.utcnow())
         if run_type is None:
             return
@@ -512,6 +533,46 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             labels=labels,
         )
 
+    def _summary_defs(self) -> list[SummaryDef]:
+        data = self.config_entry.data
+        return build_summary_defs(
+            data[CONF_SITE_SLUG],
+            [
+                CommunityName(c["slug"], c.get("name") or c["slug"])
+                for c in data[CONF_COMMUNITIES]
+            ],
+            configured_sources(self.config_entry),
+        )
+
+    async def async_refresh_summary(self, *, wait_for_recorder: bool = False) -> None:
+        """Recompute the summary values (ADR 0014) and update the sensors.
+
+        After a run, waits until the recorder has written the imported rows.
+        A failure keeps the previous values; it never fails a run.
+        """
+
+        try:
+            if wait_for_recorder:
+                await get_instance(self.hass).async_block_till_done()
+            self.summary = await async_compute(
+                self.hass,
+                self.summary_defs,
+                local_today(dt_util.utcnow()),
+                self.state.complete_until,
+            )
+        except Exception:
+            _LOGGER.warning("Summary values could not be computed", exc_info=True)
+            return
+        # Own signal, not async_update_listeners(): a coordinator update
+        # without a new run means "held days released" to the repairs.
+        async_dispatcher_send(self.hass, self.summary_signal)
+
+    @property
+    def summary_signal(self) -> str:
+        """Dispatcher signal sent when the summary values change."""
+
+        return f"{DOMAIN}_{self.config_entry.entry_id}_summary"
+
     def _check_stop(self) -> None:
         if self._stopping:
             raise RunCancelled
@@ -560,6 +621,8 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             )
             self._finish(summary)
         self.async_set_updated_data(summary)
+        if summary.success:
+            await self.async_refresh_summary(wait_for_recorder=True)
         if summary.status is RunStatus.AUTH_FAILED:
             # Same effect as raising ConfigEntryAuthFailed from a refresh.
             self.config_entry.async_start_reauth(self.hass)
@@ -727,6 +790,11 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         self.state.complete_until = complete_until(
             completeness, comp_start, end, self.state.complete_until
         )
+        meter = meter_data_until(
+            {k: w.newest_hour for k, w in result.writes.items()}, setup.site_slug
+        )
+        if meter is not None:
+            self.state.meter_until = meter
         if request.run_type in (RunType.INITIAL, RunType.LONG):
             self.state.last_long_success = summary.started
         if request.run_type is RunType.INITIAL:

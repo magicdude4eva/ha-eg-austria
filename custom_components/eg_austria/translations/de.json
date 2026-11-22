@@ -397,6 +397,9 @@
       "data_complete_until": {
         "name": "Daten vollständig bis"
       },
+      "meter_data_until": {
+        "name": "Zählerdaten bis"
+      },
       "last_import": {
         "name": "Letzter Import"
       },
@@ -414,6 +417,60 @@
       },
       "portal_version": {
         "name": "Portal-Version"
+      },
+      "feed_in_to_communities_month_so_far": {
+        "name": "Einspeisung an Gemeinschaften, Monat bisher"
+      },
+      "feed_in_to_communities_last_month": {
+        "name": "Einspeisung an Gemeinschaften, Vormonat"
+      },
+      "import_from_communities_month_so_far": {
+        "name": "Bezug aus Gemeinschaften, Monat bisher"
+      },
+      "import_from_communities_last_month": {
+        "name": "Bezug aus Gemeinschaften, Vormonat"
+      },
+      "community_feed_in_share_month_so_far": {
+        "name": "{community} Einspeiseanteil, Monat bisher"
+      },
+      "community_feed_in_share_last_month": {
+        "name": "{community} Einspeiseanteil, Vormonat"
+      },
+      "community_import_share_month_so_far": {
+        "name": "{community} Bezugsanteil, Monat bisher"
+      },
+      "community_import_share_last_month": {
+        "name": "{community} Bezugsanteil, Vormonat"
+      },
+      "pv_self_consumed_month_so_far": {
+        "name": "PV selbst verbraucht, Monat bisher"
+      },
+      "pv_self_consumed_last_month": {
+        "name": "PV selbst verbraucht, Vormonat"
+      },
+      "pv_to_communities_month_so_far": {
+        "name": "PV an Gemeinschaften, Monat bisher"
+      },
+      "pv_to_communities_last_month": {
+        "name": "PV an Gemeinschaften, Vormonat"
+      },
+      "pv_to_surplus_month_so_far": {
+        "name": "PV an Überschussabnehmer, Monat bisher"
+      },
+      "pv_to_surplus_last_month": {
+        "name": "PV an Überschussabnehmer, Vormonat"
+      },
+      "feed_in_deviation_month_so_far": {
+        "name": "Abweichung Einspeisung, Monat bisher"
+      },
+      "feed_in_deviation_last_month": {
+        "name": "Abweichung Einspeisung, Vormonat"
+      },
+      "grid_consumption_deviation_month_so_far": {
+        "name": "Abweichung Netzbezug, Monat bisher"
+      },
+      "grid_consumption_deviation_last_month": {
+        "name": "Abweichung Netzbezug, Vormonat"
       }
     }
   }

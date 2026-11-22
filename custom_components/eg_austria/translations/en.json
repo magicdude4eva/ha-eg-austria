@@ -397,6 +397,9 @@
       "data_complete_until": {
         "name": "Data complete until"
       },
+      "meter_data_until": {
+        "name": "Meter data until"
+      },
       "last_import": {
         "name": "Last import"
       },
@@ -414,6 +417,60 @@
       },
       "portal_version": {
         "name": "Portal version"
+      },
+      "feed_in_to_communities_month_so_far": {
+        "name": "Feed-in to communities, month so far"
+      },
+      "feed_in_to_communities_last_month": {
+        "name": "Feed-in to communities, last month"
+      },
+      "import_from_communities_month_so_far": {
+        "name": "Import from communities, month so far"
+      },
+      "import_from_communities_last_month": {
+        "name": "Import from communities, last month"
+      },
+      "community_feed_in_share_month_so_far": {
+        "name": "{community} feed-in share, month so far"
+      },
+      "community_feed_in_share_last_month": {
+        "name": "{community} feed-in share, last month"
+      },
+      "community_import_share_month_so_far": {
+        "name": "{community} import share, month so far"
+      },
+      "community_import_share_last_month": {
+        "name": "{community} import share, last month"
+      },
+      "pv_self_consumed_month_so_far": {
+        "name": "PV self-consumed, month so far"
+      },
+      "pv_self_consumed_last_month": {
+        "name": "PV self-consumed, last month"
+      },
+      "pv_to_communities_month_so_far": {
+        "name": "PV to communities, month so far"
+      },
+      "pv_to_communities_last_month": {
+        "name": "PV to communities, last month"
+      },
+      "pv_to_surplus_month_so_far": {
+        "name": "PV to surplus buyer, month so far"
+      },
+      "pv_to_surplus_last_month": {
+        "name": "PV to surplus buyer, last month"
+      },
+      "feed_in_deviation_month_so_far": {
+        "name": "Feed-in deviation, month so far"
+      },
+      "feed_in_deviation_last_month": {
+        "name": "Feed-in deviation, last month"
+      },
+      "grid_consumption_deviation_month_so_far": {
+        "name": "Grid consumption deviation, month so far"
+      },
+      "grid_consumption_deviation_last_month": {
+        "name": "Grid consumption deviation, last month"
       }
     }
   }

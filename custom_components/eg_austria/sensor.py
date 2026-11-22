@@ -1,7 +1,8 @@
-"""Diagnostic sensors (spec 06 "Diagnostic entities").
+"""Diagnostic and summary sensors (spec 06 "Diagnostic entities", ADR 0014).
 
-One service device per entry; every sensor is ``EntityCategory.DIAGNOSTIC``.
-No energy sensors: the data lives in external statistics (ADR 0003).
+One service device per entry. Diagnostic sensors are
+``EntityCategory.DIAGNOSTIC``. Summary sensors show shares in percent with no
+``state_class``: the energy values stay in external statistics (ADR 0003).
 """
 
 from __future__ import annotations
@@ -9,16 +10,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
 )
-from homeassistant.const import EntityCategory
+from homeassistant.const import PERCENTAGE, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.loader import async_get_integration
@@ -26,6 +28,7 @@ from homeassistant.loader import async_get_integration
 from .const import DOMAIN
 from .importer import RunStatus
 from .repairs import token_expiry
+from .summary import Period, SummaryDef, SummaryValue
 
 if TYPE_CHECKING:
     from .coordinator import EgAustriaConfigEntry, EgAustriaCoordinator
@@ -78,6 +81,12 @@ SENSORS: tuple[EgSensorDescription, ...] = (
         value_fn=lambda c: c.state.complete_until,
     ),
     EgSensorDescription(
+        key="meter_data_until",
+        translation_key="meter_data_until",
+        device_class=SensorDeviceClass.DATE,
+        value_fn=lambda c: c.state.meter_until,
+    ),
+    EgSensorDescription(
         key="last_import",
         translation_key="last_import",
         device_class=SensorDeviceClass.TIMESTAMP,
@@ -110,6 +119,23 @@ async def async_setup_entry(
     integration = await async_get_integration(hass, DOMAIN)
     sw_version = str(integration.version) if integration.version else None
     async_add_entities(EgDiagnosticSensor(coordinator, d, sw_version) for d in SENSORS)
+    async_add_entities(
+        EgSummarySensor(coordinator, d, period, sw_version)
+        for d in coordinator.summary_defs
+        for period in Period
+    )
+
+
+def _device_info(entry: EgAustriaConfigEntry, sw_version: str | None) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry.entry_id)},
+        name=entry.title,
+        manufacturer=MANUFACTURER,
+        model=MODEL,
+        sw_version=sw_version,
+        configuration_url=CONFIGURATION_URL,
+        entry_type=DeviceEntryType.SERVICE,
+    )
 
 
 class EgDiagnosticSensor(CoordinatorEntity["EgAustriaCoordinator"], SensorEntity):
@@ -133,15 +159,7 @@ class EgDiagnosticSensor(CoordinatorEntity["EgAustriaCoordinator"], SensorEntity
         # Entry id, not the entry unique id: that one changes when the
         # location is remapped (reconfigure), which would orphan entities.
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-            sw_version=sw_version,
-            configuration_url=CONFIGURATION_URL,
-            entry_type=DeviceEntryType.SERVICE,
-        )
+        self._attr_device_info = _device_info(entry, sw_version)
 
     @property
     def available(self) -> bool:
@@ -154,3 +172,72 @@ class EgDiagnosticSensor(CoordinatorEntity["EgAustriaCoordinator"], SensorEntity
         """Return the value from the coordinator."""
 
         return self.entity_description.value_fn(self.coordinator)
+
+
+class EgSummarySensor(SensorEntity):
+    """A share in percent for one period (ADR 0014).
+
+    No ``state_class``: nothing is compiled into long-term statistics. The
+    kWh it was computed from and the period are attributes. Updated by the
+    coordinator's summary signal, not by run updates.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_suggested_display_precision = 1
+
+    def __init__(
+        self,
+        coordinator: EgAustriaCoordinator,
+        definition: SummaryDef,
+        period: Period,
+        sw_version: str | None = None,
+    ) -> None:
+        """Attach to the entry's service device."""
+
+        self.coordinator = coordinator
+        self._definition = definition
+        self._period = period
+        entry = coordinator.config_entry
+        self._attr_unique_id = f"{entry.entry_id}_{definition.key}_{period}"
+        self._attr_translation_key = f"{definition.translation_key}_{period}"
+        if definition.community is not None:
+            self._attr_translation_placeholders = {"community": definition.community}
+        self._attr_device_info = _device_info(entry, sw_version)
+
+    async def async_added_to_hass(self) -> None:
+        """Follow the summary signal."""
+
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, self.coordinator.summary_signal, self.async_write_ha_state
+            )
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the share, or None (unknown) when it can't be computed."""
+
+        value = self._value()
+        return value.value if value is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the period and the kWh behind the share."""
+
+        summary = self.coordinator.summary.get(self._period)
+        dates = summary.dates if summary is not None else None
+        value = self._value()
+        return {
+            "period_start": dates.start.isoformat() if dates else None,
+            "period_end": dates.end.isoformat() if dates else None,
+            "numerator_kwh": value.numerator_kwh if value else None,
+            "denominator_kwh": value.denominator_kwh if value else None,
+        }
+
+    def _value(self) -> SummaryValue | None:
+        summary = self.coordinator.summary.get(self._period)
+        if summary is None:
+            return None
+        return summary.values.get(self._definition.key)

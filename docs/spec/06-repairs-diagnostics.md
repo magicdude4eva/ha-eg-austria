@@ -24,11 +24,12 @@ One device per entry (`DeviceEntryType.SERVICE`, identifier and name from the en
 |---|---|---|
 | `token_expires` | timestamp | `token_exp` |
 | `data_complete_until` | date | last date of the contiguous run of days where both completeness flags are true, starting from the first activation |
+| `meter_data_until` | date | last local day whose meter statistics (site consumption and generation, the earlier of the two) reach its last hour, from each run's newest known hour; stored as `meter_until` (issue #51) |
 | `last_import` | timestamp | end of last successful run |
 | `last_run_status` | enum | `ok`, `partial`, `skipped_maintenance`, `auth_failed`, `api_changed`, `unavailable`, `rate_limited`; kept in the store, so a restart shows the last finished run; unknown only before the first run |
 | `portal_version` | text, disabled by default | short `gitCommit` |
 
-No energy sensors (ADR 0003).
+No energy sensors (ADR 0003). Summary sensors with shares in percent, not diagnostic and without `state_class`, are described in ADR 0014 and `summary.py`: key `<value>_<period>` (`month_so_far`, `last_month`), unique id `<entry_id>_<value>_<period>`, attributes `period_start`, `period_end`, `numerator_kwh`, `denominator_kwh`. They are recomputed after startup and after each successful run (once the recorder queue is empty); diagnostics contain no summary values.
 
 ## Services
 
