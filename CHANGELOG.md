@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: My Home Assistant buttons to open the repository in the Marketplace
   and to start the setup.
 
+## [0.1.4.1] - 2026-11-22
+
+Patch release: one fix on top of 0.1.4 (from branch `release/0.1.4.x`). No
+configuration changes are needed.
+
+### Fixed
+
+- Diagnostics keep the redacted error of the last run (for example which
+  portal field was missing) across a restart (#78).
+
 ## [0.1.4] - 2026-11-22
 
 Documentation only; no functional changes. Released for the Marketplace listing
@@ -147,7 +157,8 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.1...HEAD
+[0.1.4.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4...0.1.4.1
 [0.1.4]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.1...0.1.2
