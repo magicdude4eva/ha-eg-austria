@@ -48,6 +48,14 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-markers"
+filterwarnings = [
+    # Home Assistant's in-memory test recorder recreates its sqlite pool
+    # between tests and drops the old connection without closing it; the
+    # warning surfaces at whatever line the garbage collector runs on (seen in
+    # models.py, sqlalchemy result.py). The integration opens no connection
+    # itself (recorder API and session_scope only).
+    "ignore:unclosed database in <sqlite3.Connection:ResourceWarning",
+]
 
 [tool.coverage.run]
 source = ["custom_components.eg_austria"]
