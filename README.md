@@ -128,7 +128,18 @@ Not done yet (phases, see [ADR 0010](docs/adr/0010-phasing.md)):
 The listing in the Home Assistant Marketplace
 (formerly HACS) is pending
 ([#38](https://github.com/magicdude4eva/ha-eg-austria/issues/38)); until it
-is live, install it as a custom repository by link:
+is live, install it as a custom repository by link.
+
+**With the buttons** (they open your own Home Assistant via
+[My Home Assistant](https://my.home-assistant.io/)):
+
+[![Open in Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=magicdude4eva&repository=ha-eg-austria&category=integration)
+[![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=eg_austria)
+
+The first opens EG Austria in your Marketplace (steps 1-3 below); after the
+download and a restart, the second starts the setup (step 5).
+
+**By hand:**
 
 1. Open the **Marketplace** in Home Assistant.
 2. Open the three-dot menu → **Custom repositories**, enter

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- README: My Home Assistant buttons to open the repository in the Marketplace
+  and to start the setup.
+
 ## [0.1.4] - 2026-11-22
 
 Documentation only; no functional changes. Released for the Marketplace listing
