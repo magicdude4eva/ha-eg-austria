@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Options: optional comparison sources (grid feed-in, grid consumption, PV production), prefilled from the Energy dashboard settings, which stay unchanged (#50). The options now open with a menu: *Import settings* or *Comparison sources*.
+
 ## [0.1.1] - 2026-11-22
 
 Maintenance release with no change in behaviour. Requires Home Assistant

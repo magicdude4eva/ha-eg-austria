@@ -243,6 +243,13 @@
     "step": {
       "init": {
         "title": "EG-Austria-Optionen",
+        "menu_options": {
+          "import_settings": "Import-Einstellungen",
+          "sources": "Vergleichsquellen"
+        }
+      },
+      "import_settings": {
+        "title": "Import-Einstellungen",
         "data": {
           "max_hourly_kwh": "Plausibilitätsgrenze pro Stunde (kWh)",
           "daily_window_days": "Tägliches Nachladefenster (Tage)",
@@ -255,7 +262,27 @@
           "long_refetch_months": "Monate, die der monatliche Lauf neu lädt (späte Korrekturen).",
           "import_history": "Beim ersten Lauf alle Daten seit dem Beitritt der Zählpunkte zu einer Gemeinschaft importieren. Aus: nur das tägliche Fenster."
         }
+      },
+      "sources": {
+        "title": "Vergleichsquellen",
+        "description": "Optionale Energiestatistiken deines eigenen Zählers oder Wechselrichters, die mit den Portaldaten verglichen werden. Lass ein Feld leer, wenn du diese Quelle nicht hast. Die Felder sind aus den Energie-Dashboard-Einstellungen vorausgefüllt; diese Integration ändert sie nie.",
+        "data": {
+          "source_feed_in": "Netzeinspeisung",
+          "source_grid_consumption": "Netzbezug",
+          "source_pv": "PV-Erzeugung"
+        },
+        "data_description": {
+          "source_feed_in": "Ins Netz eingespeiste Energie, gemessen von deinem Live-Zähler oder Wechselrichter (kWh gesamt).",
+          "source_grid_consumption": "Aus dem Netz bezogene Energie, gemessen von deinem Live-Zähler oder Wechselrichter (kWh gesamt).",
+          "source_pv": "Gesamte Erzeugung deiner PV-Anlage (kWh gesamt). Ohne sie entfallen PV-Karten und -Werte."
+        }
       }
+    },
+    "error": {
+      "source_not_statistic": "Dafür gibt es keine Langzeitstatistik mit Summe. Wähle einen Energiesensor mit State-Class total oder total_increasing.",
+      "source_not_energy": "Diese Statistik hat keine Energieeinheit (Wh, kWh, MWh, …).",
+      "source_own_statistic": "Wähle hier die Statistik deines eigenen Zählers, keine dieser Integration.",
+      "source_duplicate": "Diese Statistik wird schon in einem anderen Feld verwendet."
     }
   },
   "selector": {

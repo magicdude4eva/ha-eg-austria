@@ -243,6 +243,13 @@
     "step": {
       "init": {
         "title": "EG Austria options",
+        "menu_options": {
+          "import_settings": "Import settings",
+          "sources": "Comparison sources"
+        }
+      },
+      "import_settings": {
+        "title": "Import settings",
         "data": {
           "max_hourly_kwh": "Plausibility limit per hour (kWh)",
           "daily_window_days": "Daily refetch window (days)",
@@ -255,7 +262,27 @@
           "long_refetch_months": "Months fetched again by the monthly run (late corrections).",
           "import_history": "On the first run, import all data since the metering points joined a community. Off: only the daily window."
         }
+      },
+      "sources": {
+        "title": "Comparison sources",
+        "description": "Optional energy statistics from your own meter or inverter, compared with the portal data. Leave a field empty if you don't have that source. The fields are prefilled from the Energy dashboard settings, which this integration never changes.",
+        "data": {
+          "source_feed_in": "Grid feed-in",
+          "source_grid_consumption": "Grid consumption",
+          "source_pv": "PV production"
+        },
+        "data_description": {
+          "source_feed_in": "Energy returned to the grid, as measured by your live meter or inverter (kWh total).",
+          "source_grid_consumption": "Energy drawn from the grid, as measured by your live meter or inverter (kWh total).",
+          "source_pv": "Total energy produced by your PV system (kWh total). Without it, PV cards and values are left out."
+        }
       }
+    },
+    "error": {
+      "source_not_statistic": "No long-term statistic with a total (sum) found for this. Pick an energy sensor with state class total or total_increasing.",
+      "source_not_energy": "This statistic isn't in an energy unit (Wh, kWh, MWh, …).",
+      "source_own_statistic": "Pick your own meter's statistic here, not one of this integration's.",
+      "source_duplicate": "This statistic is already used in another field."
     }
   },
   "selector": {

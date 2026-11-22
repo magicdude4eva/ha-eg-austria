@@ -389,8 +389,11 @@ Energiewerte gibt es nur als Statistiken.
 
 ## Optionen
 
-**Einstellungen → Geräte & Dienste → EG Austria → Konfigurieren**. Der Eintrag
-wird beim Speichern neu geladen.
+**Einstellungen → Geräte & Dienste → EG Austria → Konfigurieren**, dann
+*Import-Einstellungen* oder *Vergleichsquellen* wählen. Jeder Schritt speichert
+nur seine eigenen Felder. Der Eintrag wird beim Speichern neu geladen.
+
+### Import-Einstellungen
 
 | Option | Standard | Bereich | Wirkung |
 |---|---|---|---|
@@ -398,6 +401,27 @@ wird beim Speichern neu geladen.
 | Tägliches Nachladefenster (Tage) | 62 | 31-400 | Die letzten Tage, die bei jedem täglichen Lauf neu geladen werden. |
 | Monatliches Nachladefenster (Monate) | 13 | 1-36 | Monate, die der monatliche Lauf neu lädt (späte Korrekturen). |
 | Historie ab der ersten Aktivierung importieren | Ein | ein/aus | Beim ersten Lauf alle Daten seit dem Beitritt der Zählpunkte zu einer Gemeinschaft importieren. Aus: nur das tägliche Fenster. |
+
+### Vergleichsquellen
+
+Optionale Energiestatistiken deines eigenen Live-Zählers oder Wechselrichters,
+die mit den Portaldaten verglichen werden (Zusammenfassungen und das erzeugte
+Dashboard bauen darauf auf). Jede Marke funktioniert; jedes Feld nimmt eine
+Energiestatistik mit Summe (State-Class `total` oder `total_increasing`,
+Einheit Wh, kWh, MWh, …).
+
+| Option | Wirkung |
+|---|---|
+| Netzeinspeisung | Ins Netz eingespeiste Energie, wie dein Live-Zähler oder Wechselrichter sie misst. |
+| Netzbezug | Aus dem Netz bezogene Energie, wie dein Live-Zähler oder Wechselrichter sie misst. |
+| PV-Erzeugung | Gesamte Erzeugung deiner PV-Anlage. Ohne sie entfallen PV-Karten und -Werte. |
+
+Bis du diesen Schritt einmal speicherst, sind die Felder aus dem
+Energie-Dashboard vorausgefüllt: *Ins Netz eingespeist* und *Netzbezug* der
+ersten Netzquelle und die erste Solarquelle. Die Integration liest diese
+Einstellungen nur und ändert sie nie. Lass ein Feld leer, wenn du diese Quelle
+nicht hast; die eigenen `eg_austria:`-Statistiken der Integration lassen sich
+hier nicht wählen.
 
 ## Aktionen
 

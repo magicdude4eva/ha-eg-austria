@@ -359,8 +359,11 @@ statistics only.
 
 ## Options
 
-**Settings → Devices & services → EG Austria → Configure**. The entry reloads
-when you save.
+**Settings → Devices & services → EG Austria → Configure**, then pick
+*Import settings* or *Comparison sources*. Each saves only its own fields. The
+entry reloads when you save.
+
+### Import settings
 
 | Option | Default | Range | Effect |
 |---|---|---|---|
@@ -368,6 +371,25 @@ when you save.
 | Daily refetch window (days) | 62 | 31-400 | The last days fetched again on every daily run. |
 | Monthly refetch window (months) | 13 | 1-36 | Months fetched again by the monthly run (late corrections). |
 | Import history from the first activation | On | on/off | On the first run, import all data since the metering points joined a community. Off: only the daily window. |
+
+### Comparison sources
+
+Optional energy statistics from your own live meter or inverter, compared with
+the portal data (summary values and the generated dashboard build on them). Any
+brand works; each field takes an energy statistic with a total (state class
+`total` or `total_increasing`, unit Wh, kWh, MWh, …).
+
+| Option | Effect |
+|---|---|
+| Grid feed-in | Energy returned to the grid, as your live meter or inverter measures it. |
+| Grid consumption | Energy drawn from the grid, as your live meter or inverter measures it. |
+| PV production | Total energy your PV system produced. Without it, PV cards and values are left out. |
+
+Until you save this step once, the fields are prefilled from the Energy
+dashboard: the first grid source's *Return to grid* and *Grid consumption*,
+and the first solar source. The integration only reads those settings and
+never changes them. Leave a field empty if you don't have that source; the
+integration's own `eg_austria:` statistics can't be picked here.
 
 ## Actions
 

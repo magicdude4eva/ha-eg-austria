@@ -37,11 +37,15 @@ from custom_components.eg_austria.const import (
     CONF_RETIRED_SLUGS,
     CONF_RUN_MINUTE,
     CONF_SITE_SLUG,
+    CONF_SOURCE_FEED_IN,
+    CONF_SOURCE_GRID_CONSUMPTION,
+    CONF_SOURCE_PV,
     CONF_TOKEN,
     CONF_TOKEN_EXP,
     CONF_TOKEN_ID,
     CONF_TOKEN_KIND,
     DOMAIN,
+    SOURCE_KEYS,
 )
 from custom_components.eg_austria.exceptions import (
     ApiChangedError,
@@ -266,7 +270,12 @@ async def finish_from_site(hass: HomeAssistant, result: dict[str, Any]) -> None:
     assert_created(result)
 
 
-def make_entry(hass: HomeAssistant, **overrides: Any) -> MockConfigEntry:
+def make_entry(
+    hass: HomeAssistant,
+    *,
+    options_extra: dict[str, Any] | None = None,
+    **overrides: Any,
+) -> MockConfigEntry:
     """Add a stored entry like the flow creates it."""
 
     data = {
@@ -285,7 +294,7 @@ def make_entry(hass: HomeAssistant, **overrides: Any) -> MockConfigEntry:
         domain=DOMAIN,
         title=cf.ENTRY_TITLE,
         data=data,
-        options=cf.default_options(),
+        options=cf.default_options() | (options_extra or {}),
         unique_id=cf.entry_unique_id(MEMBER, data[CONF_LOCATION_ID]),
     )
     entry.add_to_hass(hass)
@@ -1247,11 +1256,16 @@ async def test_reconfigure_no_metering_point(hass: HomeAssistant) -> None:
 
 
 async def test_options_flow(hass: HomeAssistant) -> None:
-    """Options default to the spec values and are stored as entered."""
+    """Import settings default to the spec values and are stored as entered."""
 
-    entry = make_entry(hass)
+    entry = make_entry(hass, options_extra={CONF_SOURCE_PV: "sensor.pv"})
     result = await hass.config_entries.options.async_init(entry.entry_id)
-    assert result["step_id"] == "init"
+    assert result["type"] is FlowResultType.MENU
+    assert result["menu_options"] == ["import_settings", "sources"]
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "import_settings"}
+    )
+    assert result["step_id"] == "import_settings"
     defaults = {str(k): k.default() for k in result["data_schema"].schema}
     assert defaults == {
         "max_hourly_kwh": 50,
@@ -1271,6 +1285,172 @@ async def test_options_flow(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_MAX_HOURLY_KWH] == 30.0
     assert entry.options[CONF_IMPORT_HISTORY] is False
+    # The other step's values are kept.
+    assert entry.options[CONF_SOURCE_PV] == "sensor.pv"
+
+
+def _suggested(result: Any) -> dict[str, Any]:
+    return {
+        str(key): (key.description or {}).get("suggested_value")
+        for key in result["data_schema"].schema
+    }
+
+
+async def _open_sources(hass: HomeAssistant, entry: MockConfigEntry) -> Any:
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "sources"}
+    )
+
+
+def _listed(*items: tuple[str, bool, str | None]) -> list[dict[str, Any]]:
+    return [
+        {
+            "statistic_id": sid,
+            "has_sum": has_sum,
+            "statistics_unit_of_measurement": unit,
+        }
+        for sid, has_sum, unit in items
+    ]
+
+
+ENERGY_PREFS = {
+    "energy_sources": [
+        {
+            "type": "grid",
+            "stat_energy_from": "sensor.example_grid_import",
+            "stat_energy_to": "sensor.example_feed_in",
+        },
+        {"type": "solar", "stat_energy_from": "sensor.example_pv"},
+    ]
+}
+
+
+async def test_options_sources_defaults_and_save(hass: HomeAssistant) -> None:
+    """First open: prefilled from the Energy prefs; saved values win afterwards."""
+
+    entry = make_entry(hass)
+    manager = MagicMock(data=ENERGY_PREFS)
+    with patch(
+        "custom_components.eg_austria.sources.async_get_manager",
+        AsyncMock(return_value=manager),
+    ):
+        result = await _open_sources(hass, entry)
+    assert result["step_id"] == "sources"
+    assert _suggested(result) == {
+        CONF_SOURCE_FEED_IN: "sensor.example_feed_in",
+        CONF_SOURCE_GRID_CONSUMPTION: "sensor.example_grid_import",
+        CONF_SOURCE_PV: "sensor.example_pv",
+    }
+    listed = _listed(
+        ("sensor.example_feed_in", True, "kWh"),
+        ("sensor.example_grid_import", True, "Wh"),
+    )
+    with patch(
+        "custom_components.eg_austria.sources.async_list_statistic_ids",
+        AsyncMock(return_value=listed),
+    ):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_SOURCE_FEED_IN: "sensor.example_feed_in",
+                CONF_SOURCE_GRID_CONSUMPTION: " sensor.example_grid_import ",
+            },
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_SOURCE_FEED_IN] == "sensor.example_feed_in"
+    assert entry.options[CONF_SOURCE_GRID_CONSUMPTION] == "sensor.example_grid_import"
+    assert entry.options[CONF_SOURCE_PV] is None
+    assert entry.options[CONF_MAX_HOURLY_KWH] == 50  # import settings kept
+
+    # Saved once: the stored values are shown, the cleared PV stays empty.
+    with patch(
+        "custom_components.eg_austria.sources.async_get_manager",
+        AsyncMock(return_value=manager),
+    ) as get_manager:
+        result = await _open_sources(hass, entry)
+    get_manager.assert_not_called()
+    assert _suggested(result) == {
+        CONF_SOURCE_FEED_IN: "sensor.example_feed_in",
+        CONF_SOURCE_GRID_CONSUMPTION: "sensor.example_grid_import",
+        CONF_SOURCE_PV: None,
+    }
+
+
+async def test_options_sources_all_empty(hass: HomeAssistant) -> None:
+    """No Energy prefs readable: empty fields; saving empty stores None."""
+
+    entry = make_entry(hass)
+    with patch(
+        "custom_components.eg_austria.sources.async_get_manager",
+        AsyncMock(side_effect=RuntimeError("no energy")),
+    ):
+        result = await _open_sources(hass, entry)
+    assert set(_suggested(result).values()) == {None}
+    with patch(
+        "custom_components.eg_austria.sources.async_list_statistic_ids",
+        AsyncMock(),
+    ) as listing:
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {}
+        )
+    listing.assert_not_called()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert all(entry.options[key] is None for key in SOURCE_KEYS)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "listed", "error"),
+    [
+        (CONF_SOURCE_PV, "sensor.missing", [], "source_not_statistic"),
+        (
+            CONF_SOURCE_PV,
+            "sensor.example_temperature",
+            [("sensor.example_temperature", False, "°C")],
+            "source_not_statistic",
+        ),
+        (
+            CONF_SOURCE_PV,
+            "sensor.example_power",
+            [("sensor.example_power", True, "W")],
+            "source_not_energy",
+        ),
+        (CONF_SOURCE_PV, "eg_austria:home_generation", [], "source_own_statistic"),
+        (CONF_SOURCE_PV, "sensor.example_feed_in", [], "source_duplicate"),
+    ],
+)
+async def test_options_sources_errors_recover(
+    hass: HomeAssistant,
+    field: str,
+    value: str,
+    listed: list[tuple[str, bool, str | None]],
+    error: str,
+) -> None:
+    """Each validation error is shown on its field; fixing it finishes the flow."""
+
+    entry = make_entry(hass)
+    with patch(
+        "custom_components.eg_austria.sources.async_get_manager",
+        AsyncMock(return_value=MagicMock(data=None)),
+    ):
+        result = await _open_sources(hass, entry)
+    good = ("sensor.example_feed_in", True, "kWh")
+    with patch(
+        "custom_components.eg_austria.sources.async_list_statistic_ids",
+        AsyncMock(return_value=_listed(good, *listed)),
+    ):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_SOURCE_FEED_IN: "sensor.example_feed_in", field: value},
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["errors"] == {field: error}
+        assert _suggested(result)[field] == value
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_SOURCE_FEED_IN: "sensor.example_feed_in"}
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[field] is None
 
 
 # ---------------------------------------------------------------------------

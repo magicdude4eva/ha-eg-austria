@@ -75,6 +75,21 @@ Files: `config_flow.py`, `token.py` (parsing), `strings.json`, `translations/{en
 
 Number selectors (box): `max_hourly_kwh` 1-1000 in steps of 0.5, `daily_window_days` 31-400, `long_refetch_months` 1-36. The options flow reloads the entry on change (`OptionsFlowWithReload`).
 
+The options flow opens with a menu (`init`): `import_settings` (the four options above) and `sources` (below). Each step saves only its own keys and keeps the others.
+
+### Comparison sources (issue #50)
+
+| Option | Default | Use |
+|---|---|---|
+| `source_feed_in` | Energy prefs: first grid source's `stat_energy_to` | The user's live return-to-grid statistic |
+| `source_grid_consumption` | Energy prefs: first grid source's `stat_energy_from` | The user's live grid-import statistic |
+| `source_pv` | Energy prefs: first solar source's `stat_energy_from` | Total PV production |
+
+- `StatisticSelector` per field, all optional; any brand, entity or external statistic. Stored as the statistic id or `None`; once the step was saved, the stored values (empty included) are shown instead of the defaults.
+- Defaults are read from the Energy manager's preferences and never written (ADR 0011); the older `flow_from`/`flow_to` lists are read too. Unreadable preferences give empty fields.
+- Validation on submit (`sources.async_validate_sources`, recorder `async_list_statistic_ids`): `has_sum`, a unit of `EnergyConverter.VALID_UNITS`, not an `eg_austria:` statistic, no statistic in two fields. Errors per field: `source_not_statistic`, `source_not_energy`, `source_own_statistic`, `source_duplicate`.
+- No statistic ids change. Consumers: summary sensors (#51), the generated dashboard (#52), live supplier statistics (#53).
+
 ## Translations
 
 English and German for all config-flow steps, errors, aborts and options (S2). Repair issues and entity names are added by S6 with those features. `translations/en.json` is identical to `strings.json`; URLs are passed as placeholders (`readme_url`). The token steps explain how to copy the session cookie from the browser's developer tools and link to the README section `#token` (written in S8: the cookie, the token email, how to revoke). Existing entries keep their data, slugs and statistic ids; S7b changes no stored key except the optional `token_id`.
