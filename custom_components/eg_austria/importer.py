@@ -31,6 +31,7 @@ from typing import Any, Final
 from homeassistant.components.recorder.statistics import statistics_during_period
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.recorder import get_instance
+from homeassistant.util import dt as dt_util
 
 from .exceptions import ApiChangedError, SchemaError
 from .models import (
@@ -40,13 +41,16 @@ from .models import (
     Direction,
     MeteringPointInfo,
 )
+from .prices import PriceSource, async_hourly_prices, first_unpriced
 from .statistics import (
     PORTAL_TZ,
     CommunityRef,
+    Quantity,
     StatisticDef,
     WriteResult,
     async_import_window,
     build_statistic_defs,
+    day_hours,
     dst_gap_hour,
     local_date,
     local_day_start,
@@ -260,6 +264,7 @@ class EntrySetup:
     max_hourly_kwh: float
     site_label: str | None = None
     labels: Mapping[str, str] = field(default_factory=dict)
+    surplus_price: PriceSource | None = None  # ADR 0015
 
     @property
     def community_ids(self) -> list[int]:
@@ -448,7 +453,10 @@ def statistic_defs(setup: EntrySetup, site: SiteInfo) -> list[StatisticDef]:
     refs = [
         CommunityRef(c.slug, site.names.get(c.id) or c.name) for c in setup.communities
     ]
-    kwargs: dict[str, Any] = {"labels": dict(setup.labels)}
+    kwargs: dict[str, Any] = {
+        "labels": dict(setup.labels),
+        "surplus": setup.surplus_price is not None,
+    }
     if setup.site_label:
         kwargs["site_label"] = setup.site_label
     return build_statistic_defs(setup.site_slug, refs, site.directions, **kwargs)
@@ -504,6 +512,7 @@ class ImportResult:
     writes: dict[str, WriteResult]
     chunks: int
     blocked: dict[str, list[date]]  # every day held back per statistic key
+    price_missing: date | None = None  # first overdue day without surplus price
 
     @property
     def partial(self) -> bool:
@@ -626,9 +635,16 @@ async def async_import(
     window = days_between(start, end)
     blocked: dict[str, list[date]] = {}
     for sdef in defs:
-        days = [d for d in window if result.is_blocked(sdef.key, d)]
+        days = [
+            d for d in window if any(result.is_blocked(k, d) for k in sdef.gate_keys)
+        ]
         if days:
             blocked[sdef.key] = days
+
+    prices: dict[datetime, float] | None = None
+    if setup.surplus_price is not None:
+        hours = [h for d in window for h in day_hours(d)]
+        prices = (await async_hourly_prices(hass, setup.surplus_price, hours)).prices
 
     writes = await async_import_window(
         hass,
@@ -640,7 +656,22 @@ async def async_import(
         day_values=day_values,
         held_days=blocked,
         active_days=active_days,
+        prices=prices,
     )
+    price_missing: date | None = None
+    if setup.surplus_price is not None:
+        surplus = writes.get(f"{setup.site_slug}_{Quantity.SURPLUS_EUR}")
+        if surplus is not None:
+            price_missing = first_unpriced(
+                surplus.unpriced,
+                {},
+                setup.surplus_price,
+                local_today(dt_util.utcnow()),
+            )
     return ImportResult(
-        validation=result, writes=writes, chunks=len(plan), blocked=blocked
+        validation=result,
+        writes=writes,
+        chunks=len(plan),
+        blocked=blocked,
+        price_missing=price_missing,
     )

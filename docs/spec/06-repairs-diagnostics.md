@@ -4,7 +4,7 @@ Files: `repairs.py` (issue helpers), `sensor.py`, `diagnostics.py`, `redact.py`.
 
 ## Repair issues
 
-Created with `issue_registry.async_create_issue(hass, DOMAIN, f"{issue}_{entry_id}", ...)`; deleted when the condition clears. All have translation keys in en and de and a `learn_more_url` to the README section ("Repairs and diagnostics": `#token-expiry`, `#portal-changed`, `#held-data`, `#portal-unreachable`). `repairs.EntryRepairs` follows the coordinator (spec 03 "Hooks for S6"): each run's `IssueHints` create (True) or delete (False) an issue, `None` leaves it. Removing the entry deletes all its issues.
+Created with `issue_registry.async_create_issue(hass, DOMAIN, f"{issue}_{entry_id}", ...)`; deleted when the condition clears. All have translation keys in en and de and a `learn_more_url` to the README section ("Repairs and diagnostics": `#token-expiry`, `#portal-changed`, `#held-data`, `#portal-unreachable`, `#money`). `repairs.EntryRepairs` follows the coordinator (spec 03 "Hooks for S6"): each run's `IssueHints` create (True) or delete (False) an issue, `None` leaves it. Removing the entry deletes all its issues.
 
 | Issue | Severity | Created when | Cleared when | Fixable |
 |---|---|---|---|---|
@@ -13,6 +13,7 @@ Created with `issue_registry.async_create_issue(hass, DOMAIN, f"{issue}_{entry_i
 | `api_changed` | error | `ApiChangedError` or `SchemaError`; translation key `stale_client` (same issue id) when the cause is a `StaleClientError` ("portal updated" 400): text also suggests updating the integration | next run passes shape validation | no; text asks for a diagnostics download and an issue report |
 | `implausible_data` | warning | a plausibility or history rule blocked a write | next run with no blocking result, or `release_held` once no held days remain | no |
 | `portal_unreachable` | warning | 3 consecutive calendar days without a successful run | next successful run | no |
+| `price_missing` | warning | a run has surplus kWh on an overdue day without a surplus price (spec 04 "Money"); placeholder `date` = first such day | next run that writes and finds a price for every overdue hour (also when the price is removed) | no; text points to the options |
 
 Placeholders in issue texts contain only the entry title, rule id, statistic key and dates.
 

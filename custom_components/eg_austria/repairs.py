@@ -32,11 +32,13 @@ ISSUE_TOKEN_EXPIRING: Final = "token_expiring"  # noqa: S105 - issue name
 ISSUE_API_CHANGED: Final = "api_changed"
 ISSUE_IMPLAUSIBLE: Final = "implausible_data"
 ISSUE_UNREACHABLE: Final = "portal_unreachable"
+ISSUE_PRICE_MISSING: Final = "price_missing"
 ALL_ISSUES: Final = (
     ISSUE_TOKEN_EXPIRING,
     ISSUE_API_CHANGED,
     ISSUE_IMPLAUSIBLE,
     ISSUE_UNREACHABLE,
+    ISSUE_PRICE_MISSING,
 )
 # Translation key of the api_changed issue when the portal said "updated".
 TRANSLATION_STALE_CLIENT: Final = "stale_client"
@@ -47,6 +49,7 @@ LEARN_MORE: Final = {
     ISSUE_API_CHANGED: f"{README_URL}#portal-changed",
     ISSUE_IMPLAUSIBLE: f"{README_URL}#held-data",
     ISSUE_UNREACHABLE: f"{README_URL}#portal-unreachable",
+    ISSUE_PRICE_MISSING: f"{README_URL}#money",
 }
 
 # ADR 0007: warning period before the stored expiry.
@@ -222,6 +225,15 @@ class EntryRepairs:
             self._create_unreachable()
         elif hints.portal_unreachable is False:
             self._delete(ISSUE_UNREACHABLE)
+        if hints.price_missing is True:
+            missing = summary.price_missing_from
+            self._create(
+                ISSUE_PRICE_MISSING,
+                ir.IssueSeverity.WARNING,
+                {"date": missing.isoformat() if missing else "-"},
+            )
+        elif hints.price_missing is False:
+            self._delete(ISSUE_PRICE_MISSING)
 
     def _create(
         self,
@@ -263,7 +275,8 @@ class EntryRepairs:
     def _create_implausible(self, summary: RunSummary) -> None:
         validation = summary.validation
         rules: set[str] = set()
-        keys: set[str] = set(summary.blocked)
+        # Money keys follow their kWh keys (ADR 0008); name only the kWh ones.
+        keys: set[str] = {k for k in summary.blocked if not k.endswith("_eur")}
         days: list[date] = [d for v in summary.blocked.values() for d in v]
         if validation is not None:
             blocking = [f for f in validation.failures if not f.is_shape]

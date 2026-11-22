@@ -37,6 +37,8 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.selector import (
     BooleanSelector,
     DateSelector,
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -65,6 +67,7 @@ from .const import (
     CONF_RETIRED_SLUGS,
     CONF_RUN_MINUTE,
     CONF_SITE_SLUG,
+    CONF_SURPLUS_PRICE,
     CONF_TOKEN,
     CONF_TOKEN_EXP,
     CONF_TOKEN_ID,
@@ -94,6 +97,17 @@ from .models import (
     MeteringPoint,
     MeteringPointInfo,
     SessionInfo,
+)
+from .prices import (
+    DEFAULT_TABLE_ATTRIBUTE,
+    UNIT_CT,
+    UNIT_EUR,
+    PriceSource,
+    SourceType,
+    format_periods,
+    month_table,
+    parse_periods,
+    unit_factor,
 )
 from .sources import (
     async_energy_defaults,
@@ -1252,7 +1266,7 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
         """Let the user pick which options to change."""
 
         return self.async_show_menu(
-            step_id="init", menu_options=["import_settings", "sources"]
+            step_id="init", menu_options=["import_settings", "sources", "surplus_price"]
         )
 
     async def async_step_import_settings(
@@ -1325,3 +1339,181 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
             ),
             errors=errors,
         )
+
+    # ------------------------------------------------------------------
+    # Surplus price (ADR 0015)
+
+    def _save_surplus(self, source: PriceSource | None) -> ConfigFlowResult:
+        options = dict(self.config_entry.options)
+        if source is None:
+            options.pop(CONF_SURPLUS_PRICE, None)
+        else:
+            options[CONF_SURPLUS_PRICE] = source.as_options()
+        return self.async_create_entry(data=options)
+
+    def _current_surplus(self) -> PriceSource | None:
+        return PriceSource.from_options(
+            self.config_entry.options.get(CONF_SURPLUS_PRICE)
+        )
+
+    async def async_step_surplus_price(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Choose how the surplus buyer's price is provided, or none."""
+
+        if user_input is not None:
+            choice = user_input["source"]
+            if choice == SourceType.NUMBER:
+                return await self.async_step_surplus_number()
+            if choice == SourceType.SENSOR:
+                return await self.async_step_surplus_sensor()
+            if choice == SourceType.TABLE:
+                return await self.async_step_surplus_table()
+            return self._save_surplus(None)
+        current = self._current_surplus()
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    "source", default=current.source.value if current else "none"
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=["none", *(t.value for t in SourceType)],
+                        translation_key="price_source",
+                        mode=SelectSelectorMode.LIST,
+                    )
+                )
+            }
+        )
+        return self.async_show_form(step_id="surplus_price", data_schema=schema)
+
+    async def async_step_surplus_number(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Enter fixed prices in ct/kWh, one ``YYYY-MM-DD: price`` line per period."""
+
+        errors: dict[str, str] = {}
+        current = self._current_surplus()
+        text = (
+            format_periods(current.periods)
+            if current and current.source is SourceType.NUMBER
+            else ""
+        )
+        if user_input is not None:
+            text = str(user_input.get("periods") or "")
+            try:
+                periods = parse_periods(text)
+            except ValueError:
+                errors["periods"] = "bad_periods"
+            else:
+                return self._save_surplus(
+                    PriceSource(SourceType.NUMBER, periods=tuple(periods))
+                )
+        schema = vol.Schema(
+            {
+                vol.Required("periods", default=text): TextSelector(
+                    TextSelectorConfig(multiline=True)
+                )
+            }
+        )
+        return self.async_show_form(
+            step_id="surplus_number", data_schema=schema, errors=errors
+        )
+
+    async def async_step_surplus_sensor(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick a price sensor with long-term statistics (EUR/kWh or ct/kWh)."""
+
+        errors: dict[str, str] = {}
+        current = self._current_surplus()
+        entity = (
+            current.entity if current and current.source is SourceType.SENSOR else None
+        )
+        if user_input is not None:
+            entity = user_input.get("entity")
+            state = self.hass.states.get(entity) if entity else None
+            unit = state.attributes.get("unit_of_measurement") if state else None
+            if state is None or unit_factor(unit) is None:
+                errors["entity"] = "bad_price_unit"
+            elif state.attributes.get("state_class") is None:
+                errors["entity"] = "no_price_statistics"
+            else:
+                return self._save_surplus(PriceSource(SourceType.SENSOR, entity=entity))
+        schema = vol.Schema(
+            {
+                vol.Required("entity"): EntitySelector(
+                    EntitySelectorConfig(domain="sensor")
+                )
+            }
+        )
+        return self.async_show_form(
+            step_id="surplus_sensor",
+            data_schema=self.add_suggested_values_to_schema(
+                schema, {"entity": entity} if entity else {}
+            ),
+            errors=errors,
+        )
+
+    async def async_step_surplus_table(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick an entity attribute with one price per month (e.g. ha-oemag)."""
+
+        errors: dict[str, str] = {}
+        current = self._current_surplus()
+        values: dict[str, Any] = {
+            "attribute": DEFAULT_TABLE_ATTRIBUTE,
+            "unit": UNIT_CT,
+        }
+        if current and current.source is SourceType.TABLE:
+            values |= {
+                "entity": current.entity,
+                "attribute": current.attribute,
+                "unit": current.unit,
+            }
+        elif (found := self._find_table_entity()) is not None:
+            values["entity"] = found
+        if user_input is not None:
+            values = dict(user_input)
+            entity = values.get("entity")
+            attribute = str(values.get("attribute") or DEFAULT_TABLE_ATTRIBUTE).strip()
+            unit = str(values.get("unit") or UNIT_CT)
+            state = self.hass.states.get(entity) if entity else None
+            table = (
+                month_table(state.attributes.get(attribute), unit) if state else None
+            )
+            if not table:
+                errors["base"] = "bad_price_table"
+            else:
+                return self._save_surplus(
+                    PriceSource(
+                        SourceType.TABLE, entity=entity, attribute=attribute, unit=unit
+                    )
+                )
+        schema = vol.Schema(
+            {
+                vol.Required("entity"): EntitySelector(EntitySelectorConfig()),
+                vol.Required("attribute"): TextSelector(),
+                vol.Required("unit"): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[UNIT_CT, UNIT_EUR], mode=SelectSelectorMode.LIST
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="surplus_table",
+            data_schema=self.add_suggested_values_to_schema(
+                schema, {k: v for k, v in values.items() if v}
+            ),
+            errors=errors,
+        )
+
+    def _find_table_entity(self) -> str | None:
+        """Return the first entity with a valid default price table attribute."""
+
+        for state in self.hass.states.async_all():
+            raw = state.attributes.get(DEFAULT_TABLE_ATTRIBUTE)
+            if raw and month_table(raw, UNIT_CT):
+                return state.entity_id
+        return None

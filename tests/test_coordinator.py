@@ -226,7 +226,7 @@ async def test_daily_run_window(hass: HomeAssistant, env: Any) -> None:
     assert summary is not None
     assert summary.status is RunStatus.OK
     assert summary.window == (date(2026, 5, 25), TODAY)
-    assert summary.issues == IssueHints(False, False, False)
+    assert summary.issues == IssueHints(False, False, False, False)
     # Completeness covers 13 months in one request.
     (comp,) = [a for n, a in client.calls if n == "get_day_completeness"]
     assert comp[1] == add_months(TODAY, -13) + timedelta(days=1)

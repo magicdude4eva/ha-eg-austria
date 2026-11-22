@@ -21,7 +21,7 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.eg_austria.const import DOMAIN
+from custom_components.eg_austria.const import CONF_SURPLUS_PRICE, DOMAIN
 from custom_components.eg_austria.coordinator import RunRequest
 from custom_components.eg_austria.exceptions import (
     AuthError,
@@ -32,6 +32,7 @@ from custom_components.eg_austria.importer import RunStatus, RunType
 from custom_components.eg_austria.repairs import (
     ISSUE_API_CHANGED,
     ISSUE_IMPLAUSIBLE,
+    ISSUE_PRICE_MISSING,
     ISSUE_TOKEN_EXPIRING,
     ISSUE_UNREACHABLE,
     EntryRepairs,
@@ -40,6 +41,7 @@ from custom_components.eg_austria.repairs import (
     token_expiry,
     token_warning_start,
 )
+from custom_components.eg_austria.statistics import WriteResult
 
 from .conftest import LoadedEntry, async_setup_fake_entry
 
@@ -443,3 +445,32 @@ async def test_remove_entry_deletes_issues(hass: HomeAssistant, env: Any) -> Non
     await hass.async_block_till_done()
     assert issue(hass, ISSUE_TOKEN_EXPIRING, loaded) is None
     assert issue(hass, ISSUE_API_CHANGED, loaded) is None
+
+
+async def test_price_missing_created_and_cleared(
+    hass: HomeAssistant, env: FrozenDateTimeFactory, no_writes: AsyncMock
+) -> None:
+    """Surplus kWh without a price → warning; a run with prices clears it."""
+
+    price = {"source": "number", "periods": [["2020-01-01", 8.0]]}
+    loaded = await async_setup_fake_entry(
+        hass,
+        token_exp=int(NOW.timestamp() + 300 * DAY),
+        options={CONF_SURPLUS_PRICE: price},
+    )
+    hour = datetime(2026, 5, 2, 10, tzinfo=UTC)
+    no_writes.return_value = {
+        "home_surplus_eur": WriteResult(key="home_surplus_eur", unpriced=[hour])
+    }
+    summary = await run(loaded)
+    assert summary.price_missing_from == date(2026, 5, 2)
+    found = issue(hass, ISSUE_PRICE_MISSING, loaded)
+    assert found is not None
+    assert found.translation_placeholders == {
+        "title": "EG Austria Home",
+        "date": "2026-05-02",
+    }
+    no_writes.return_value = {"home_surplus_eur": WriteResult(key="home_surplus_eur")}
+    summary = await run(loaded)
+    assert summary.price_missing_from is None
+    assert issue(hass, ISSUE_PRICE_MISSING, loaded) is None

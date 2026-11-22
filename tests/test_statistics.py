@@ -179,10 +179,16 @@ def test_defs_two_communities() -> None:
         "eg_austria:home_generation_to_community",
         "eg_austria:home_consumption_from_supplier",
         "eg_austria:home_generation_to_surplus",
+        "eg_austria:home_feed_in_eur",
+        "eg_austria:home_consumption_eur",
         "eg_austria:home_beg_consumption_from_community",
         "eg_austria:home_beg_generation_to_community",
+        "eg_austria:home_beg_feed_in_eur",
+        "eg_austria:home_beg_consumption_eur",
         "eg_austria:home_eeg_consumption_from_community",
         "eg_austria:home_eeg_generation_to_community",
+        "eg_austria:home_eeg_feed_in_eur",
+        "eg_austria:home_eeg_consumption_eur",
     ]
     by_key = _defs_by_key(defs)
     assert by_key["home_generation_to_community"].name == (
@@ -220,7 +226,9 @@ def test_defs_missing_direction_and_labels() -> None:
         "flat_consumption",
         "flat_consumption_from_community",
         "flat_consumption_from_supplier",
+        "flat_consumption_eur",
         "flat_beg_consumption_from_community",
+        "flat_beg_consumption_eur",
     ]
     assert defs[0].name == "Zuhause Verbrauch"
     assert defs[1].name == "Zuhause Consumption from communities"
@@ -665,3 +673,131 @@ async def test_dst_autumn_import(recorder_mock, hass: HomeAssistant) -> None:
         day["beg"][0].totals.generation_to_community
     )
     _assert_consistent(rows)
+
+
+# ---------------------------------------------------------------------------
+# Money (phase 2, ADR 0008, 0015)
+
+
+def test_money_defs_metadata_and_gates() -> None:
+    """Money statistics are EUR without unit class and follow their kWh keys."""
+
+    defs = _defs_by_key(build_statistic_defs("home", [BEG], BOTH, surplus=True))
+    feed = defs["home_beg_feed_in_eur"]
+    assert feed.metadata()["unit_of_measurement"] == "€"
+    assert feed.metadata()["unit_class"] is None
+    assert feed.gate_keys == ("home_beg_generation_to_community",)
+    assert defs["home_consumption_eur"].gate_keys == (
+        "home_consumption_from_community",
+    )
+    assert defs["home_feed_in_total_eur"].gate_keys == (
+        "home_generation_to_community",
+        "home_generation_to_surplus",
+    )
+    assert defs["home_generation"].gate_keys == ("home_generation",)
+    assert "home_beg_surplus_eur" not in defs
+    assert defs["home_surplus_eur"].name == "Home Surplus income"
+    plain = _defs_by_key(build_statistic_defs("home", [BEG], BOTH))
+    assert "home_surplus_eur" not in plain
+    assert "home_feed_in_total_eur" not in plain
+
+
+def test_money_series_from_portal_amounts() -> None:
+    """€ series are the portal amounts per community and summed for the site."""
+
+    defs = build_statistic_defs("home", [BEG, EEG], BOTH)
+    day = date(2026, 6, 1)
+    hourly = {
+        "beg": [parse_analysis(load_fixture("analysis_hour_normal_beg.json"))],
+        "eeg": [parse_analysis(load_fixture("analysis_hour_normal_eeg.json"))],
+    }
+    completeness = parse_day_completeness(load_fixture("day_completeness_normal.json"))
+    series = build_series(defs, hourly, completeness, day, date(2026, 6, 7))
+    beg = {p.start: p for p in hourly["beg"][0].generation}
+    eeg = {p.start: p for p in hourly["eeg"][0].generation}
+    h = next(
+        p.start
+        for p in hourly["beg"][0].generation
+        if p.money and local_day_start(day) <= p.start
+    )
+    assert series["home_beg_feed_in_eur"].values[h] == beg[h].money
+    assert series["home_feed_in_eur"].values[h] == pytest.approx(
+        beg[h].money + eeg[h].money
+    )
+    cons = {p.start: p for p in hourly["beg"][0].consumption}
+    hc = next(p.start for p in hourly["beg"][0].consumption if p.money)
+    if hc in series["home_beg_consumption_eur"].values:
+        assert series["home_beg_consumption_eur"].values[hc] == cons[hc].money
+
+
+def test_money_gated_by_completeness() -> None:
+    """Portal amounts of an incomplete day are unknown, like community kWh."""
+
+    day = date(2026, 6, 1)
+    h = local_day_start(day) + timedelta(hours=12)
+    point = EnergyPoint(
+        Direction.GENERATION, h, 2.0, 1.0, 1.0, False, False, money=0.0775
+    )
+    data = AnalysisData(
+        consumption=(),
+        generation=(point,),
+        totals=AnalysisTotals(None, None, None, None, None, None),
+        flags=AnalysisFlags(False, False, False, False, False, False),
+    )
+    defs = [d for d in build_statistic_defs("home", [BEG], BOTH) if "eur" in d.key]
+    complete = build_series(defs, {"beg": [data]}, _complete(day), day, day)
+    assert complete["home_beg_feed_in_eur"].values == {h: 0.0775}
+    incomplete = build_series(
+        defs, {"beg": [data]}, _complete(day, generation=False), day, day
+    )
+    assert incomplete["home_beg_feed_in_eur"].values == {}
+
+
+def test_derive_surplus_and_total() -> None:
+    """Surplus € = surplus kWh * price; total = community € + surplus €."""
+
+    defs = build_statistic_defs("home", [BEG], BOTH, surplus=True)
+    h1 = datetime(2026, 6, 1, 10, tzinfo=UTC)
+    h2 = h1 + timedelta(hours=1)
+    h3 = h2 + timedelta(hours=1)
+    series = {d.key: stats.Series() for d in defs}
+    series["home_generation_to_surplus"] = stats.Series({h1: 2.0, h2: 1.0, h3: 3.0})
+    series["home_feed_in_eur"] = stats.Series({h1: 0.5, h3: 0.25})
+    stats.derive_series(defs, series, {h1: 0.1, h2: 0.08})
+    assert series["home_surplus_eur"].values == {h1: 0.2, h2: 0.08}
+    assert series["home_surplus_eur"].unpriced == [h3]
+    assert series["home_feed_in_total_eur"].values == {h1: pytest.approx(0.7)}
+
+
+def test_derive_without_surplus_defs_is_noop() -> None:
+    """Without a surplus price nothing is derived."""
+
+    defs = build_statistic_defs("home", [BEG], BOTH)
+    series = {d.key: stats.Series() for d in defs}
+    stats.derive_series(defs, series, None)
+    assert all(not s.values for s in series.values())
+
+
+async def test_import_window_writes_surplus(hass: HomeAssistant, recorder_mock) -> None:
+    """Surplus statistics are written with their unpriced hours reported."""
+
+    day = date(2026, 6, 1)
+    defs = [
+        d
+        for d in build_statistic_defs("home", [BEG], BOTH, surplus=True)
+        if d.community is None
+    ]
+    hours = day_hours(day)
+    data = _response(generation=dict.fromkeys(hours, 1.0))
+    prices = dict.fromkeys(hours[:-1], 0.1)
+    results = await async_import_window(
+        hass, defs, {"beg": [data]}, _complete(day), day, day, prices=prices
+    )
+    assert results["home_surplus_eur"].rows == len(hours) - 1
+    assert results["home_surplus_eur"].unpriced == [hours[-1]]
+    rows = await _rows(hass, "eg_austria:home_surplus_eur")
+    assert rows[0]["state"] == pytest.approx(0.07)
+    meta = await get_instance(hass).async_add_executor_job(
+        partial(get_metadata, hass, statistic_ids={"eg_austria:home_surplus_eur"})
+    )
+    assert meta["eg_austria:home_surplus_eur"][1]["unit_of_measurement"] == "€"
