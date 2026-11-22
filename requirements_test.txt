@@ -5,3 +5,5 @@
 # yet. Bump this pin once a release with homeassistant==2026.11.x is out
 # (Dependabot opens the PR).
 pytest-homeassistant-custom-component==0.13.375
+# Strict type check (pyproject.toml [tool.mypy]); needs Home Assistant above.
+mypy==2.4.1

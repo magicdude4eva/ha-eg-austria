@@ -28,9 +28,9 @@ import logging
 import math
 from typing import Any, Final
 
-from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.statistics import statistics_during_period
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.recorder import get_instance
 
 from .exceptions import ApiChangedError, SchemaError
 from .models import (
