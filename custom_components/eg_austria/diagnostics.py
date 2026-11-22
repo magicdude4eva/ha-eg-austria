@@ -12,12 +12,11 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.db_schema import Statistics, StatisticsMeta
-from homeassistant.components.recorder.util import session_scope
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.helpers.recorder import get_instance, session_scope
 from homeassistant.util import dt as dt_util
 from sqlalchemy import func, select
 
@@ -39,7 +38,7 @@ from .statistics import CommunityRef, build_statistic_defs
 from .token import TokenKind, jwt_issued_at
 
 if TYPE_CHECKING:
-    from .coordinator import EgAustriaCoordinator, RunSummary
+    from .coordinator import EgAustriaConfigEntry, EgAustriaCoordinator, RunSummary
 
 
 def _iso(value: date | datetime | None) -> str | None:
@@ -213,7 +212,7 @@ async def _statistics_section(
 
 
 async def async_get_config_entry_diagnostics(
-    hass: HomeAssistant, entry: ConfigEntry
+    hass: HomeAssistant, entry: EgAustriaConfigEntry
 ) -> dict[str, Any]:
     """Return the redacted diagnostics of one entry."""
 
@@ -234,7 +233,7 @@ async def async_get_config_entry_diagnostics(
 
 
 async def async_get_device_diagnostics(
-    hass: HomeAssistant, entry: ConfigEntry, device: DeviceEntry
+    hass: HomeAssistant, entry: EgAustriaConfigEntry, device: DeviceEntry
 ) -> dict[str, Any]:
     """Return the entry diagnostics for its one service device.
 

@@ -1,0 +1,112 @@
+# Integration quality scale self-assessment.
+# Custom integrations are not graded and must not set `quality_scale` in the
+# manifest; this file documents the status of every rule in the format core
+# uses (https://developers.home-assistant.io/docs/core/integration-quality-scale/).
+rules:
+  # Bronze
+  action-setup:
+    status: done
+    comment: refetch and release_held are registered in async_setup (services.py), independent of entries.
+  appropriate-polling:
+    status: done
+    comment: No update_interval; one daily run at a fixed minute plus a monthly long refetch. The data is day-late meter data.
+  brands:
+    status: done
+    comment: Custom integration; icons ship in custom_components/eg_austria/brand/.
+  common-modules:
+    status: done
+    comment: coordinator.py and services.py exist; a single entity class, so no entity.py.
+  config-flow:
+    status: done
+    comment: Every config, reauth, reconfigure and options field has a data_description.
+  config-flow-test-coverage:
+    status: done
+    comment: config_flow.py at 100%, enforced in CI by scripts/check_coverage.py.
+  dependency-transparency:
+    status: exempt
+    comment: No requirements; only aiohttp, which Home Assistant ships.
+  docs-actions: done
+  docs-conditions:
+    status: exempt
+    comment: The integration provides no conditions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: The integration provides no triggers.
+  entity-event-setup:
+    status: exempt
+    comment: Entities subscribe to no events beyond the coordinator listener.
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup:
+    status: done
+    comment: One request checks portal and token; ConfigEntryNotReady when unreachable or in maintenance, ConfigEntryAuthFailed on 401/403 (ADR 0013).
+  unique-config-entry: done
+
+  # Silver
+  action-exceptions: done
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable:
+    status: exempt
+    comment: The sensors are diagnostic values read from the store (last import, complete until, last run status); they stay meaningful while the portal is down, and last_run_status reports unavailable itself.
+  integration-owner: done
+  log-when-unavailable:
+    status: done
+    comment: Logs once at info when the portal becomes unreachable and once when it is back.
+  parallel-updates: done
+  reauthentication-flow: done
+  test-coverage:
+    status: done
+    comment: Every module above 95%, enforced in CI (fail_under and scripts/check_coverage.py).
+
+  # Gold
+  devices:
+    status: done
+    comment: One service device per entry with manufacturer, model, software version and configuration URL.
+  diagnostics: done
+  discovery:
+    status: exempt
+    comment: Cloud member portal behind a login; nothing to discover.
+  discovery-update-info:
+    status: exempt
+    comment: No discovery.
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices:
+    status: exempt
+    comment: Connects to one web service; there are no physical devices.
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: One fixed service device per config entry.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default: done
+  entity-translations: done
+  exception-translations: done
+  icon-translations: done
+  reconfiguration-flow: done
+  repair-issues: done
+  stale-devices:
+    status: exempt
+    comment: One fixed service device per config entry, removed with the entry.
+
+  # Platinum
+  async-dependency:
+    status: exempt
+    comment: No external library; the client uses aiohttp directly.
+  inject-websession:
+    status: done
+    comment: Uses async_create_clientsession with a DummyCookieJar (a dedicated session without cookies, allowed by the rule).
+  strict-typing:
+    status: done
+    comment: mypy strict (pyproject.toml, core's settings) runs in CI and pre-commit.

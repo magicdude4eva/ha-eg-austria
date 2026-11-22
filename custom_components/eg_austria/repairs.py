@@ -79,7 +79,7 @@ def token_warning_start(entry: ConfigEntry) -> datetime | None:
     if exp is None:
         return None
     try:
-        kind = TokenKind(entry.data.get(CONF_TOKEN_KIND))
+        kind = TokenKind(entry.data.get(CONF_TOKEN_KIND, ""))
     except ValueError:
         kind = TokenKind.SESSION  # the shorter warning is the safe default
     return exp - TOKEN_WARNING[kind]

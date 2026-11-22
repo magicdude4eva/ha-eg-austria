@@ -12,6 +12,16 @@ repos:
 
   - repo: local
     hooks:
+      # Runs the mypy of the active environment (requirements_dev.txt), which
+      # needs Home Assistant installed; config in pyproject.toml.
+      - id: mypy
+        name: mypy (strict)
+        entry: mypy
+        language: system
+        types: [python]
+        files: ^custom_components/
+        pass_filenames: false
+        stages: [pre-commit]
       - id: privacy-guard
         name: privacy guard (files)
         entry: python3 scripts/privacy_guard.py

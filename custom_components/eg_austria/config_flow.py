@@ -49,7 +49,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 from homeassistant.util import dt as dt_util
-import voluptuous as vol
+import probatio as vol
 
 from .api import REPO_URL, EgAustriaClient, get_portal_session
 from .const import (
@@ -708,9 +708,10 @@ class EgAustriaConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def _site_slugs_in_use(self) -> set[str]:
         return {
-            e.data.get(CONF_SITE_SLUG)
+            slug
             for e in self._async_current_entries(include_ignore=False)
-        } - {None}
+            if isinstance(slug := e.data.get(CONF_SITE_SLUG), str)
+        }
 
     def _community_schema(
         self, rows: list[_Community], selected: list[str], edit: bool

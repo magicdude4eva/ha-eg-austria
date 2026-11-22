@@ -1,6 +1,6 @@
 # 03: Coordinator and fetch schedule
 
-Files: `coordinator.py` (coordinator, scheduler, store), `importer.py` (window planning and the fetch → validate → write pipeline), `__init__.py` (setup, unload, services). One `EgAustriaCoordinator` per config entry. It is a `DataUpdateCoordinator` with `update_interval=None`; runs are triggered by a time listener, at startup, after a maintenance window and by a service. Its `data` holds the run summary (`RunSummary`) that the diagnostic entities read; a generic refresh never fetches.
+Files: `coordinator.py` (coordinator, scheduler, store), `importer.py` (window planning and the fetch → validate → write pipeline), `__init__.py` (setup, unload), `services.py` (the service actions, registered from `async_setup`). One `EgAustriaCoordinator` per config entry. It is a `DataUpdateCoordinator` with `update_interval=None`; runs are triggered by a time listener, at startup, after a maintenance window and by a service. Its `data` holds the run summary (`RunSummary`) that the diagnostic entities read; a generic refresh never fetches.
 
 ## Run types
 

@@ -55,3 +55,25 @@ source = ["custom_components.eg_austria"]
 [tool.coverage.report]
 # Total; per module (>95%, config_flow.py 100%) see scripts/check_coverage.py.
 fail_under = 95
+
+[tool.mypy]
+# Home Assistant core's settings for integrations on the strict-typing list
+# (core mypy.ini), as far as they apply to a custom integration.
+python_version = "3.14"
+platform = "linux"
+files = ["custom_components/eg_austria"]
+strict = true
+show_error_codes = true
+follow_imports = "normal"
+local_partial_types = true
+strict_bytes = true
+warn_incomplete_stub = true
+warn_unreachable = true
+enable_error_code = [
+  "deprecated",
+  "ignore-without-code",
+  "redundant-self",
+  "truthy-iterable",
+]
+disable_error_code = ["annotation-unchecked", "import-not-found", "import-untyped"]
+extra_checks = false

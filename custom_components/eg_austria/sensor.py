@@ -16,7 +16,6 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -29,7 +28,7 @@ from .importer import RunStatus
 from .repairs import token_expiry
 
 if TYPE_CHECKING:
-    from .coordinator import EgAustriaCoordinator
+    from .coordinator import EgAustriaConfigEntry, EgAustriaCoordinator
 
 # Device page (issue #30): a community integration, not an EG Austria product.
 # No serial number or hardware version: metering point and community ids are
@@ -102,12 +101,12 @@ SENSORS: tuple[EgSensorDescription, ...] = (
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: EgAustriaConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Add the diagnostic sensors of an entry."""
 
-    coordinator: EgAustriaCoordinator = entry.runtime_data
+    coordinator = entry.runtime_data
     integration = await async_get_integration(hass, DOMAIN)
     sw_version = str(integration.version) if integration.version else None
     async_add_entities(EgDiagnosticSensor(coordinator, d, sw_version) for d in SENSORS)

@@ -21,6 +21,7 @@ Hooks for S6 (repairs, diagnostic sensors, diagnostics), see also
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 import logging
@@ -280,15 +281,18 @@ _LABEL_KEYS: Final = {
 # Coordinator
 
 
+type EgAustriaConfigEntry = ConfigEntry[EgAustriaCoordinator]
+
+
 class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
     """Schedules and runs imports for one config entry."""
 
-    config_entry: ConfigEntry
+    config_entry: EgAustriaConfigEntry
 
     def __init__(
         self,
         hass: HomeAssistant,
-        entry: ConfigEntry,
+        entry: EgAustriaConfigEntry,
         client: Any,
         store: Store[dict[str, Any]],
     ) -> None:
@@ -441,9 +445,14 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             _LOGGER.debug("Run %s dropped: another run is in progress", request)
             return False
         self._task = self.config_entry.async_create_background_task(
-            self.hass, self.async_run(request), f"{DOMAIN} {request.run_type} run"
+            self.hass, self._async_run_task(request), f"{DOMAIN} {request.run_type} run"
         )
         return True
+
+    async def _async_run_task(self, request: RunRequest) -> None:
+        """Run in the background task; the summary is stored, not returned."""
+
+        await self.async_run(request)
 
     # ------------------------------------------------------------------
     # Services
@@ -807,7 +816,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
 
         self._maintenance_unsub = async_track_point_in_utc_time(self.hass, _fire, when)
 
-    def _refresh_names(self, names: dict[int, str]) -> None:
+    def _refresh_names(self, names: Mapping[int, str]) -> None:
         """Keep ``communities[].name`` equal to the portal name (spec 02)."""
 
         communities = [dict(c) for c in self.config_entry.data[CONF_COMMUNITIES]]
