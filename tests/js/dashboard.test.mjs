@@ -1,4 +1,4 @@
-// Dashboard strategy (issue #52): `node --test tests/js/` (Node 20+).
+// Dashboard strategy (issue #52): `node --test "tests/js/*.test.mjs"` (Node 22+).
 // Synthetic entry data only.
 
 import assert from "node:assert/strict";

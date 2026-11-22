@@ -63,11 +63,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Node from the runner image (20 or newer has node:test); no packages.
+      # Node from the runner image (22 or newer: node:test with glob patterns); no packages.
       # frontend/package.json marks the script as an ES module.
       - run: node --version
       - run: node --check custom_components/eg_austria/frontend/eg-austria-dashboard.js
-      - run: node --test tests/js/
+      - run: node --test "tests/js/*.test.mjs"
 
   mypy:
     name: Mypy (strict)
