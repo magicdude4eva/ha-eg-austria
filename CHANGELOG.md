@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-22
+
+Adds comparison sources, summary sensors and a ready-made dashboard. Requires
+Home Assistant 2026.11.0 or later. No configuration changes are needed.
+
 ### Added
 
 - Options: optional comparison sources (grid feed-in, grid consumption, PV production), prefilled from the Energy dashboard settings, which stay unchanged (#50). The options now open with a menu: *Import settings* or *Comparison sources*.
@@ -85,6 +90,7 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.1...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.2...HEAD
+[0.1.2]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/magicdude4eva/ha-eg-austria/releases/tag/0.1.0
