@@ -19,6 +19,26 @@ import yaml
 from custom_components.eg_austria.const import DOMAIN
 from custom_components.eg_austria.importer import RunStatus
 from custom_components.eg_austria.sensor import SENSORS
+from custom_components.eg_austria.summary import (
+    CommunityName,
+    Period,
+    build_summary_defs,
+)
+
+# Every summary sensor translation key, with all comparison sources set.
+SUMMARY_KEYS = {
+    f"{d.translation_key}_{period}"
+    for d in build_summary_defs(
+        "home",
+        [CommunityName("beg", "Example BEG")],
+        {
+            "source_feed_in": "example:feed_in",
+            "source_grid_consumption": "example:grid_import",
+            "source_pv": "example:pv",
+        },
+    )
+    for period in Period
+}
 
 PKG = Path(__file__).parents[1] / "custom_components" / DOMAIN
 LANGUAGES = ("en", "de")
@@ -142,13 +162,23 @@ def test_user_facing_raises_are_translated() -> None:
             assert key.value in exceptions[lang], f"{where} {lang}: {key.value}"
 
 
+@pytest.mark.parametrize("lang", ["en", "de"])
+def test_summary_sensor_names(lang: str) -> None:
+    """Every summary sensor has a name; community names use the placeholder."""
+
+    names = _translations(lang)["entity"]["sensor"]
+    assert set(names) >= SUMMARY_KEYS
+    for key in SUMMARY_KEYS:
+        assert ("{community}" in names[key]["name"]) == key.startswith("community_")
+
+
 def test_icons_match_entities_and_services() -> None:
     """Gold ``icon-translations``: icons refer to existing keys and states."""
 
     icons = _load(PKG / "icons.json")
     strings = _translations("en")
 
-    sensor_keys = {d.translation_key for d in SENSORS}
+    sensor_keys = {d.translation_key for d in SENSORS} | SUMMARY_KEYS
     entity_icons = icons["entity"]["sensor"]
     assert set(entity_icons) <= sensor_keys
     assert set(entity_icons) <= set(strings["entity"]["sensor"])

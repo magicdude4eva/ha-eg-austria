@@ -1,6 +1,6 @@
 # 0003: External statistics, overwritten on re-fetch
 
-- Status: accepted
+- Status: accepted (amended by [ADR 0014](0014-summary-sensors.md): summary sensors with shares)
 - Date: 2026-11-07
 
 ## Context

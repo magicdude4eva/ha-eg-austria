@@ -15,6 +15,63 @@
       },
       "portal_version": {
         "default": "mdi:tag-outline"
+      },
+      "meter_data_until": {
+        "default": "mdi:calendar-check-outline"
+      },
+      "feed_in_to_communities_month_so_far": {
+        "default": "mdi:transmission-tower-export"
+      },
+      "feed_in_to_communities_last_month": {
+        "default": "mdi:transmission-tower-export"
+      },
+      "import_from_communities_month_so_far": {
+        "default": "mdi:transmission-tower-import"
+      },
+      "import_from_communities_last_month": {
+        "default": "mdi:transmission-tower-import"
+      },
+      "community_feed_in_share_month_so_far": {
+        "default": "mdi:account-group-outline"
+      },
+      "community_feed_in_share_last_month": {
+        "default": "mdi:account-group-outline"
+      },
+      "community_import_share_month_so_far": {
+        "default": "mdi:account-group-outline"
+      },
+      "community_import_share_last_month": {
+        "default": "mdi:account-group-outline"
+      },
+      "pv_self_consumed_month_so_far": {
+        "default": "mdi:home-lightning-bolt-outline"
+      },
+      "pv_self_consumed_last_month": {
+        "default": "mdi:home-lightning-bolt-outline"
+      },
+      "pv_to_communities_month_so_far": {
+        "default": "mdi:solar-power-variant-outline"
+      },
+      "pv_to_communities_last_month": {
+        "default": "mdi:solar-power-variant-outline"
+      },
+      "pv_to_surplus_month_so_far": {
+        "default": "mdi:solar-power-variant-outline"
+      },
+      "pv_to_surplus_last_month": {
+        "default": "mdi:solar-power-variant-outline"
+      },
+      "feed_in_deviation_month_so_far": {
+        "default": "mdi:scale-unbalanced"
+      },
+      "feed_in_deviation_last_month": {
+        "default": "mdi:scale-unbalanced"
+      },
+      "grid_consumption_deviation_month_so_far": {
+        "default": "mdi:scale-unbalanced"
+      },
+      "grid_consumption_deviation_last_month": {
+        "default": "mdi:scale-unbalanced"
       }
     }
   },

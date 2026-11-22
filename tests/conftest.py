@@ -352,6 +352,7 @@ async def async_setup_fake_entry(
     token_exp: int,
     client: FakeClient | None = None,
     store: dict[str, Any] | None = None,
+    options: dict[str, Any] | None = None,
     **data: Any,
 ) -> LoadedEntry:
     """Add and set up an entry whose client is ``client`` (no startup run).
@@ -376,7 +377,7 @@ async def async_setup_fake_entry(
         domain=DOMAIN,
         title="EG Austria Home",
         data=entry_data(token_exp, **data),
-        options=default_options(),
+        options=default_options() | (options or {}),
     )
     entry.add_to_hass(hass)
     now = dt_util.utcnow()

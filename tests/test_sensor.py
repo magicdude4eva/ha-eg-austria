@@ -26,6 +26,7 @@ EXP = int(NOW.timestamp()) + 200 * 86400
 KEYS = (
     "token_expires",
     "data_complete_until",
+    "meter_data_until",
     "last_import",
     "last_run_status",
     "portal_version",
@@ -120,7 +121,12 @@ async def test_values_before_and_after_run(
     state = hass.states.get(ids["token_expires"])
     assert state is not None
     assert state.state == datetime.fromtimestamp(EXP, UTC).isoformat()
-    for key in ("data_complete_until", "last_import", "last_run_status"):
+    for key in (
+        "data_complete_until",
+        "meter_data_until",
+        "last_import",
+        "last_run_status",
+    ):
         state = hass.states.get(ids[key])
         assert state is not None
         assert state.state == STATE_UNKNOWN, key

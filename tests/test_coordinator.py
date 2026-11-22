@@ -235,6 +235,9 @@ async def test_daily_run_window(hass: HomeAssistant, env: Any) -> None:
     assert _hour(rows[0]) == local_day_start(date(2026, 5, 25))
     assert coordinator.state.last_success == NOW
     assert coordinator.state.complete_until == date(2026, 5, 24)
+    # Meter values run ahead of the community side (issue #51).
+    assert coordinator.state.meter_until is not None
+    assert coordinator.state.meter_until > coordinator.state.complete_until
 
 
 @pytest.mark.usefixtures("no_writes")
@@ -798,6 +801,7 @@ def test_store_round_trip() -> None:
         held_days={"home_generation": [date(2026, 6, 3)]},
         released={"home_consumption": [date(2026, 6, 2)]},
         complete_until=date(2026, 6, 6),
+        meter_until=date(2026, 6, 7),
         initial_done=True,
         rate_limited=True,
         last_run_status=RunStatus.PARTIAL,

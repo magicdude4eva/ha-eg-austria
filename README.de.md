@@ -365,7 +365,8 @@ Am Dienstgerät "EG Austria":
 | Sensor | Zeigt |
 |---|---|
 | Token läuft ab | Wann der gespeicherte Token abläuft |
-| Daten vollständig bis | Letzter Tag der lückenlosen Folge von Tagen, die das Portal als vollständig meldet |
+| Daten vollständig bis | Letzter Tag der lückenlosen Folge von Tagen, die das Portal als vollständig meldet (Gemeinschaftsanteile) |
+| Zählerdaten bis | Letzter Tag mit Zählerwerten für jede Stunde; meist rund zwei Wochen vor *Daten vollständig bis* |
 | Letzter Import | Ende des letzten erfolgreichen Laufs |
 | Status des letzten Laufs | *OK*, *Teilweise importiert*, *Übersprungen (Wartung)*, *Anmeldung fehlgeschlagen*, *Portal geändert*, *Portal nicht erreichbar*, *Anfragelimit erreicht*; bleibt über Neustarts erhalten |
 | Portal-Version | Der Build des Portals (standardmäßig deaktiviert) |
@@ -373,6 +374,34 @@ Am Dienstgerät "EG Austria":
 Sie bleiben verfügbar, wenn das Portal ausfällt: *Status des letzten Laufs*
 zeigt dann *Portal nicht erreichbar*. Es gibt keine Energiesensoren; die
 Energiewerte gibt es nur als Statistiken.
+
+### Zusammenfassungssensoren
+
+Anteile in Prozent, die Statistikkarten nicht berechnen können. Jeder kommt
+zweimal: *Monat bisher* (vom 1. dieses Monats bis *Daten vollständig bis*) und
+*Vormonat* (der letzte Monat, dessen Tage alle vollständig sind). Zähler und
+Nenner decken immer dieselben vollständigen Stunden ab, damit die späten
+Gemeinschaftsdaten und deine Live-Quellen zusammenpassen.
+
+| Sensor | Anteil |
+|---|---|
+| Einspeisung an Gemeinschaften | Einspeisung an Gemeinschaften ÷ gemessene Einspeisung |
+| Bezug aus Gemeinschaften | Bezug aus Gemeinschaften ÷ gemessener Bezug |
+| *Gemeinschaft* Einspeiseanteil | Anteil dieser Gemeinschaft an der gemessenen Einspeisung |
+| *Gemeinschaft* Bezugsanteil | Anteil dieser Gemeinschaft am gemessenen Bezug |
+| PV selbst verbraucht | (PV-Erzeugung − gemessene Einspeisung) ÷ PV-Erzeugung, 0-100 % (nur mit [PV-Quelle](#vergleichsquellen)) |
+| PV an Gemeinschaften | Einspeisung an Gemeinschaften ÷ PV-Erzeugung (nur mit PV-Quelle) |
+| PV an Überschussabnehmer | Einspeisung an den Überschussabnehmer ÷ PV-Erzeugung (nur mit PV-Quelle) |
+| Abweichung Einspeisung | (deine Einspeisequelle − gemessene Einspeisung) ÷ gemessene Einspeisung (nur mit Einspeisequelle) |
+| Abweichung Netzbezug | (deine Netzbezugsquelle − gemessener Bezug) ÷ gemessener Bezug (nur mit Netzbezugsquelle) |
+
+Attribute: `period_start`, `period_end`, `numerator_kwh`, `denominator_kwh`.
+Ein Sensor ist unbekannt, solange sein Zeitraum noch keinen vollständigen Tag
+hat (am Monatsanfang ist *Monat bisher* das oft) oder der Nenner 0 ist. Sie
+haben keine State-Class, Home Assistant führt also keine Langzeitstatistik
+dazu; die kWh-Werte bleiben in den Statistiken oben
+([ADR 0014](docs/adr/0014-summary-sensors.md)). Die Werte werden nach dem Start
+von Home Assistant und nach jedem Import neu berechnet.
 
 > [!TIP]
 > 💡 **Energie-Dashboard:** die Integration ändert dein Energie-Dashboard nie.

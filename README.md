@@ -336,7 +336,8 @@ On the "EG Austria" service device:
 | Sensor | Shows |
 |---|---|
 | Token expires | When the stored token expires |
-| Data complete until | Last day of the unbroken run of days the portal reports as complete |
+| Data complete until | Last day of the unbroken run of days the portal reports as complete (community shares) |
+| Meter data until | Last day with meter values for every hour; usually about two weeks ahead of *Data complete until* |
 | Last import | End of the last successful run |
 | Last run status | *OK*, *Partly imported*, *Skipped (maintenance)*, *Authentication failed*, *Portal changed*, *Portal unavailable*, *Rate limited*; kept across restarts |
 | Portal version | The portal build (disabled by default) |
@@ -344,6 +345,33 @@ On the "EG Austria" service device:
 They stay available while the portal is down: *Last run status* shows
 *Portal unavailable* then. There are no energy sensors; the energy values are
 statistics only.
+
+### Summary sensors
+
+Shares in percent that statistics cards can't calculate. Each comes twice:
+*month so far* (from the 1st of this month up to *Data complete until*) and
+*last month* (the latest month whose days are all complete). Numerator and
+denominator always cover the same complete hours, so the late community data
+and your live sources line up.
+
+| Sensor | Share |
+|---|---|
+| Feed-in to communities | Generation to communities ÷ metered feed-in |
+| Import from communities | Consumption from communities ÷ metered consumption |
+| *community* feed-in share | That community's part of the metered feed-in |
+| *community* import share | That community's part of the metered consumption |
+| PV self-consumed | (PV production − metered feed-in) ÷ PV production, 0-100 % (only with a [PV source](#comparison-sources)) |
+| PV to communities | Generation to communities ÷ PV production (only with a PV source) |
+| PV to surplus buyer | Generation to surplus buyer ÷ PV production (only with a PV source) |
+| Feed-in deviation | (your feed-in source − metered feed-in) ÷ metered feed-in (only with a feed-in source) |
+| Grid consumption deviation | (your grid consumption source − metered consumption) ÷ metered consumption (only with a grid consumption source) |
+
+Attributes: `period_start`, `period_end`, `numerator_kwh`,
+`denominator_kwh`. A sensor is unknown when its period has no complete day yet
+(early in the month, *month so far* often is) or the denominator is 0. They
+have no state class, so Home Assistant keeps no long-term statistics of them;
+the kWh values stay in the statistics above ([ADR 0014](docs/adr/0014-summary-sensors.md)).
+The values are recomputed after Home Assistant starts and after every import.
 
 > [!TIP]
 > 💡 **Energy dashboard:** the integration never changes your Energy dashboard.
