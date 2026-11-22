@@ -49,4 +49,4 @@ P0 ─┬─ G1 ─ S1 ─┬─ S2 ─┐
 
 ## Phase 2 preview (not specified yet)
 
-Billing models and transaction parser (German month text, reversals), tariff options (ADR 0009), money series with daily Zero estimate and monthly rescale (ADR 0008), compensation statistic. Starts after T-Q4 and T-Q9 in the analysis and two months of phase 1 running.
+Issues #72-#75 (#55): money statistics from the portal's hourly amounts with daily Zero estimate and surplus price (ADR 0008, 0009, 0015), supplier savings, settlement parser (German month text, reversals) with monthly rescale and derived Zero rates, € in the dashboard and summary sensors.
