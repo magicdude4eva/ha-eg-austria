@@ -13,7 +13,7 @@ Forum references are `topic/post` on forum.eg-austria.at; `*` marks an EG Austri
 | [0005](0005-unknown-not-zero.md) | Null or incomplete data is unknown, never zero | accepted |
 | [0006](0006-fail-safe-validation.md) | Fail-safe validation and repairs | accepted |
 | [0007](0007-token-handling.md) | Token handling: the config flow creates a personal access token from the session cookie after consent (session JWT as fallback); expiry warning | accepted |
-| [0008](0008-provisional-settled-money.md) | Provisional vs settled money, Zero derived monthly | proposed (phase 2) |
+| [0008](0008-provisional-settled-money.md) | Provisional vs settled money, Zero estimated per day | proposed (phase 2) |
 | [0009](0009-tariffs-dated-config.md) | Tariffs as dated configuration | proposed (phase 2) |
 | [0010](0010-phasing.md) | Phasing: kWh, then money, then other setups | accepted |
 | [0011](0011-keep-live-energy-source.md) | Keep the live local meter as Energy dashboard source by default | accepted |
