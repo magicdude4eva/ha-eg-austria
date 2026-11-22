@@ -1,6 +1,6 @@
 # 0009: Tariffs as dated configuration
 
-- Status: proposed (phase 2)
+- Status: accepted (phase 2, decisions in #55 on 2026-11-22)
 - Date: 2026-11-07, updated 2026-11-22 (effective rates instead of a tax model)
 
 ## Context
@@ -13,7 +13,7 @@
 
 ## Decision
 
-- Tariffs are options, entered per community as a list of periods with **effective rates in ct/kWh, including fees and taxes** (what one kWh earns or costs on the invoice): `{valid_from, feed_in, consumption, zero_feed_in, zero_consumption}`. The Zero rates are only used for a community with an own-site Zero (ADR 0008); they default to empty, not 0.
+- Tariffs are options, entered per community as a list of periods with **effective rates in ct/kWh, including fees and taxes** (what one kWh earns or costs on the invoice): `{valid_from, feed_in, consumption, zero_feed_in, zero_consumption, grid_saving}`. The Zero rates are only used for a community with an own-site Zero (ADR 0008); they default to empty, not 0. `grid_saving` (optional) is the grid-fee reduction per community kWh shown on the grid operator's bill (for example the reduced grid fee for a regional EEG); it is only used for import savings (ADR 0015), and empty means not counted.
 - A period stays valid until the next one starts. The options flow adds, edits and removes periods; the documentation shows how to work out effective rates from an invoice, with **synthetic numbers only**.
 - **No defaults are shipped.** Money statistics for a community start only once a period covers its hours.
 - Hours not covered by a period get no money row (unknown, ADR 0005), and a repair `tariff_missing` names the community and the first uncovered date.

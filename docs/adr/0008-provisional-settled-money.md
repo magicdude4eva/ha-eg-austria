@@ -1,8 +1,8 @@
 # 0008: Provisional vs settled money, Zero estimated per day
 
-- Status: proposed (phase 2)
+- Status: accepted (phase 2, decisions in #55 on 2026-11-22)
 - Date: 2026-11-07, updated 2026-11-22 (daily Zero test passed; `billing/transactions` shape checked)
-- Depends on: ADR 0009 (tariffs), ADR 0002 (`billing/transactions` in the allowlist)
+- Depends on: ADR 0009 (tariffs), ADR 0002 (`billing/transactions` in the allowlist), ADR 0015 (surplus and supplier prices)
 
 ## Context
 
@@ -26,7 +26,8 @@
 - A change in a settlement (new, corrected, rebilled) rewrites the money statistics from that month on (ADR 0003 sums), even if it lies before the usual fetch window.
 - Statistics (unit EUR, `has_sum`, no mean), per community and as a site total: **feed-in income** and **community consumption cost**, both as positive amounts. Ids follow ADR 0012 (`<site>[_<community>]_feed_in_eur`, `…_consumption_eur`; final names in spec 04). The site feed-in income is meant as compensation for a feed-in source in the Energy dashboard (ADR 0011).
 - Diagnostics: per community and month, provisional total, settled total, scale factor, derived and estimated Zero kWh, and the state (provisional, settled, unmatched correction).
-- Open until the phase 2 decisions: surplus income at a surplus price, import savings against a supplier price.
+- **Surplus income** (optional): surplus kWh (`generation_to_surplus`) × a surplus price (ADR 0015), per site. With it, the site also gets a **total feed-in compensation** = community feed-in income + surplus income, so all feed-in is priced once, community kWh at the community tariff. It is provisional until the surplus buyer's price is final; it is not rescaled by community settlements.
+- **Import savings** (optional): per community and site, community kWh × (supplier price + the community's grid saving, ADR 0009/0015) − community consumption cost. Zero kWh count like other community kWh.
 
 ## Consequences
 
