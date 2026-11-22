@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   such as the ÖMAG integration's) for *Surplus income* and *Feed-in
   compensation*, and a *price missing* repair.
 
+### Fixed
+
+- Diagnostics keep the redacted error of the last run (for example which
+  portal field was missing) across a restart (#78).
+
 ### Documentation
 
 - README: My Home Assistant buttons to open the repository in the Marketplace

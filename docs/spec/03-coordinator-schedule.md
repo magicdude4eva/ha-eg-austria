@@ -70,9 +70,10 @@ complete_until: date                  # last date of the contiguous complete run
 initial_done: bool
 rate_limited: bool                    # the last run got 429
 last_run_status: str                  # status of the last finished run (issue #29)
+last_run_error: str                   # its redacted error, max 500 chars, else null (issue #78)
 ```
 
-No energy values are cached; statistics are the store of record. `held_days` inside a run's window are replaced by that run's H1 result; days outside it are kept. `complete_until` walks the completeness list of the run from its first day; if the stored value ends before that day, it is kept (the gap was not re-checked). The store is deleted with the entry (`async_remove_entry`). Setup loads the store (`coordinator.async_load()`) before the sensor platform is forwarded, so the diagnostic sensors show the stored dates right after a restart, before any run (issue #26), and `last_run_status` shows the stored status of the last finished run (issue #29; unknown for a store written before that field); `async_start()` then registers the schedule.
+No energy values are cached; statistics are the store of record. `held_days` inside a run's window are replaced by that run's H1 result; days outside it are kept. `complete_until` walks the completeness list of the run from its first day; if the stored value ends before that day, it is kept (the gap was not re-checked). The store is deleted with the entry (`async_remove_entry`). Setup loads the store (`coordinator.async_load()`) before the sensor platform is forwarded, so the diagnostic sensors show the stored dates right after a restart, before any run (issue #26), and `last_run_status` shows the stored status of the last finished run (issue #29; unknown for a store written before that field). `last_run_error` keeps that run's redacted error (the same text as `RunSummary.error`, for example the S2 key path), so diagnostics taken after a restart still name the cause (issue #78); it is cleared by a run without an error; `async_start()` then registers the schedule.
 
 ## Error handling per run
 

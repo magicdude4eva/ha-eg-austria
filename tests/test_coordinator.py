@@ -805,6 +805,7 @@ def test_store_round_trip() -> None:
         initial_done=True,
         rate_limited=True,
         last_run_status=RunStatus.PARTIAL,
+        last_run_error="S2 data.x: required key missing",
     )
     assert StoreData.from_dict(state.as_dict()) == state
     broken = StoreData.from_dict(
@@ -814,6 +815,7 @@ def test_store_round_trip() -> None:
             "held_days": {"k": ["no-date", None]},
             "complete_until": "2026-13-01",
             "last_run_status": "no-status",
+            "last_run_error": 5,
         }
     )
     assert broken == StoreData()
