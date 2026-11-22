@@ -434,19 +434,26 @@ new source or community shows up without editing it. To change it by hand,
 use *Take control* in the dashboard menu; from then on it stays as you edited
 it.
 
-What it shows, one view per EG Austria entry:
+The dialog suggests the title *Energy community* and the icon
+`mdi:home-group`; change them as you like.
 
-| Section | Cards |
+What it shows, one view per EG Austria entry, from top to bottom:
+
+| Part | Cards |
 |---|---|
-| Import status | *Data complete until*, *Meter data until*, *Last run status*, *Last import*, a note on the two delays, a link to the Energy dashboard |
-| Shares | Gauges for feed-in to and import from communities and, with a PV source, PV self-consumed (month so far and last month) |
-| Totals | A date picker and the totals for the picked period: fed into communities, to the surplus buyer, drawn from communities, from the supplier |
-| Charts | Where the feed-in went and where the import came from (per community and the rest), by month and by day; with a PV source, PV production vs feed-in vs communities; with a feed-in or grid consumption source, metered vs your source |
-| Communities | The summary sensors per community |
+| Delays | A banner: community shares are complete until *Data complete until*, meter values until *Meter data until* |
+| Shares | One row: gauges for feed-in to communities, import covered by communities and, with a PV source, PV self-consumed; each shows the month so far with last month in a note under it (last month in the gauge while the month has no complete day yet), next to the import status: *Data complete until*, *Meter data until*, *Last run*, *Last import*, *Token expires* and a link to the Energy dashboard |
+| Totals | Side by side: the last complete month and the month so far, each with fed into communities, to the surplus buyer, drawn from communities, from the supplier |
+| Communities | One card per community with its feed-in and import shares |
+| Feed-in and import | Where the feed-in went and where the import came from (per community and the rest), by month for a year and by day for 45 days |
+| Your own sources | With a PV source, PV production vs metered feed-in vs communities by month; with a feed-in or grid consumption source, metered vs your source by day, as bars side by side (the two agree closely, so lines would cover each other) |
 
-The labels follow your profile language (English or German). The newest days
-show feed-in and import but no community split until the portal has it
-(*Data complete until*).
+There is no date picker: community data arrives about two weeks late, so a
+picker starting on today would show empty cards. Each community keeps its
+colour in every chart (first blue, second green), the surplus buyer is amber
+and the supplier grey. The labels follow your profile language (English or
+German). The newest days show feed-in and import but no community split until
+the portal has it (*Data complete until*).
 
 ## Actions
 

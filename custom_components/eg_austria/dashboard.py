@@ -1,4 +1,4 @@
-"""Generated "Energy community" dashboard (issue #52, spike #49).
+"""Generated "Energy community" dashboard (issues #52 and #61, spike #49).
 
 The integration ships a Lovelace dashboard strategy (``frontend/``): a small
 script, served from a static path and loaded on every frontend start with
@@ -50,6 +50,7 @@ DIAGNOSTIC_KEYS: Final = (
     "meter_data_until",
     "last_import",
     "last_run_status",
+    "token_expires",
 )
 
 

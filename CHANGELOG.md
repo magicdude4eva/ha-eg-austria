@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- *Energy community* dashboard reworked after the first real use (#61): no date
+  picker (it started on today, while community data is about two weeks late,
+  so totals showed `?` and the by-day charts were empty). Totals for the last
+  complete month and the month so far, by-day charts over 45 days. One row of
+  compact gauges (month so far, last month in a note) next to a status block
+  with short names, including *Token expires*; communities side by side; fixed
+  series colours; metered vs your source as bars, as the two lines covered
+  each other.
+
+### Added
+
+- *Add dashboard* pre-fills the title *Energy community* (German
+  *Energiegemeinschaft*) and the icon `mdi:home-group` (#61).
+
 ## [0.1.2] - 2026-11-22
 
 Adds comparison sources, summary sensors and a ready-made dashboard. Requires

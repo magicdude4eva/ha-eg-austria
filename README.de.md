@@ -468,19 +468,27 @@ wird bei jedem Laden neu aufgebaut; eine neue Quelle oder Gemeinschaft
 erscheint also ohne Bearbeiten. Um es von Hand zu ändern, im Dashboard-Menü
 *Kontrolle übernehmen* wählen; danach bleibt es so, wie du es bearbeitet hast.
 
-Was es zeigt, eine Ansicht pro EG-Austria-Eintrag:
+Der Dialog schlägt den Titel *Energiegemeinschaft* und das Symbol
+`mdi:home-group` vor; beides lässt sich ändern.
 
-| Abschnitt | Karten |
+Was es zeigt, eine Ansicht pro EG-Austria-Eintrag, von oben nach unten:
+
+| Teil | Karten |
 |---|---|
-| Importstatus | *Daten vollständig bis*, *Zählerdaten bis*, *Status des letzten Laufs*, *Letzter Import*, ein Hinweis zu den zwei Verzögerungen, ein Link zum Energie-Dashboard |
-| Anteile | Anzeigen für Einspeisung an und Bezug aus Gemeinschaften und, mit PV-Quelle, PV selbst verbraucht (Monat bisher und Vormonat) |
-| Summen | Eine Datumsauswahl und die Summen im gewählten Zeitraum: an Gemeinschaften eingespeist, an den Überschussabnehmer, aus Gemeinschaften bezogen, vom Lieferanten |
-| Diagramme | Wohin die Einspeisung ging und woher der Bezug kam (pro Gemeinschaft und der Rest), pro Monat und pro Tag; mit PV-Quelle PV-Erzeugung vs. Einspeisung vs. Gemeinschaften; mit Einspeise- oder Netzbezugsquelle gemessen vs. deine Quelle |
-| Gemeinschaften | Die Zusammenfassungssensoren pro Gemeinschaft |
+| Verzögerungen | Ein Hinweis: Gemeinschaftsanteile sind vollständig bis *Daten vollständig bis*, Zählerwerte bis *Zählerdaten bis* |
+| Anteile | Eine Reihe: Anzeigen für Einspeisung an Gemeinschaften, Bezug durch Gemeinschaften gedeckt und, mit PV-Quelle, PV selbst verbraucht; jede zeigt den Monat bisher mit dem Vormonat als Hinweis darunter (den Vormonat, solange der Monat noch keinen vollständigen Tag hat), daneben der Importstatus: *Daten vollständig bis*, *Zählerdaten bis*, *Letzter Lauf*, *Letzter Import*, *Token läuft ab* und ein Link zum Energie-Dashboard |
+| Summen | Nebeneinander: der letzte vollständige Monat und der Monat bisher, jeweils an Gemeinschaften eingespeist, an den Überschussabnehmer, aus Gemeinschaften bezogen, vom Lieferanten |
+| Gemeinschaften | Eine Karte pro Gemeinschaft mit ihren Einspeise- und Bezugsanteilen |
+| Einspeisung und Bezug | Wohin die Einspeisung ging und woher der Bezug kam (pro Gemeinschaft und der Rest), pro Monat über ein Jahr und pro Tag über 45 Tage |
+| Deine eigenen Quellen | Mit PV-Quelle PV-Erzeugung vs. gemessene Einspeisung vs. Gemeinschaften pro Monat; mit Einspeise- oder Netzbezugsquelle gemessen vs. deine Quelle pro Tag, als Balken nebeneinander (die beiden stimmen eng überein, Linien würden sich verdecken) |
 
-Die Beschriftungen folgen der Sprache deines Profils (Englisch oder Deutsch).
-Die neuesten Tage zeigen Einspeisung und Bezug, aber noch keine
-Gemeinschaftsaufteilung, bis das Portal sie hat (*Daten vollständig bis*).
+Es gibt keine Datumsauswahl: Gemeinschaftsdaten kommen etwa zwei Wochen
+später, eine Auswahl ab heute würde leere Karten zeigen. Jede Gemeinschaft
+behält in allen Diagrammen ihre Farbe (die erste blau, die zweite grün), der
+Überschussabnehmer ist orange, der Lieferant grau. Die Beschriftungen folgen
+der Sprache deines Profils (Englisch oder Deutsch). Die neuesten Tage zeigen
+Einspeisung und Bezug, aber noch keine Gemeinschaftsaufteilung, bis das Portal
+sie hat (*Daten vollständig bis*).
 
 ## Aktionen
 
