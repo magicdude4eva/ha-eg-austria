@@ -13,7 +13,7 @@
 ## Decision
 
 - **No community tariff options.** Standard rates come from the portal's hourly amounts, Zero rates are derived from settlements (ADR 0008). There is no `tariff_missing` repair and no 1 January reminder.
-- **Grid-fee and levy reductions are out of scope** for now. Import savings (ADR 0015) count the supplier energy price only, and the documentation says that EEG savings are therefore understated. The open question (how members would want to enter or source these reductions) is asked in the EG Austria forum thread of the integration and tracked as a follow-up issue.
+- **Grid-fee and levy reductions are out of scope** for now. Import savings (ADR 0015) count the supplier energy price only, and the documentation says that EEG savings are therefore understated. The open question (how members would want to enter or source these reductions) is asked in the EG Austria forum thread of the integration and tracked in #76.
 - Membership fees, payouts, the levy refund and bonus points are not energy and are not part of the money statistics.
 - Examples in the documentation use synthetic rates only.
 
