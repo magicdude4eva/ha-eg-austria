@@ -16,7 +16,7 @@ import {
 // Core cards plus the two cards this script defines.
 const KNOWN_CARDS = new Set([
   "energy-date-selection",
-  "entities",
+  "custom:eg-austria-status-card",
   "heading",
   "markdown",
   "statistics-graph",
@@ -90,26 +90,24 @@ test("known cards only, sections view per entry", () => {
   }
 });
 
-test("layout: picker with own cards, picked charts, 12 months, status", () => {
+test("layout: status row and picker with own cards, picked charts, 12 months", () => {
   const view = buildView(entry(), EN);
   assert.deepEqual(
     view.sections.map((s) => s.column_span),
-    [4, 4, 4, 4]
+    [4, 4, 4]
   );
-  assert.deepEqual(headings(view), [null, null, "Last 12 months", null]);
+  assert.deepEqual(headings(view), [null, null, "Last 12 months"]);
   assert.deepEqual(
     view.sections[0].cards.map((c) => [c.type, c.grid_options.columns]),
     [
       ["markdown", "full"],
+      ["custom:eg-austria-status-card", "full"],
       ["energy-date-selection", "full"],
       ["custom:eg-austria-period-card", "full"],
       ["custom:eg-austria-community-card", 24],
       ["custom:eg-austria-community-card", 24],
     ]
   );
-  const status = view.sections.at(-1).cards[0];
-  assert.equal(status.type, "entities");
-  assert.deepEqual(status.grid_options, { columns: 24 });
 });
 
 test("delay banner: both dates as templates, meter part optional", () => {
@@ -126,35 +124,40 @@ test("delay banner: both dates as templates, meter part optional", () => {
   assert.match(noMeter.content, /strftime\('%-d\.%-m\.%Y'\)/);
 });
 
-test("status block: short names and a link to the Energy dashboard", () => {
+test("status row: short names, Last run and token marked, Energy dashboard link", () => {
   const view = buildView(entry(), EN);
-  const status = cards(view).find((c) => c.type === "entities" && c.title === "Import status");
+  const status = view.sections[0].cards[1];
+  assert.equal(status.title, "Import status");
   assert.deepEqual(
-    status.entities.map((r) => r.name),
+    status.items.map((i) => [i.name, i.kind || null]),
     [
-      "Data complete until",
-      "Meter data until",
-      "Last run",
-      "Last import",
-      "Token expires",
-      "Energy dashboard",
+      ["Data complete until", null],
+      ["Meter data until", null],
+      ["Last run", "run"],
+      ["Last import", null],
+      ["Token expires", "token"],
     ]
   );
-  const link = status.entities.at(-1);
-  assert.equal(link.type, "weblink");
-  assert.equal(link.url, "/energy");
+  assert.equal(status.items[2].entity, "sensor.eg_austria_home_last_run_status");
+  assert.deepEqual(status.link, { name: "Energy dashboard", url: "/energy" });
+  assert.equal(buildView(entry(), DE).sections[0].cards[1].title, "Importstatus");
 });
 
 test("period card: donuts from the statistics, cut at Data complete until", () => {
   const view = buildView(entry(), EN);
-  const card = view.sections[0].cards[2];
+  const card = view.sections[0].cards[3];
   assert.equal(card.collection_key, COLLECTION);
   assert.equal(card.complete_until, COMPLETE);
   assert.deepEqual(card.text, {
     total: "Total",
     until: "so far, until {date}",
     noData: "No community data for this period yet.",
+    info: "Totals for the picked period, counted up to Data complete until, so all numbers cover the same days.",
   });
+  assert.deepEqual(
+    card.donuts.map((d) => d.info.split(":")[0]),
+    ["Import", "Feed-in"]
+  );
   assert.deepEqual(
     card.donuts.map((d) => [d.title, d.say]),
     [
@@ -184,7 +187,7 @@ test("period card: donuts from the statistics, cut at Data complete until", () =
   const pv = buildView(
     entry({ sources: { feed_in: null, grid_consumption: null, pv: "sensor.pv" } }),
     EN
-  ).sections[0].cards[2].donuts[2];
+  ).sections[0].cards[3].donuts[2];
   assert.equal(pv.title, "PV");
   assert.deepEqual(pv.parts[0], {
     name: "Self-consumed",
@@ -200,11 +203,12 @@ test("period card: donuts from the statistics, cut at Data complete until", () =
 
 test("community cards: fed in and drawn as a share of all feed-in and import", () => {
   const view = buildView(entry(), EN);
-  const [beg, eeg] = view.sections[0].cards.slice(3);
+  const [beg, eeg] = view.sections[0].cards.slice(4);
   assert.equal(beg.name, "Example BEG");
   assert.equal(beg.color, "#2f7fd1");
   assert.equal(beg.collection_key, COLLECTION);
   assert.equal(beg.complete_until, COMPLETE);
+  assert.match(beg.text.info, /^kWh this community took from your feed-in/);
   assert.deepEqual(beg.rows, [
     {
       statistic: S("beg_generation_to_community"),
@@ -237,7 +241,7 @@ test("community cards: fed in and drawn as a share of all feed-in and import", (
     EN
   );
   assert.deepEqual(
-    three.sections[0].cards.slice(3).map((c) => c.grid_options.columns),
+    three.sections[0].cards.slice(4).map((c) => c.grid_options.columns),
     [24, 24, "full"]
   );
 });
@@ -296,7 +300,7 @@ test("source cards only for sources that are set; meter check follows the picker
     }),
     EN
   );
-  assert.equal(headings(view).at(-2), "Your own sources");
+  assert.equal(headings(view).at(-1), "Your own sources");
   const pv = graphs(view).find((c) => c.title === "PV production, feed-in and communities");
   assert.equal(pv.chart_type, "bar");
   assert.equal(pv.period, "month");
@@ -322,7 +326,7 @@ test("source cards only for sources that are set; meter check follows the picker
 test("German labels", () => {
   const view = buildView(entry(), DE);
   assert.ok(titles(view).includes("Wohin die Einspeisung ging, pro Monat"));
-  const [, , period, beg] = view.sections[0].cards;
+  const [, , , period, beg] = view.sections[0].cards;
   assert.equal(period.donuts[0].title, "Bezug");
   assert.equal(period.text.until, "bisher, bis {date}");
   assert.equal(headings(view)[2], "Letzte 12 Monate");
@@ -335,10 +339,10 @@ test("sections without content are left out", () => {
     entry({ statistics: {}, community_statistics: {}, entities: {} }),
     EN
   );
-  // The picker and the status block with the Energy dashboard link are left.
+  // The status row (only the Energy dashboard link) and the picker are left.
   assert.deepEqual(
     view.sections.map((s) => s.cards.map((c) => c.type)),
-    [["energy-date-selection"], ["entities"]]
+    [["custom:eg-austria-status-card", "energy-date-selection"]]
   );
 });
 
