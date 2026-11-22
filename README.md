@@ -122,22 +122,24 @@ Not done yet (phases, see [ADR 0010](docs/adr/0010-phasing.md)):
 
 ## Installation
 
-**Status:** early development. Version 0.1.0 is not released yet, and the
-integration is not in the Marketplace listing yet.
-
-Once it is listed in the Home Assistant Marketplace (formerly HACS):
+**Status:** released (0.1.0). The listing in the Home Assistant Marketplace
+(formerly HACS) is pending
+([#38](https://github.com/magicdude4eva/ha-eg-austria/issues/38)); until it
+is live, install it as a custom repository by link:
 
 1. Open the **Marketplace** in Home Assistant.
-2. Search for **EG Austria**.
-3. Open it and select **Download**.
+2. Open the three-dot menu → **Custom repositories**, enter
+   `https://github.com/magicdude4eva/ha-eg-austria` with the type
+   **Integration**, and select **Add**.
+3. Search for **EG Austria**, open it and select **Download**.
 4. Restart Home Assistant.
 5. Go to **Settings → Devices & services → Add integration → EG Austria**.
 
 > [!NOTE]
-> **Until the listing is live**, add it as a custom repository: in the
-> Marketplace, open the three-dot menu → **Custom repositories**, enter
-> `https://github.com/magicdude4eva/ha-eg-austria` with the type
-> **Integration**, then continue with step 2.
+> **Once the listing is live**, skip step 2: search for **EG Austria** in the
+> Marketplace directly. A custom repository you added before keeps working.
+
+See the [changelog](CHANGELOG.md) for what changed in each release.
 
 After you add the integration, Home Assistant opens a **Name and assign**
 dialog for the "EG Austria" service device. An area makes no sense for this
