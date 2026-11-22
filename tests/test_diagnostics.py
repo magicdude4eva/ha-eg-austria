@@ -201,6 +201,8 @@ async def test_diagnostics_error_message_redacted(
     output = await async_get_config_entry_diagnostics(hass, loaded.entry)
     assert_clean(output, loaded.entry.data["token"])
     assert output["last_run"]["status"] == "api_changed"
+    # Issue #78: the store keeps the (scrubbed) error for after a restart.
+    assert "HTTP 404" in output["store"]["last_run_error"]
     assert output["token"]["kind"] == "personal"
     assert "issued_at" not in output["token"]
     assert output["schema_fingerprint"] == {}

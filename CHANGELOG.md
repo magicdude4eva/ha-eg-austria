@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Diagnostics keep the redacted error of the last run (for example which
+  portal field was missing) across a restart (#78).
+
 ## [0.1.4] - 2026-11-22
 
 Documentation only; no functional changes. Released for the Marketplace listing
