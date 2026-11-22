@@ -146,6 +146,7 @@ async def test_websocket_config(
     entities = entry["entities"]
     assert entities["data_complete_until"].startswith("sensor.")
     assert entities["meter_data_until"].startswith("sensor.")
+    assert entities["token_expires"].startswith("sensor.")
     assert "beg_feed_in_share_month_so_far" in entities
     assert "pv_self_consumed_last_month" in entities
     assert "pv_to_surplus_last_month" not in entities

@@ -455,9 +455,9 @@ hier nicht wählen.
 
 ## Energiegemeinschafts-Dashboard
 
-Die Integration bringt ein fertiges Dashboard mit, nur aus Standardkarten. Es
-verwendet die Statistiken deines Eintrags, die
-[Zusammenfassungssensoren](#zusammenfassungssensoren) und die gewählten
+Die Integration bringt ein fertiges Dashboard mit: Standardkarten und zwei
+kleine eigene Karten, die der Datumsauswahl folgen. Es verwendet die
+Statistiken deines Eintrags und die gewählten
 [Vergleichsquellen](#vergleichsquellen) und lässt Karten für nicht gesetzte
 Quellen weg.
 
@@ -468,19 +468,46 @@ wird bei jedem Laden neu aufgebaut; eine neue Quelle oder Gemeinschaft
 erscheint also ohne Bearbeiten. Um es von Hand zu ändern, im Dashboard-Menü
 *Kontrolle übernehmen* wählen; danach bleibt es so, wie du es bearbeitet hast.
 
-Was es zeigt, eine Ansicht pro EG-Austria-Eintrag:
+Der Dialog schlägt den Titel *Energiegemeinschaft* und das Symbol
+`mdi:home-group` vor; beides lässt sich ändern.
 
-| Abschnitt | Karten |
+![Das Energiegemeinschafts-Dashboard: Verzögerungshinweis, Datumsauswahl, Ringe für Bezug, Einspeisung und PV, eine Karte pro Gemeinschaft und die Tagesaufteilung](docs/images/dashboard.png)
+
+*Beispiel mit erfundenen Daten.*
+
+Was es zeigt, eine Ansicht pro EG-Austria-Eintrag, von oben nach unten:
+
+| Teil | Karten |
 |---|---|
-| Importstatus | *Daten vollständig bis*, *Zählerdaten bis*, *Status des letzten Laufs*, *Letzter Import*, ein Hinweis zu den zwei Verzögerungen, ein Link zum Energie-Dashboard |
-| Anteile | Anzeigen für Einspeisung an und Bezug aus Gemeinschaften und, mit PV-Quelle, PV selbst verbraucht (Monat bisher und Vormonat) |
-| Summen | Eine Datumsauswahl und die Summen im gewählten Zeitraum: an Gemeinschaften eingespeist, an den Überschussabnehmer, aus Gemeinschaften bezogen, vom Lieferanten |
-| Diagramme | Wohin die Einspeisung ging und woher der Bezug kam (pro Gemeinschaft und der Rest), pro Monat und pro Tag; mit PV-Quelle PV-Erzeugung vs. Einspeisung vs. Gemeinschaften; mit Einspeise- oder Netzbezugsquelle gemessen vs. deine Quelle |
-| Gemeinschaften | Die Zusammenfassungssensoren pro Gemeinschaft |
+| Gewählter Zeitraum | Ein Hinweis zu den zwei Verzögerungen (Gemeinschaftsanteile vollständig bis *Daten vollständig bis*, Zählerwerte bis *Zählerdaten bis*), dann eine Datumsauswahl, die mit dem **aktuellen Monat** öffnet; mit ‹ › zu früheren Monaten blättern oder eine Woche, ein Jahr oder einen beliebigen Zeitraum wählen. Darunter, der Auswahl folgend: die **Zeitraumkarte** mit drei Ringen: *Bezug* (aus jeder Gemeinschaft und vom Lieferanten, mit dem Anteil, den Gemeinschaften gedeckt haben), *Einspeisung* (an jede Gemeinschaft und an den Überschussabnehmer, mit dem Anteil der Gemeinschaften) und, mit PV-Quelle, *PV* (selbst verbraucht vs. eingespeist); dann **eine Karte pro Gemeinschaft** mit den eingespeisten und bezogenen kWh und ihrem Anteil an deiner gesamten Einspeisung und deinem Bezug; dann wohin die Einspeisung ging und woher der Bezug kam, pro Tag |
+| Letzte 12 Monate | Dieselben zwei Aufteilungen pro Monat |
+| Deine eigenen Quellen | Mit PV-Quelle PV-Erzeugung vs. gemessene Einspeisung vs. Gemeinschaften pro Monat; mit Einspeise- oder Netzbezugsquelle gemessen vs. deine Quelle im gewählten Zeitraum, als Balken nebeneinander (die beiden stimmen eng überein, Linien würden sich verdecken) |
+| Importstatus | *Daten vollständig bis*, *Zählerdaten bis*, *Letzter Lauf*, *Letzter Import*, *Token läuft ab* und ein Link zum Energie-Dashboard |
 
-Die Beschriftungen folgen der Sprache deines Profils (Englisch oder Deutsch).
-Die neuesten Tage zeigen Einspeisung und Bezug, aber noch keine
+Diagramme stehen auf breiten Bildschirmen paarweise nebeneinander, am Handy
+untereinander. Jede Gemeinschaft behält in allen Diagrammen ihre Farbe (die
+erste blau, die zweite grün), der Überschussabnehmer ist orange, der
+Lieferant grau. Die Beschriftungen folgen der Sprache deines Profils
+(Englisch oder Deutsch).
+
+Die Datumsauswahl merkt sich die zuletzt gewählte Voreinstellung im Browser,
+wie das Energie-Dashboard. Solange du keine gewählt hast, legt das Dashboard
+dort *Dieser Monat* ab (nur im Browser, nie in Home Assistant), weil *Heute*
+noch keine Gemeinschaftsdaten hat: Gemeinschaftsanteile kommen etwa zwei
+Wochen später. Die neuesten Tage zeigen Einspeisung und Bezug, aber noch keine
 Gemeinschaftsaufteilung, bis das Portal sie hat (*Daten vollständig bis*).
+
+Zeitraum- und Gemeinschaftskarten zählen nur bis *Daten vollständig bis*,
+damit alle Zahlen darin dieselben Tage abdecken; im aktuellen Monat steht dort
+*bisher, bis* zu diesem Tag. Den gewählten Zeitraum lesen sie über ein
+Detail des Frontends, das keine öffentliche Schnittstelle ist; ändert ein
+Home-Assistant-Update es, zeigen sie stattdessen den aktuellen Monat. Die
+Datumsauswahl selbst zeigt das Jahr nur für Monate außerhalb des aktuellen
+Jahres (ein Home-Assistant-Detail ohne Einstellung); die Gemeinschaftskarten
+zeigen es immer. In den eingebauten
+Diagrammen hängt Home Assistant an jeden Reihennamen *(Änderung)* an: die kWh
+in diesem Balken (die Änderung des Zählerstands); das lässt sich nicht
+ausblenden.
 
 ## Aktionen
 

@@ -1,4 +1,4 @@
-// Dashboard strategy (issue #52): `node --test "tests/js/*.test.mjs"` (Node 22+).
+// Dashboard strategy (#52, #61): `node --test "tests/js/*.test.mjs"` (Node 22+).
 // Synthetic entry data only.
 
 import assert from "node:assert/strict";
@@ -7,22 +7,25 @@ import { test } from "node:test";
 import {
   buildDashboard,
   buildView,
+  collectionKey,
+  createSuggestions,
   generate,
+  seedDefaultPeriod,
 } from "../../custom_components/eg_austria/frontend/eg-austria-dashboard.js";
 
-const CORE_CARDS = new Set([
-  "button",
+// Core cards plus the two cards this script defines.
+const KNOWN_CARDS = new Set([
   "energy-date-selection",
   "entities",
-  "gauge",
   "heading",
   "markdown",
-  "statistic",
   "statistics-graph",
-  "tile",
+  "custom:eg-austria-period-card",
+  "custom:eg-austria-community-card",
 ]);
 
 const S = (q) => `eg_austria:home_${q}`;
+const COMPLETE = "sensor.eg_austria_home_data_complete_until";
 
 const entry = (overrides = {}) => ({
   entry_id: "entry1",
@@ -51,100 +54,280 @@ const entry = (overrides = {}) => ({
   },
   sources: { feed_in: null, grid_consumption: null, pv: null },
   entities: {
-    data_complete_until: "sensor.eg_austria_home_data_complete_until",
+    data_complete_until: COMPLETE,
     meter_data_until: "sensor.eg_austria_home_meter_data_until",
     last_run_status: "sensor.eg_austria_home_last_run_status",
     last_import: "sensor.eg_austria_home_last_import",
-    feed_in_to_communities_month_so_far: "sensor.a",
-    feed_in_to_communities_last_month: "sensor.b",
-    import_from_communities_month_so_far: "sensor.c",
-    import_from_communities_last_month: "sensor.d",
-    beg_feed_in_share_month_so_far: "sensor.e",
-    beg_import_share_last_month: "sensor.f",
+    token_expires: "sensor.eg_austria_home_token_expires",
   },
   ...overrides,
 });
 
-const EN = { locale: { language: "en" } };
-const DE = { locale: { language: "de-AT" } };
+const hass = (language, complete = "2026-11-06") => ({
+  locale: { language },
+  states: { [COMPLETE]: { state: complete } },
+});
+const EN = hass("en");
+const DE = hass("de-AT");
 
 const cards = (view) => view.sections.flatMap((s) => s.cards);
 const graphs = (view) => cards(view).filter((c) => c.type === "statistics-graph");
 const titles = (view) => graphs(view).map((c) => c.title);
+const headings = (view) =>
+  view.sections.map((s) => (s.cards[0].type === "heading" ? s.cards[0].heading : null));
 
-test("only core cards, sections view per entry", () => {
+const COLLECTION = "energy_eg_austria_home_dashboard";
+
+test("known cards only, sections view per entry", () => {
   const view = buildView(entry(), EN);
   assert.equal(view.type, "sections");
   assert.equal(view.path, "home");
   assert.equal(view.title, "EG Austria Home");
+  assert.equal(view.max_columns, 4);
   for (const card of cards(view)) {
-    assert.ok(CORE_CARDS.has(card.type), card.type);
-    if (card.collection_key) assert.match(card.collection_key, /^energy_/);
+    assert.ok(KNOWN_CARDS.has(card.type), card.type);
+    if (card.collection_key) assert.equal(card.collection_key, COLLECTION);
   }
 });
 
-test("feed-in split: one series per community plus the surplus buyer", () => {
+test("layout: picker with own cards, picked charts, 12 months, status", () => {
   const view = buildView(entry(), EN);
-  const monthly = graphs(view).find((c) => c.title === "Where the feed-in went, by month");
-  assert.equal(monthly.chart_type, "bar-stack");
-  assert.equal(monthly.period, "month");
-  assert.deepEqual(monthly.entities, [
-    { entity: S("beg_generation_to_community"), name: "Example BEG" },
-    { entity: S("eeg_generation_to_community"), name: "Example EEG" },
-    { entity: S("generation_to_surplus"), name: "Surplus buyer" },
-  ]);
-  // The meter total is not stacked with its parts.
-  assert.ok(!monthly.entities.some((e) => e.entity === S("generation")));
-  const imports = graphs(view).find((c) => c.title === "Where the import came from, by month");
-  // A community without the statistic is left out.
   assert.deepEqual(
-    imports.entities.map((e) => e.name),
-    ["Example BEG", "Supplier"]
+    view.sections.map((s) => s.column_span),
+    [4, 4, 4, 4]
+  );
+  assert.deepEqual(headings(view), [null, null, "Last 12 months", null]);
+  assert.deepEqual(
+    view.sections[0].cards.map((c) => [c.type, c.grid_options.columns]),
+    [
+      ["markdown", "full"],
+      ["energy-date-selection", "full"],
+      ["custom:eg-austria-period-card", "full"],
+      ["custom:eg-austria-community-card", 24],
+      ["custom:eg-austria-community-card", 24],
+    ]
+  );
+  const status = view.sections.at(-1).cards[0];
+  assert.equal(status.type, "entities");
+  assert.deepEqual(status.grid_options, { columns: 24 });
+});
+
+test("delay banner: both dates as templates, meter part optional", () => {
+  const view = buildView(entry(), EN);
+  const banner = view.sections[0].cards[0];
+  assert.equal(banner.text_only, true);
+  assert.match(banner.content, /<ha-alert alert-type="info">/);
+  assert.match(banner.content, /states\('sensor\.eg_austria_home_data_complete_until'\)/);
+  assert.match(banner.content, /states\('sensor\.eg_austria_home_meter_data_until'\)/);
+  assert.match(banner.content, /strftime\('%-d %b %Y'\)/);
+  const { meter_data_until: _, ...rest } = entry().entities;
+  const noMeter = buildView(entry({ entities: rest }), DE).sections[0].cards[0];
+  assert.doesNotMatch(noMeter.content, /meter_data_until/);
+  assert.match(noMeter.content, /strftime\('%-d\.%-m\.%Y'\)/);
+});
+
+test("status block: short names and a link to the Energy dashboard", () => {
+  const view = buildView(entry(), EN);
+  const status = cards(view).find((c) => c.type === "entities" && c.title === "Import status");
+  assert.deepEqual(
+    status.entities.map((r) => r.name),
+    [
+      "Data complete until",
+      "Meter data until",
+      "Last run",
+      "Last import",
+      "Token expires",
+      "Energy dashboard",
+    ]
+  );
+  const link = status.entities.at(-1);
+  assert.equal(link.type, "weblink");
+  assert.equal(link.url, "/energy");
+});
+
+test("period card: donuts from the statistics, cut at Data complete until", () => {
+  const view = buildView(entry(), EN);
+  const card = view.sections[0].cards[2];
+  assert.equal(card.collection_key, COLLECTION);
+  assert.equal(card.complete_until, COMPLETE);
+  assert.deepEqual(card.text, {
+    total: "Total",
+    until: "so far, until {date}",
+    noData: "No community data for this period yet.",
+  });
+  assert.deepEqual(
+    card.donuts.map((d) => [d.title, d.say]),
+    [
+      ["Import", "Communities covered {pct} of your import"],
+      ["Feed-in", "Communities took {pct} of your feed-in"],
+    ]
+  );
+  const [imp, feed] = card.donuts;
+  assert.deepEqual(imp.parts, [
+    {
+      name: "Example BEG",
+      statistic: S("beg_consumption_from_community"),
+      color: "#2f7fd1",
+      share: true,
+    },
+    { name: "Supplier", statistic: S("consumption_from_supplier"), color: "#9aa3ad" },
+  ]);
+  assert.deepEqual(
+    feed.parts.map((p) => [p.name, p.color, Boolean(p.share)]),
+    [
+      ["Example BEG", "#2f7fd1", true],
+      ["Example EEG", "#2aa876", true],
+      ["Surplus buyer", "#e0a030", false],
+    ]
+  );
+  // PV donut only with a PV source: self-consumed = PV minus metered feed-in.
+  const pv = buildView(
+    entry({ sources: { feed_in: null, grid_consumption: null, pv: "sensor.pv" } }),
+    EN
+  ).sections[0].cards[2].donuts[2];
+  assert.equal(pv.title, "PV");
+  assert.deepEqual(pv.parts[0], {
+    name: "Self-consumed",
+    statistic: "sensor.pv",
+    subtract: S("generation"),
+    color: "#f2c94c",
+    share: true,
+  });
+  // No community statistics: no donut has a share, so no card.
+  const none = buildView(entry({ community_statistics: {} }), EN);
+  assert.ok(!cards(none).some((c) => c.type === "custom:eg-austria-period-card"));
+});
+
+test("community cards: fed in and drawn as a share of all feed-in and import", () => {
+  const view = buildView(entry(), EN);
+  const [beg, eeg] = view.sections[0].cards.slice(3);
+  assert.equal(beg.name, "Example BEG");
+  assert.equal(beg.color, "#2f7fd1");
+  assert.equal(beg.collection_key, COLLECTION);
+  assert.equal(beg.complete_until, COMPLETE);
+  assert.deepEqual(beg.rows, [
+    {
+      statistic: S("beg_generation_to_community"),
+      name: "Fed in",
+      total: S("generation"),
+      of: "{pct} of your feed-in",
+    },
+    {
+      statistic: S("beg_consumption_from_community"),
+      name: "Drawn",
+      total: S("consumption"),
+      of: "{pct} of your import",
+    },
+  ]);
+  // EEG has no import statistic here.
+  assert.deepEqual(
+    eeg.rows.map((r) => r.name),
+    ["Fed in"]
+  );
+  assert.equal(eeg.color, "#2aa876");
+  // Three communities: the odd last card takes the full row.
+  const three = buildView(
+    entry({
+      communities: [...entry().communities, { slug: "x", name: "Example X" }],
+      community_statistics: {
+        ...entry().community_statistics,
+        x: { generation_to_community: S("x_generation_to_community") },
+      },
+    }),
+    EN
+  );
+  assert.deepEqual(
+    three.sections[0].cards.slice(3).map((c) => c.grid_options.columns),
+    [24, 24, "full"]
   );
 });
 
-test("source cards only for sources that are set", () => {
+test("charts: picked-period split in a pair, 12 months in a pair, fixed colours", () => {
+  const view = buildView(entry(), EN);
+  assert.deepEqual(titles(view), [
+    "Where the feed-in went",
+    "Where the import came from",
+    "Where the feed-in went, by month",
+    "Where the import came from, by month",
+  ]);
+  const [pickedFeedIn, pickedImport, monthly] = graphs(view);
+  assert.equal(pickedFeedIn.chart_type, "bar-stack");
+  assert.equal(pickedFeedIn.energy_date_selection, true);
+  assert.equal(pickedFeedIn.collection_key, COLLECTION);
+  assert.deepEqual(pickedFeedIn.grid_options, { columns: 24 });
+  assert.equal(monthly.period, "month");
+  assert.equal(monthly.days_to_show, 365);
+  assert.equal(monthly.energy_date_selection, undefined);
+  assert.deepEqual(monthly.grid_options, { columns: 24 });
+  assert.deepEqual(monthly.entities, [
+    { entity: S("beg_generation_to_community"), name: "Example BEG", color: "#2f7fd1" },
+    { entity: S("eeg_generation_to_community"), name: "Example EEG", color: "#2aa876" },
+    { entity: S("generation_to_surplus"), name: "Surplus buyer", color: "#e0a030" },
+  ]);
+  // The meter total is not stacked with its parts.
+  assert.ok(!monthly.entities.some((e) => e.entity === S("generation")));
+  // A community without the statistic is left out.
+  assert.deepEqual(
+    pickedImport.entities.map((e) => [e.name, e.color]),
+    [
+      ["Example BEG", "#2f7fd1"],
+      ["Supplier", "#9aa3ad"],
+    ]
+  );
+});
+
+test("an odd last chart takes the full row", () => {
+  const view = buildView(
+    entry({
+      statistics: { generation_to_surplus: S("generation_to_surplus") },
+      community_statistics: {},
+    }),
+    EN
+  );
+  const only = graphs(view).filter((c) => c.title === "Where the feed-in went");
+  assert.deepEqual(only[0].grid_options, { columns: "full" });
+});
+
+test("source cards only for sources that are set; meter check follows the picker", () => {
   assert.ok(!titles(buildView(entry(), EN)).some((t) => t.startsWith("PV")));
   const view = buildView(
     entry({
       sources: { feed_in: "sensor.inverter_feed_in", grid_consumption: null, pv: "sensor.pv" },
-      entities: { ...entry().entities, pv_self_consumed_month_so_far: "sensor.pv_self" },
     }),
     EN
   );
-  assert.ok(titles(view).includes("PV production, feed-in and communities"));
-  const check = graphs(view).find((c) => c.title === "Metered vs your feed-in source");
+  assert.equal(headings(view).at(-2), "Your own sources");
+  const pv = graphs(view).find((c) => c.title === "PV production, feed-in and communities");
+  assert.equal(pv.chart_type, "bar");
+  assert.equal(pv.period, "month");
+  assert.deepEqual(pv.grid_options, { columns: 24 });
   assert.deepEqual(
-    check.entities.map((e) => e.entity),
-    [S("generation"), "sensor.inverter_feed_in"]
+    pv.entities.map((e) => e.color),
+    ["#f2c94c", "#6c757f", "#2f7fd1"]
+  );
+  const check = graphs(view).find((c) => c.title === "Metered vs your feed-in source");
+  assert.equal(check.chart_type, "bar");
+  assert.equal(check.energy_date_selection, true);
+  assert.deepEqual(check.grid_options, { columns: 24 });
+  assert.deepEqual(
+    check.entities.map((e) => [e.entity, e.color]),
+    [
+      [S("generation"), "#0b8fd6"],
+      ["sensor.inverter_feed_in", "#7c5cd6"],
+    ]
   );
   assert.ok(!titles(view).includes("Metered vs your grid consumption source"));
-  assert.ok(cards(view).some((c) => c.type === "gauge" && c.entity === "sensor.pv_self"));
-});
-
-test("status explains both delays with templates", () => {
-  const view = buildView(entry(), EN);
-  const note = cards(view).find((c) => c.type === "markdown");
-  assert.match(note.content, /states\('sensor\.eg_austria_home_data_complete_until'\)/);
-  assert.match(note.content, /states\('sensor\.eg_austria_home_meter_data_until'\)/);
-  const button = cards(view).find((c) => c.type === "button");
-  assert.equal(button.tap_action.navigation_path, "/energy");
-});
-
-test("communities: entities card per community with its sensors", () => {
-  const view = buildView(entry(), EN);
-  const communities = cards(view).filter((c) => c.type === "entities");
-  assert.deepEqual(
-    communities.map((c) => [c.title, c.entities]),
-    [["Example BEG", ["sensor.e", "sensor.f"]]]
-  );
 });
 
 test("German labels", () => {
   const view = buildView(entry(), DE);
   assert.ok(titles(view).includes("Wohin die Einspeisung ging, pro Monat"));
-  const gauge = cards(view).find((c) => c.type === "gauge");
-  assert.equal(gauge.name, "Einspeisung an Gemeinschaften, Monat bisher");
+  const [, , period, beg] = view.sections[0].cards;
+  assert.equal(period.donuts[0].title, "Bezug");
+  assert.equal(period.text.until, "bisher, bis {date}");
+  assert.equal(headings(view)[2], "Letzte 12 Monate");
+  assert.equal(beg.rows[0].name, "Eingespeist");
+  assert.equal(beg.rows[0].of, "{pct} deiner Einspeisung");
 });
 
 test("sections without content are left out", () => {
@@ -152,10 +335,43 @@ test("sections without content are left out", () => {
     entry({ statistics: {}, community_statistics: {}, entities: {} }),
     EN
   );
+  // The picker and the status block with the Energy dashboard link are left.
   assert.deepEqual(
-    view.sections.map((s) => s.cards[0].heading),
-    ["Import status", "Totals in the selected period"]
+    view.sections.map((s) => s.cards.map((c) => c.type)),
+    [["energy-date-selection"], ["entities"]]
   );
+});
+
+test("default period: This month is seeded once, never overwritten", () => {
+  const store = new Map();
+  const storage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, v),
+  };
+  assert.equal(collectionKey(entry()), COLLECTION);
+  seedDefaultPeriod(COLLECTION, storage);
+  assert.deepEqual([...store], [["energy-default-period-_energy_eg_austria_home_dashboard", "this_month"]]);
+  store.set("energy-default-period-_energy_eg_austria_home_dashboard", "this_year");
+  seedDefaultPeriod(COLLECTION, storage);
+  assert.equal(store.get("energy-default-period-_energy_eg_austria_home_dashboard"), "this_year");
+  // Blocked storage doesn't break the dashboard.
+  seedDefaultPeriod(COLLECTION, {
+    getItem: () => {
+      throw new Error("blocked");
+    },
+  });
+  // No storage at all (node): nothing happens.
+  seedDefaultPeriod(COLLECTION);
+});
+
+test("Add dashboard suggestions follow the profile language", () => {
+  assert.deepEqual(createSuggestions(EN), {
+    title: "Energy community",
+    icon: "mdi:home-group",
+  });
+  assert.equal(createSuggestions(DE).title, "Energiegemeinschaft");
+  assert.equal(createSuggestions(hass("fr")).title, "Energy community");
+  assert.equal(createSuggestions(undefined).title, "Energy community");
 });
 
 test("one view per entry, entry_id filter, empty state", () => {
@@ -174,14 +390,14 @@ test("one view per entry, entry_id filter, empty state", () => {
 
 test("generate asks the websocket command", async () => {
   const calls = [];
-  const hass = {
+  const h = {
     ...EN,
     callWS: async (msg) => {
       calls.push(msg);
       return { entries: [entry()] };
     },
   };
-  const dashboard = await generate({}, hass);
+  const dashboard = await generate({}, h);
   assert.deepEqual(calls, [{ type: "eg_austria/dashboard_config" }]);
   assert.equal(dashboard.views.length, 1);
 });
