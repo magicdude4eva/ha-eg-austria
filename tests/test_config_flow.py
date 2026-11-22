@@ -478,17 +478,15 @@ async def test_user_flow_personal_token(hass: HomeAssistant) -> None:
     ]
 
 
-@pytest.mark.parametrize(
-    ("value", "error"),
-    [
-        ((dt_util.now().date() - timedelta(days=1)).isoformat(), "token_expired"),
-    ],
-)
+@pytest.mark.parametrize(("offset_days", "error"), [(-1, "token_expired")])
 async def test_personal_token_expiry_must_be_future(
-    hass: HomeAssistant, value: str, error: str
+    hass: HomeAssistant, offset_days: int, error: str
 ) -> None:
     """A past or invalid expiry date is refused before any request."""
 
+    # Computed here, not at collection: the hass fixture sets the test time
+    # zone, so a date taken earlier (in UTC) can still be today locally.
+    value = (dt_util.now().date() + timedelta(days=offset_days)).isoformat()
     result = await submit_token(hass, await start(hass), token=personal_token())
     result = await submit(hass, result, token_expires=value)
     assert result["step_id"] == "token_expiry"
