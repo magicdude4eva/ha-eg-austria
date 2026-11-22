@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - README: reload the browser page if *Custom* is missing in *Add dashboard*
   after installing or updating.
+- README: the install status links to the latest release instead of naming
+  0.1.0.
 
 ## [0.1.3] - 2026-11-22
 
