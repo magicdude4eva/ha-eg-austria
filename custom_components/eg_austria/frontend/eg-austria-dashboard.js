@@ -500,7 +500,7 @@ export const clipPeriod = (picked, cutoff, now = new Date()) => {
 
 const sameTime = (a, b) => Math.abs(a - b) <= 1000;
 
-// "October 2026", "2026" or a date range; the year is always shown.
+// "October 2026", "2026" or a date range, for the community cards.
 export const periodTitle = (start, end, lang) => {
   const at = (d, o) => d.toLocaleDateString(lang, o);
   const y = start.getFullYear();
@@ -589,16 +589,29 @@ const donutSvg = (parts, total, lang, label) => {
   return `<svg viewBox="0 0 120 120" role="img" aria-label="${escapeHtml(label)} ${kwh(lang, total)}"><circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--divider-color)" stroke-width="16"></circle>${rings}<text x="60" y="56" text-anchor="middle" font-size="11" fill="var(--secondary-text-color)">${escapeHtml(label)}</text><text x="60" y="73" text-anchor="middle" font-size="13" font-weight="500" fill="var(--primary-text-color)">${kwh(lang, total)}</text></svg>`;
 };
 
-const header = (config, period, lang, name) => {
-  const title = periodTitle(period.start, period.end, lang);
-  const until = period.clipped
+const untilText = (config, period, lang) =>
+  period.clipped
     ? config.text.until.replace(
         "{date}",
         new Date(period.until - 1).toLocaleDateString(lang, { day: "numeric", month: "short" })
       )
     : "";
-  const meta = [name ? title : "", until].filter(Boolean).join(" · ");
-  return `<div class="head"><h2>${escapeHtml(name || title)}</h2>${meta ? `<span class="meta">${escapeHtml(meta)}</span>` : ""}</div>`;
+
+// Community card: its name, then the period and how far the data goes.
+const header = (config, period, lang) => {
+  const meta = [periodTitle(period.start, period.end, lang), untilText(config, period, lang)]
+    .filter(Boolean)
+    .join(" · ");
+  return `<div class="head"><h2>${escapeHtml(config.name)}</h2><span class="meta">${escapeHtml(meta)}</span></div>`;
+};
+
+// Period card: no title, it sits right under the picker; only how far the
+// data goes when the period is cut.
+const untilLine = (config, period, lang) => {
+  const until = untilText(config, period, lang);
+  return until
+    ? `<div class="meta">${escapeHtml(until.charAt(0).toUpperCase() + until.slice(1))}</div>`
+    : "";
 };
 
 export const renderPeriodCard = (config, totals, period, lang) => {
@@ -623,7 +636,7 @@ export const renderPeriodCard = (config, totals, period, lang) => {
       })
       .join("")}</div>`;
   }
-  return `${STYLE}<ha-card>${header(config, period, lang)}${body}</ha-card>`;
+  return `${STYLE}<ha-card>${untilLine(config, period, lang)}${body}</ha-card>`;
 };
 
 export const renderCommunityCard = (config, totals, period, lang) => {
@@ -641,7 +654,7 @@ export const renderCommunityCard = (config, totals, period, lang) => {
       })
       .join("");
   }
-  return `${STYLE}<ha-card>${header(config, period, lang, config.name)}${body}</ha-card>`;
+  return `${STYLE}<ha-card>${header(config, period, lang)}${body}</ha-card>`;
 };
 
 export const periodCardIds = (config) =>

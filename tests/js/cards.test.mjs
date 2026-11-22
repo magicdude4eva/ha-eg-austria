@@ -99,8 +99,10 @@ test("cutoff: the day after Data complete until, cut only inside the period", ()
 test("period card: totals, shares, PV minus feed-in, names escaped", () => {
   const period = clipPeriod(october, new Date(2030, 9, 7));
   const html = renderPeriodCard(PERIOD, TOTALS, period, "en");
-  assert.match(html, /<h2>October 2030<\/h2>/);
-  assert.match(html, /so far, until Oct 6/);
+  // No title (it sits under the picker), only how far the data goes.
+  assert.doesNotMatch(html, /<h2>|October 2030/);
+  assert.match(html, /So far, until Oct 6/);
+  assert.doesNotMatch(renderPeriodCard(PERIOD, TOTALS, clipPeriod(october, null), "en"), /until/);
   assert.match(html, /Communities covered 25\.0 % of your import/);
   assert.match(html, /A &amp; B/);
   assert.match(html, /100\.0 kWh/);
@@ -214,14 +216,14 @@ test("card without a picker collection shows the current month", async () => {
     connection: {},
     callWS: async () => ({ change: 1 }),
   };
-  const Card = pickerCard(FakeElement, renderPeriodCard, periodCardIds, 4);
+  const Card = pickerCard(FakeElement, renderCommunityCard, communityCardIds, 2);
   const card = new Card();
-  card.setConfig(PERIOD);
+  card.setConfig(COMMUNITY);
   card.hass = hass;
   card.connectedCallback();
   await settle();
   const now = new Date();
   const month = now.toLocaleDateString("en", { month: "long", year: "numeric" });
-  assert.match(card.shadowRoot.innerHTML, new RegExp(`<h2>${month}</h2>`));
+  assert.match(card.shadowRoot.innerHTML, new RegExp(`<span class="meta">${month}</span>`));
   card.disconnectedCallback();
 });

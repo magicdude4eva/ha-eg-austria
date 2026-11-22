@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were empty); the dashboard stores that default in the browser until you
   pick another preset. Under the picker, following it, two small cards of the
   integration's own replace the gauges, the four totals and the per-community
-  tiles: a period card with the period and its year as title and donuts for
+  tiles: a period card with donuts for
   import, feed-in and PV (like the portal's overview), and one compact card
   per community with kWh fed in and drawn and their share of the total. Both
   count only up to *Data complete until*. Then the feed-in and import split
