@@ -21,7 +21,7 @@
   2. **Entity:** a price sensor (unit `EUR/kWh` or `ct/kWh`) with long-term statistics (`state_class: measurement`); the hourly mean is the price of that hour.
   3. **Statistic pair:** a cost or compensation statistic in EUR and its energy statistic in kWh; the price of an hour is `Δcost / Δenergy` for that hour, or the month's ratio when the hour's energy is below 0.01 kWh. Late corrections of the cost statistic are picked up when the window is rewritten.
 - The options flow checks units like the comparison sources (#50) and can prefill the surplus source from the Energy dashboard's export pair (compensation statistic and feed-in), read-only.
-- The **supplier price is the energy price only**, without grid fees and fixed monthly charges; the grid-fee part of the savings comes from the community's `grid_saving` (ADR 0009). The documentation says so with synthetic examples.
+- The **supplier price is the energy price only**, without grid fees and fixed monthly charges; the grid-fee part of the savings comes from the community's `grid_saving` and `grid_saving_summer_midday` (ADR 0009). The documentation says so with synthetic examples.
 - Hours without a price get no surplus or savings row (unknown, ADR 0005) and a repair `price_missing` names the price and the first uncovered date. Community money (ADR 0008) doesn't depend on these prices.
 - The statistics they feed: site **surplus income**, site **total feed-in compensation** (community feed-in income + surplus income), and per community and site **import savings** (ADR 0008).
 
