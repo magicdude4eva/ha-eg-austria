@@ -6,12 +6,15 @@
 // sources and sensors exist, and builds core cards only from that: cards for
 // sources that aren't set are left out. Read-only; nothing is written.
 //
-// Layout (#61): what is always current on top (delays, share gauges,
-// status), then a date picker that opens on this month. Totals, kWh per
-// community, the by-day split and the meter check follow the picker; the
-// 12-month charts don't. Charts sit in pairs on a wide screen.
+// Layout (#61): the delay banner, then a date picker that opens on this
+// month. Two small cards of our own follow the picker: the period card
+// (import, feed-in and PV donuts) and one card per community. The by-day
+// split and the meter check follow it too; the 12-month charts don't. Charts
+// sit in pairs on a wide screen, the import status at the end.
 
 const STRATEGY_TYPE = "eg-austria";
+const PERIOD_TAG = "eg-austria-period-card";
+const COMMUNITY_TAG = "eg-austria-community-card";
 const DOCS_URL =
   "https://github.com/magicdude4eva/ha-eg-austria#energy-community-dashboard";
 // A group of houses: members of an energy community sharing their energy.
@@ -47,23 +50,21 @@ const TEXT = {
     lastImport: "Last import",
     tokenExpires: "Token expires",
     energyDashboard: "Energy dashboard",
-    monthSoFar: "month so far",
-    lastMonth: "last month",
-    monthSoFarNote: "Month so far · last month {value}",
-    lastMonthNote: "Last month · month so far not complete yet",
-    feedInToCommunities: "Feed-in to communities",
-    importFromCommunities: "Import covered by communities",
-    pvSelfConsumed: "PV self-consumed",
+    importTitle: "Import",
+    feedInTitle: "Feed-in",
+    pvTitle: "PV",
+    importSay: "Communities covered {pct} of your import",
+    feedInSay: "Communities took {pct} of your feed-in",
+    pvSay: "You used {pct} of your PV yourself",
+    selfConsumed: "Self-consumed",
+    total: "Total",
+    until: "so far, until {date}",
+    noData: "No community data for this period yet.",
+    ofFeedIn: "{pct} of your feed-in",
+    ofImport: "{pct} of your import",
     toCommunities: "Fed into communities",
-    toSurplus: "To surplus buyer",
-    fromCommunities: "Drawn from communities",
-    fromSupplier: "Drawn from supplier",
     fedIn: "Fed in",
     drawn: "Drawn",
-    feedInShareMonthSoFar: "Feed-in share, month so far",
-    feedInShareLastMonth: "Feed-in share, last month",
-    importShareMonthSoFar: "Import share, month so far",
-    importShareLastMonth: "Import share, last month",
     last12: "Last 12 months",
     checks: "Your own sources",
     feedInSplit: "Where the feed-in went",
@@ -98,23 +99,21 @@ const TEXT = {
     lastImport: "Letzter Import",
     tokenExpires: "Token läuft ab",
     energyDashboard: "Energie-Dashboard",
-    monthSoFar: "Monat bisher",
-    lastMonth: "Vormonat",
-    monthSoFarNote: "Monat bisher · Vormonat {value}",
-    lastMonthNote: "Vormonat · Monat bisher noch nicht vollständig",
-    feedInToCommunities: "Einspeisung an Gemeinschaften",
-    importFromCommunities: "Bezug durch Gemeinschaften gedeckt",
-    pvSelfConsumed: "PV selbst verbraucht",
+    importTitle: "Bezug",
+    feedInTitle: "Einspeisung",
+    pvTitle: "PV",
+    importSay: "Gemeinschaften deckten {pct} deines Bezugs",
+    feedInSay: "Gemeinschaften nahmen {pct} deiner Einspeisung",
+    pvSay: "Du hast {pct} deiner PV selbst verbraucht",
+    selfConsumed: "Selbst verbraucht",
+    total: "Gesamt",
+    until: "bisher, bis {date}",
+    noData: "Für diesen Zeitraum gibt es noch keine Gemeinschaftsdaten.",
+    ofFeedIn: "{pct} deiner Einspeisung",
+    ofImport: "{pct} deines Bezugs",
     toCommunities: "An Gemeinschaften eingespeist",
-    toSurplus: "An Überschussabnehmer",
-    fromCommunities: "Aus Gemeinschaften bezogen",
-    fromSupplier: "Vom Lieferanten bezogen",
     fedIn: "Eingespeist",
     drawn: "Bezogen",
-    feedInShareMonthSoFar: "Einspeiseanteil, Monat bisher",
-    feedInShareLastMonth: "Einspeiseanteil, Vormonat",
-    importShareMonthSoFar: "Bezugsanteil, Monat bisher",
-    importShareLastMonth: "Bezugsanteil, Vormonat",
     last12: "Letzte 12 Monate",
     checks: "Deine eigenen Quellen",
     feedInSplit: "Wohin die Einspeisung ging",
@@ -144,9 +143,8 @@ export const createSuggestions = (hass) => ({ title: text(hass).title, icon: ICO
 // 48-column grid, so `columns: 12` is a quarter there and the full width on
 // a phone (one 12-column section).
 const MAX_COLUMNS = 4;
-const QUARTER = { columns: 12 };
 const FULL = { columns: "full" };
-const UNKNOWN = ["unknown", "unavailable"];
+const HALF = { columns: 24 };
 
 const section = (cards, span = MAX_COLUMNS) =>
   cards.length ? { type: "grid", column_span: span, cards } : null;
@@ -178,51 +176,7 @@ const delayBanner = (entry, t) => {
   };
 };
 
-// --- Share gauges and status ----------------------------------------------
-
-const gauge = (entity, name, color) => ({
-  type: "gauge",
-  entity,
-  name,
-  min: 0,
-  max: 100,
-  segments: [{ from: 0, color }],
-});
-
-// A quarter-width stack: the month so far in the gauge, last month in a
-// note under it. Early in a month the month so far has no complete day yet
-// (unknown), so the gauge shows last month then instead of a warning.
-const shareGauge = (entry, t, key, name, color) => {
-  const soFar = entry.entities[`${key}_month_so_far`];
-  const last = entry.entities[`${key}_last_month`];
-  if (!soFar && !last) return null;
-  if (!soFar || !last) {
-    const label = soFar ? t.monthSoFar : t.lastMonth;
-    return { ...gauge(soFar || last, `${name}, ${label}`, color), grid_options: QUARTER };
-  }
-  const value = `{{ states('${last}', with_unit=True) }}`;
-  const note =
-    `{% if is_number(states('${soFar}')) %}` +
-    `${t.monthSoFarNote.replace("{value}", value)}` +
-    `{% else %}${t.lastMonthNote}{% endif %}`;
-  return {
-    type: "vertical-stack",
-    grid_options: QUARTER,
-    cards: [
-      {
-        type: "conditional",
-        conditions: [{ condition: "state", entity: soFar, state_not: UNKNOWN }],
-        card: gauge(soFar, name, color),
-      },
-      {
-        type: "conditional",
-        conditions: [{ condition: "state", entity: soFar, state: UNKNOWN }],
-        card: gauge(last, name, color),
-      },
-      { type: "markdown", text_only: true, content: note },
-    ],
-  };
-};
+// --- Status ----------------------------------------------------------------
 
 const statusCard = (entry, t) => {
   const e = entry.entities;
@@ -241,31 +195,8 @@ const statusCard = (entry, t) => {
     icon: "mdi:lightning-bolt",
     url: "/energy",
   });
-  return { type: "entities", title: t.status, grid_options: QUARTER, entities: rows };
+  return { type: "entities", title: t.status, grid_options: HALF, entities: rows };
 };
-
-const overviewSection = (entry, t) =>
-  section(
-    [
-      delayBanner(entry, t),
-      shareGauge(
-        entry,
-        t,
-        "feed_in_to_communities",
-        t.feedInToCommunities,
-        COLORS.communities[0]
-      ),
-      shareGauge(
-        entry,
-        t,
-        "import_from_communities",
-        t.importFromCommunities,
-        COLORS.communities[1]
-      ),
-      shareGauge(entry, t, "pv_self_consumed", t.pvSelfConsumed, COLORS.pv),
-      statusCard(entry, t),
-    ].filter(Boolean)
-  );
 
 // --- Picked period ---------------------------------------------------------
 
@@ -303,59 +234,122 @@ const pairs = (cards) =>
       i === cards.length - 1 && cards.length % 2 ? FULL : { columns: 24 },
   }));
 
-const TOTALS = [
-  ["generation_to_community", "toCommunities"],
-  ["generation_to_surplus", "toSurplus"],
-  ["consumption_from_community", "fromCommunities"],
-  ["consumption_from_supplier", "fromSupplier"],
-];
+const communityColor = (i) => COLORS.communities[i % COLORS.communities.length];
 
-const statistic = (entity, name, collection, columns) => ({
-  type: "statistic",
-  entity,
-  name,
-  stat_type: "change",
-  period: { calendar: { period: "month" } },
-  ...picked(collection),
-  grid_options: { columns },
-});
+// Labels the cards of our own need; the strategy passes them in the config.
+const cardText = (t) => ({ total: t.total, until: t.until, noData: t.noData });
 
-const pickerSection = (entry, t, collection) => {
+const communityParts = (entry, quantity) =>
+  entry.communities
+    .map((c, i) => ({
+      name: c.name,
+      statistic: (entry.community_statistics[c.slug] || {})[quantity],
+      color: communityColor(i),
+      share: true,
+    }))
+    .filter((p) => p.statistic);
+
+// Each donut: the parts that make up a total; `share` parts give the % in
+// the sentence. PV self-consumed is PV production minus metered feed-in.
+const donuts = (entry, t) => {
   const s = entry.statistics;
-  return section([
-    { type: "energy-date-selection", collection_key: collection, grid_options: FULL },
-    ...TOTALS.filter(([key]) => s[key]).map(([key, name]) =>
-      statistic(s[key], t[name], collection, 12)
-    ),
-  ]);
+  const list = [
+    {
+      title: t.importTitle,
+      say: t.importSay,
+      parts: [
+        ...communityParts(entry, "consumption_from_community"),
+        s.consumption_from_supplier && {
+          name: t.supplier,
+          statistic: s.consumption_from_supplier,
+          color: COLORS.supplier,
+        },
+      ],
+    },
+    {
+      title: t.feedInTitle,
+      say: t.feedInSay,
+      parts: [
+        ...communityParts(entry, "generation_to_community"),
+        s.generation_to_surplus && {
+          name: t.surplusBuyer,
+          statistic: s.generation_to_surplus,
+          color: COLORS.surplus,
+        },
+      ],
+    },
+  ];
+  if (entry.sources.pv && s.generation) {
+    list.push({
+      title: t.pvTitle,
+      say: t.pvSay,
+      parts: [
+        {
+          name: t.selfConsumed,
+          statistic: entry.sources.pv,
+          subtract: s.generation,
+          color: COLORS.pv,
+          share: true,
+        },
+        { name: t.fedIn, statistic: s.generation, color: COLORS.meterTotal },
+      ],
+    });
+  }
+  return list
+    .map((d) => ({ ...d, parts: d.parts.filter(Boolean) }))
+    .filter((d) => d.parts.length > 1 && d.parts.some((p) => p.share));
 };
 
-// --- Communities ----------------------------------------------------------
+const periodCard = (entry, t, collection) => {
+  const list = donuts(entry, t);
+  return list.length
+    ? {
+        type: `custom:${PERIOD_TAG}`,
+        collection_key: collection,
+        complete_until: entry.entities.data_complete_until || null,
+        donuts: list,
+        text: cardText(t),
+        grid_options: FULL,
+      }
+    : null;
+};
 
-const COMMUNITY_ROWS = [
-  ["feed_in_share_month_so_far", "feedInShareMonthSoFar"],
-  ["feed_in_share_last_month", "feedInShareLastMonth"],
-  ["import_share_month_so_far", "importShareMonthSoFar"],
-  ["import_share_last_month", "importShareLastMonth"],
-];
+// One small card per community (a meter can be in up to five): kWh fed in
+// and drawn for the picked period, as a share of all feed-in and import.
+const communityCards = (entry, t, collection) =>
+  entry.communities
+    .map((c, i) => {
+      const stats = entry.community_statistics[c.slug] || {};
+      const s = entry.statistics;
+      const rows = [
+        [stats.generation_to_community, t.fedIn, s.generation, t.ofFeedIn],
+        [stats.consumption_from_community, t.drawn, s.consumption, t.ofImport],
+      ]
+        .filter(([statistic]) => statistic)
+        .map(([statistic, name, total, of]) => ({ statistic, name, total: total || null, of }));
+      return rows.length
+        ? {
+            type: `custom:${COMMUNITY_TAG}`,
+            collection_key: collection,
+            complete_until: entry.entities.data_complete_until || null,
+            name: c.name,
+            color: communityColor(i),
+            rows,
+            text: cardText(t),
+          }
+        : null;
+    })
+    .filter(Boolean);
 
-// One half-width section per community: kWh for the picked period and the
-// share sensors.
-const communitySections = (entry, t, collection) =>
-  entry.communities.map((c) => {
-    const stats = entry.community_statistics[c.slug] || {};
-    const cards = [
-      ["generation_to_community", t.fedIn],
-      ["consumption_from_community", t.drawn],
-    ]
-      .filter(([key]) => stats[key])
-      .map(([key, name]) => statistic(stats[key], name, collection, 12));
-    const rows = COMMUNITY_ROWS.filter(([key]) => entry.entities[`${c.slug}_${key}`]).map(
-      ([key, name]) => ({ entity: entry.entities[`${c.slug}_${key}`], name: t[name] })
-    );
-    if (rows.length) cards.push({ type: "entities", entities: rows, grid_options: FULL });
-    return cards.length ? section([heading(c.name), ...cards], 2) : null;
-  });
+const pickerSection = (entry, t, collection) =>
+  section(
+    [
+      delayBanner(entry, t),
+      { type: "energy-date-selection", collection_key: collection, grid_options: FULL },
+      periodCard(entry, t, collection),
+      ...pairs(communityCards(entry, t, collection)),
+    ].filter(Boolean)
+  );
 
 // --- Charts ---------------------------------------------------------------
 
@@ -380,7 +374,7 @@ const splitSeries = (entry, quantity, rest, restName, restColor) =>
     ...entry.communities.map((c, i) => [
       (entry.community_statistics[c.slug] || {})[quantity],
       c.name,
-      COLORS.communities[i % COLORS.communities.length],
+      communityColor(i),
     ]),
     [entry.statistics[rest], restName, restColor],
   ]);
@@ -469,18 +463,278 @@ const checksSection = (entry, t, collection) => {
   return cards.length ? section([heading(t.checks), ...pairs(cards)]) : null;
 };
 
+// --- Cards that follow the date picker -------------------------------------
+//
+// Core cards can't show a share for the picked period, so two small cards of
+// our own do. They read the picker's period from the frontend's energy
+// collection, kept on the connection as `_<collection key>`. That is not a
+// public API: without it the cards show the current month. Totals come from
+// `recorder/statistic_during_period` (change over the period, in kWh), cut
+// at "Data complete until" so every number covers the same days.
+
+const DAY = 864e5;
+
+export const currentMonth = (now = new Date()) => ({
+  start: new Date(now.getFullYear(), now.getMonth(), 1),
+  end: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+});
+
+export const pickerCollection = (hass, key) =>
+  (hass && hass.connection && hass.connection[`_${key}`]) || null;
+
+// The first day without complete data: "Data complete until" + 1 day.
+export const completeCutoff = (hass, entity) => {
+  const state = entity && hass && hass.states && hass.states[entity];
+  const m = state && /^(\d{4})-(\d{2})-(\d{2})/.exec(state.state);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + 1) : null;
+};
+
+// The picked period, cut at the cutoff. An open end counts to tomorrow.
+export const clipPeriod = (picked, cutoff, now = new Date()) => {
+  const start = picked.start;
+  const end = picked.end || new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const clipped = Boolean(cutoff && cutoff < end);
+  const until = clipped ? cutoff : end;
+  return { start, end, until, clipped, empty: until <= start };
+};
+
+const sameTime = (a, b) => Math.abs(a - b) <= 1000;
+
+// "October 2026", "2026" or a date range; the year is always shown.
+export const periodTitle = (start, end, lang) => {
+  const at = (d, o) => d.toLocaleDateString(lang, o);
+  const y = start.getFullYear();
+  const m = start.getMonth();
+  if (start.getDate() === 1 && start.getHours() === 0) {
+    if (m === 0 && sameTime(end, new Date(y + 1, 0, 1))) return String(y);
+    if (sameTime(end, new Date(y, m + 1, 1))) return at(start, { month: "long", year: "numeric" });
+  }
+  const last = new Date(end - 1);
+  const day = { day: "numeric", month: "short", year: "numeric" };
+  return last - start < DAY ? at(start, day) : `${at(start, day)} – ${at(last, day)}`;
+};
+
+export const fetchTotals = async (hass, ids, start, end) => {
+  const totals = {};
+  await Promise.all(
+    [...new Set(ids)].map(async (id) => {
+      try {
+        const result = await hass.callWS({
+          type: "recorder/statistic_during_period",
+          statistic_id: id,
+          fixed_period: { start_time: start.toISOString(), end_time: end.toISOString() },
+          types: ["change"],
+          units: { energy: "kWh" },
+        });
+        totals[id] = result && typeof result.change === "number" ? result.change : null;
+      } catch (err) {
+        totals[id] = null;
+      }
+    })
+  );
+  return totals;
+};
+
+const escapeHtml = (value) =>
+  String(value).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+  );
+
+const kwh = (lang, value) =>
+  `${new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)} kWh`;
+const percent = (lang, part, total) =>
+  total > 0
+    ? `${new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format((100 * part) / total)} %`
+    : "–";
+
+const partValue = (part, totals) => {
+  const value = totals[part.statistic];
+  if (value === null || value === undefined) return null;
+  const minus = part.subtract ? totals[part.subtract] : 0;
+  return Math.max(value - (minus || 0), 0);
+};
+
+const STYLE = `<style>
+ha-card{padding:16px;display:flex;flex-direction:column;gap:14px;height:100%;box-sizing:border-box}
+.head{display:flex;align-items:baseline;gap:6px 10px;flex-wrap:wrap}
+h2{margin:0;font-size:1.2em;font-weight:500;color:var(--primary-text-color)}
+.meta,.say,.empty,.of{color:var(--secondary-text-color);font-size:.875em}
+.donuts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px 24px}
+.donut{display:flex;gap:14px;align-items:center;min-width:0}
+svg{flex:none;width:120px;height:120px}
+.text{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+h3{margin:0;font-size:1em;font-weight:500}
+.row{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums}
+.dot{width:10px;height:10px;border-radius:3px;flex:none}
+.value{margin-left:auto;padding-left:8px;font-weight:500;white-space:nowrap}
+.name{min-width:0;overflow-wrap:anywhere}
+.bar{display:flex;flex-direction:column;gap:4px}
+.track{height:8px;border-radius:4px;background:var(--divider-color);overflow:hidden}
+.track i{display:block;height:100%;border-radius:4px}
+</style>`;
+
+const donutSvg = (parts, total, lang, label) => {
+  const r = 48;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+  const rings = parts
+    .map((p) => {
+      const len = total > 0 ? (c * p.value) / total : 0;
+      const ring = `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${p.color}" stroke-width="16" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-offset}" transform="rotate(-90 60 60)"></circle>`;
+      offset += len;
+      return ring;
+    })
+    .join("");
+  return `<svg viewBox="0 0 120 120" role="img" aria-label="${escapeHtml(label)} ${kwh(lang, total)}"><circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--divider-color)" stroke-width="16"></circle>${rings}<text x="60" y="56" text-anchor="middle" font-size="11" fill="var(--secondary-text-color)">${escapeHtml(label)}</text><text x="60" y="73" text-anchor="middle" font-size="13" font-weight="500" fill="var(--primary-text-color)">${kwh(lang, total)}</text></svg>`;
+};
+
+const header = (config, period, lang, name) => {
+  const title = periodTitle(period.start, period.end, lang);
+  const until = period.clipped
+    ? config.text.until.replace(
+        "{date}",
+        new Date(period.until - 1).toLocaleDateString(lang, { day: "numeric", month: "short" })
+      )
+    : "";
+  const meta = [name ? title : "", until].filter(Boolean).join(" · ");
+  return `<div class="head"><h2>${escapeHtml(name || title)}</h2>${meta ? `<span class="meta">${escapeHtml(meta)}</span>` : ""}</div>`;
+};
+
+export const renderPeriodCard = (config, totals, period, lang) => {
+  let body;
+  if (period.empty) {
+    body = `<div class="empty">${escapeHtml(config.text.noData)}</div>`;
+  } else {
+    body = `<div class="donuts">${config.donuts
+      .map((d) => {
+        const parts = d.parts
+          .map((p) => ({ ...p, value: partValue(p, totals) }))
+          .filter((p) => p.value !== null);
+        const total = parts.reduce((sum, p) => sum + p.value, 0);
+        const share = parts.filter((p) => p.share).reduce((sum, p) => sum + p.value, 0);
+        const rows = parts
+          .map(
+            (p) =>
+              `<div class="row"><span class="dot" style="background:${p.color}"></span><span class="name">${escapeHtml(p.name)}</span><span class="value">${kwh(lang, p.value)}</span></div>`
+          )
+          .join("");
+        return `<div class="donut">${donutSvg(parts, total, lang, config.text.total)}<div class="text"><h3>${escapeHtml(d.title)}</h3><span class="say">${escapeHtml(d.say.replace("{pct}", percent(lang, share, total)))}</span>${rows}</div></div>`;
+      })
+      .join("")}</div>`;
+  }
+  return `${STYLE}<ha-card>${header(config, period, lang)}${body}</ha-card>`;
+};
+
+export const renderCommunityCard = (config, totals, period, lang) => {
+  let body;
+  if (period.empty) {
+    body = `<div class="empty">${escapeHtml(config.text.noData)}</div>`;
+  } else {
+    body = config.rows
+      .map((row) => {
+        const value = totals[row.statistic] || 0;
+        const total = row.total ? totals[row.total] || 0 : 0;
+        const width = total > 0 ? Math.min(100, (100 * value) / total) : 0;
+        const of = row.total ? row.of.replace("{pct}", percent(lang, value, total)) : "";
+        return `<div class="bar"><div class="row"><span class="name">${escapeHtml(row.name)}</span><span class="value">${kwh(lang, value)}</span>${of ? `<span class="of">${escapeHtml(of)}</span>` : ""}</div><div class="track"><i style="width:${width.toFixed(1)}%;background:${config.color}"></i></div></div>`;
+      })
+      .join("");
+  }
+  return `${STYLE}<ha-card>${header(config, period, lang, config.name)}${body}</ha-card>`;
+};
+
+export const periodCardIds = (config) =>
+  config.donuts.flatMap((d) => d.parts.flatMap((p) => [p.statistic, p.subtract].filter(Boolean)));
+export const communityCardIds = (config) =>
+  config.rows.flatMap((r) => [r.statistic, r.total].filter(Boolean));
+
+// The element: finds the picker's collection (it may appear a moment after
+// the card), follows its period and renders when period or cutoff change.
+export const pickerCard = (Base, render, ids, size) =>
+  class extends Base {
+    setConfig(config) {
+      this._config = config;
+      this._key = null;
+      this._sync();
+    }
+
+    set hass(hass) {
+      this._hass = hass;
+      this._sync();
+    }
+
+    connectedCallback() {
+      this._connected = true;
+      this._sync();
+    }
+
+    disconnectedCallback() {
+      this._connected = false;
+      if (this._unsub) this._unsub();
+      this._unsub = null;
+      this._collection = null;
+      this._key = null;
+      clearTimeout(this._retry);
+      this._retry = null;
+    }
+
+    getCardSize() {
+      return size;
+    }
+
+    _sync() {
+      if (!this._hass || !this._config || !this._connected) return;
+      if (!this._collection) {
+        const collection = pickerCollection(this._hass, this._config.collection_key);
+        if (collection) {
+          this._collection = collection;
+          try {
+            const unsub = collection.subscribe(() => this._sync());
+            this._unsub = typeof unsub === "function" ? unsub : null;
+          } catch (err) {
+            // Changed frontend: keep the period it has now.
+          }
+        } else if (!this._retry && (this._tries = (this._tries || 0) + 1) <= 20) {
+          this._retry = setTimeout(() => {
+            this._retry = null;
+            this._sync();
+          }, 500);
+        }
+      }
+      const c = this._collection;
+      const picked = c && c.start instanceof Date ? { start: c.start, end: c.end } : currentMonth();
+      const period = clipPeriod(picked, completeCutoff(this._hass, this._config.complete_until));
+      const lang = language(this._hass);
+      const key = `${+period.start}|${+period.end}|${+period.until}|${lang}`;
+      if (key === this._key) return;
+      this._key = key;
+      if (period.empty) {
+        this._show(render(this._config, {}, period, lang));
+        return;
+      }
+      fetchTotals(this._hass, ids(this._config), period.start, period.until).then((totals) => {
+        if (this._key === key) this._show(render(this._config, totals, period, lang));
+      });
+    }
+
+    _show(html) {
+      if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+      this.shadowRoot.innerHTML = html;
+    }
+  };
+
 // --- Dashboard ------------------------------------------------------------
 
 export const buildView = (entry, hass) => {
   const t = text(hass);
   const collection = collectionKey(entry);
   const sections = [
-    overviewSection(entry, t),
     pickerSection(entry, t, collection),
-    ...communitySections(entry, t, collection),
     pickedChartsSection(entry, t, collection),
     monthChartsSection(entry, t),
     checksSection(entry, t, collection),
+    section([statusCard(entry, t)]),
   ].filter(Boolean);
   return {
     title: entry.title,
@@ -517,7 +771,8 @@ export const generate = async (config, hass) => {
   return dashboard;
 };
 
-// Browser only: register the strategy element and the "Add dashboard" entry.
+// Browser only: register the strategy element, the "Add dashboard" entry
+// and the two cards.
 const TAG = `ll-strategy-dashboard-${STRATEGY_TYPE}`;
 if (typeof customElements !== "undefined" && !customElements.get(TAG)) {
   class EgAustriaDashboardStrategy extends HTMLElement {
@@ -539,4 +794,14 @@ if (typeof customElements !== "undefined" && !customElements.get(TAG)) {
     description: TEXT.en.description,
     documentationURL: DOCS_URL,
   });
+}
+if (typeof customElements !== "undefined") {
+  for (const [tag, render, ids, size] of [
+    [PERIOD_TAG, renderPeriodCard, periodCardIds, 4],
+    [COMMUNITY_TAG, renderCommunityCard, communityCardIds, 2],
+  ]) {
+    if (!customElements.get(tag)) {
+      customElements.define(tag, pickerCard(HTMLElement, render, ids, size));
+    }
+  }
 }

@@ -13,12 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   date picker now opens on this month (it opened on today, while community
   data is about two weeks late, so totals showed `?` and the by-day charts
   were empty); the dashboard stores that default in the browser until you
-  pick another preset. On top, always current: a banner with both delays,
-  compact share gauges (month so far, last month in a note) and a status
-  block with short names, including *Token expires*. Under the picker: totals,
-  kWh per community and the feed-in and import split for the picked period.
-  Charts in pairs, fixed series colours, metered vs your source as bars, as
-  the two lines covered each other.
+  pick another preset. Under the picker, following it, two small cards of the
+  integration's own replace the gauges, the four totals and the per-community
+  tiles: a period card with the period and its year as title and donuts for
+  import, feed-in and PV (like the portal's overview), and one compact card
+  per community with kWh fed in and drawn and their share of the total. Both
+  count only up to *Data complete until*. Then the feed-in and import split
+  for the picked period. Charts in pairs, fixed series colours, metered vs
+  your source as bars, as the two lines covered each other; the import status
+  with short names, including *Token expires*, at the end.
 
 ### Added
 

@@ -422,10 +422,10 @@ integration's own `eg_austria:` statistics can't be picked here.
 
 ## Energy community dashboard
 
-The integration brings a ready-made dashboard built only from core cards. It
-uses your entry's statistics, the [summary sensors](#summary-sensors) and the
-[comparison sources](#comparison-sources) you picked, and leaves out cards for
-sources you didn't set.
+The integration brings a ready-made dashboard: core cards plus two small cards
+of its own that follow the date picker. It uses your entry's statistics and
+the [comparison sources](#comparison-sources) you picked, and leaves out cards
+for sources you didn't set.
 
 **Add it once:** **Settings → Dashboards → Add dashboard**, then under
 *Custom* pick **EG Austria energy community**. The integration never creates
@@ -441,10 +441,10 @@ What it shows, one view per EG Austria entry, from top to bottom:
 
 | Part | Cards |
 |---|---|
-| Always current | A banner with the two delays (community shares complete until *Data complete until*, meter values until *Meter data until*); gauges for feed-in to communities, import covered by communities and, with a PV source, PV self-consumed, each showing the month so far with last month in a note under it (last month in the gauge while the month has no complete day yet); the import status: *Data complete until*, *Meter data until*, *Last run*, *Last import*, *Token expires* and a link to the Energy dashboard |
-| Picked period | A date picker that opens on **this month**; use ‹ › to step to earlier months, or pick a week, a year or any range. Under it, following the picker: totals (fed into communities, to the surplus buyer, drawn from communities, from the supplier), per community the kWh fed in and drawn plus its share sensors, and where the feed-in went and where the import came from |
+| Picked period | A banner with the two delays (community shares complete until *Data complete until*, meter values until *Meter data until*), then a date picker that opens on **this month**; use ‹ › to step to earlier months, or pick a week, a year or any range. Under it, following the picker: the **period card** with the period and its year as title and three donuts: *Import* (from each community and from the supplier, with the share covered by communities), *Feed-in* (to each community and to the surplus buyer, with the share the communities took) and, with a PV source, *PV* (self-consumed vs fed in); then **one card per community** with the kWh fed in and drawn and their share of all your feed-in and import; then where the feed-in went and where the import came from, by day |
 | Last 12 months | The same two splits by month |
 | Your own sources | With a PV source, PV production vs metered feed-in vs communities by month; with a feed-in or grid consumption source, metered vs your source for the picked period, as bars side by side (the two agree closely, so lines would cover each other) |
+| Import status | *Data complete until*, *Meter data until*, *Last run*, *Last import*, *Token expires* and a link to the Energy dashboard |
 
 Charts sit in pairs on a wide screen and stack on a phone. Each community
 keeps its colour in every chart (first blue, second green), the surplus buyer
@@ -457,6 +457,16 @@ Energy dashboard. Until you pick one, the dashboard stores *This month* there
 community data yet: community shares arrive about two weeks late. The newest
 days show feed-in and import but no community split until the portal has it
 (*Data complete until*).
+
+The period and community cards count only up to *Data complete until*, so
+every number in them covers the same days; for the current month the title
+says *so far, until* that day. They read the picked period from the date
+picker through a frontend detail that isn't a public API; if a Home Assistant
+update changes it, they show the current month instead. The picker itself
+adds the year only for months outside the current year, which is why the
+period card's title always shows it. In the built-in charts, Home Assistant
+adds *(Change)* to every series name: the kWh in that bar (the change of the
+meter total); there is no setting to hide it.
 
 ## Actions
 
