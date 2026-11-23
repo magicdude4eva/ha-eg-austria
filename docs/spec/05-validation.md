@@ -9,7 +9,7 @@ Any failure → `SchemaError` → the whole run writes nothing, repair `api_chan
 | Id | Rule |
 |---|---|
 | S1 | Response is a JSON object (list for `day-completeness`, `metering-point`; list or empty body for `maintenance`). |
-| S2 | Required keys present (spec 01). |
+| S2 | Required keys present (spec 01; totals and day flags of a direction without points may be missing, issue #78). |
 | S3 | Energy fields are number or null; flags are bool; `dateTimeFrom` is a string. |
 | S4 | `dateTimeFrom` parses as ISO 8601 with offset or `Z`; converted to UTC. |
 | S5 | For `Hour`: every timestamp is on a whole UTC hour. For `Day`: every timestamp is a local midnight. |
