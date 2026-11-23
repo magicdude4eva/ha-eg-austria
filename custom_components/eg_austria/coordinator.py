@@ -111,6 +111,7 @@ from .summary import (
     meter_data_until,
 )
 from .validation import ValidationResult, schema_failure
+from .zero import rates_from_store, rates_to_store
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -191,6 +192,8 @@ class StoreData:
     # Issue #74: value-free digest per "<slug>/<direction>/<YYYY-MM>" of the
     # settled amount, to re-fetch a month whose settlement changed.
     settlement_digests: dict[str, str] = field(default_factory=dict)
+    # Issue #89: latest derived Zero rate per "<slug>/<direction>".
+    zero_rates: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any] | None) -> StoreData:
@@ -220,6 +223,7 @@ class StoreData:
                 str(k): str(v)
                 for k, v in (_mapping(raw.get("settlement_digests")) or {}).items()
             },
+            zero_rates=rates_to_store(rates_from_store(raw.get("zero_rates"))),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -252,6 +256,7 @@ class StoreData:
             "setup": self.setup,
             "schema_fingerprints": dict(self.schema_fingerprints),
             "settlement_digests": dict(self.settlement_digests),
+            "zero_rates": dict(self.zero_rates),
         }
 
 
@@ -843,8 +848,13 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             validation=validation,
             check_stop=self._check_stop,
             settlements=settlements,
+            zero_rates=rates_from_store(self.state.zero_rates),
         )
-        summary.settlement = settlement_diagnostics(result.settlement, settlements)
+        summary.settlement = {
+            **settlement_diagnostics(result.settlement, settlements),
+            "zero_rates": rates_to_store(result.zero_rates),
+            "zero_months": result.zero_months,
+        }
         summary.chunks = result.chunks
         summary.validation = result.validation
         summary.blocked = result.blocked
@@ -863,6 +873,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
 
         # 9. Store bookkeeping.
         self.state.settlement_digests = digests
+        self.state.zero_rates = rates_to_store(result.zero_rates)
         window = set(days_between(start, end))
         held = {
             k: [d for d in days if d not in window]
