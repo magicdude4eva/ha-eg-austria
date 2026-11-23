@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4.3] - 2026-11-23
+
+Patch release: a parser fix and a debug export on top of 0.1.4.2. No
+configuration changes are needed.
+
 ### Added
 
 - Debug export (`eg_austria.debug_export`, #84): writes the portal responses
@@ -168,7 +173,8 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.2...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.3...HEAD
+[0.1.4.3]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.2...0.1.4.3
 [0.1.4.2]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.1...0.1.4.2
 [0.1.4.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4...0.1.4.1
 [0.1.4]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.3...0.1.4
