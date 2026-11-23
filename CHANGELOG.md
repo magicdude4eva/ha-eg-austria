@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-23
+
+€ in the dashboard and as summary sensors (#75), the last part of phase 2
+(#55). Includes 0.2.0.1. **Requires Home Assistant 2026.11.0 or later.**
+
 ### Added
 
 - € in the generated dashboard (#75): every community segment of the
@@ -265,7 +270,8 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.0.1...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1...HEAD
+[0.2.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.0.1...0.2.1
 [0.2.0.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.0...0.2.0.1
 [0.2.0]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.3...0.2.0
 [0.1.4.3]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.2...0.1.4.3
