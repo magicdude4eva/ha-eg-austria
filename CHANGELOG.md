@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- *Data complete until* stuck at the day before the earliest activation
+  after the 0.2.0 re-fetch, on sites where the portal flags the activation
+  day or the days before a second community's activation as incomplete
+  (#97, #98). The % summary sensors went `unknown` and the dashboard showed
+  "so far, until" that date with no community data. Days up to a
+  direction's latest community activation no longer count as missing, and
+  only the last 13 months (what a daily run checks) decide the date; an
+  affected store recovers on the next run.
+
 ## [0.2.1] - 2026-11-23
 
 € in the dashboard and as summary sensors (#75), the last part of phase 2

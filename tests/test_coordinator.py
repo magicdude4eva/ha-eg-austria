@@ -66,6 +66,7 @@ from custom_components.eg_austria.importer import (
 )
 from custom_components.eg_austria.models import (
     DayCompleteness,
+    Direction,
     parse_day_completeness,
     parse_metering_points,
 )
@@ -214,6 +215,63 @@ def test_complete_until() -> None:
     bad_first = _complete(*days, incomplete=(later,))
     assert complete_until(bad_first, later, last, date(2026, 5, 1)) == date(2026, 2, 28)
     assert complete_until(bad_first, later, last, None) is None
+
+
+def test_complete_until_activation_gap() -> None:
+    """Issue #98: days up to a direction's latest activation are not missing.
+
+    The portal flags the days before the second community's activation (and
+    the activation day) incomplete. A re-fetch from the earliest activation
+    used to end the run on its first day, and later runs kept that value.
+    """
+
+    days = _range(date(2026, 1, 1), date(2026, 6, 7))
+    gap = tuple(_range(date(2026, 1, 1), EEG_BEGIN))
+    entries = _complete(*days, incomplete=(*gap, date(2026, 5, 25)))
+    both = {Direction.CONSUMPTION: EEG_BEGIN, Direction.GENERATION: EEG_BEGIN}
+    first = date(2026, 1, 1)
+    assert complete_until(entries, first, TODAY, date(2026, 5, 24)) == first - (
+        timedelta(days=1)
+    )
+    assert complete_until(
+        entries, first, TODAY, date(2026, 5, 24), exempt=both
+    ) == date(2026, 5, 24)
+    assert complete_until(entries, first, TODAY, None, exempt=both) == date(2026, 5, 24)
+    # Only the exempt direction: an incomplete generation flag still stops.
+    cons_only = {Direction.CONSUMPTION: EEG_BEGIN}
+    assert complete_until(entries, first, TODAY, None, exempt=cons_only) is None
+    # A day after the activation still counts.
+    late = _complete(*days, incomplete=(date(2026, 4, 17),))
+    assert complete_until(late, first, TODAY, None, exempt=both) == EEG_BEGIN
+
+
+def test_complete_until_horizon() -> None:
+    """Issue #98: only the days a daily run re-checks decide the value."""
+
+    horizon = date(2026, 3, 1)
+    days = _range(date(2026, 1, 1), date(2026, 6, 7))
+    old_gap = _complete(*days, incomplete=(date(2026, 1, 1), date(2026, 5, 25)))
+    first = date(2026, 1, 1)
+    # A re-fetch from before the horizon ignores an older gap.
+    assert complete_until(old_gap, first, TODAY, None, horizon=horizon) == date(
+        2026, 5, 24
+    )
+    # A stored value before the horizon is never re-checked: the walk decides.
+    walk = _complete(
+        *_range(horizon, date(2026, 6, 7)), incomplete=(date(2026, 5, 25),)
+    )
+    assert complete_until(walk, horizon, TODAY, date(2026, 1, 31), horizon=horizon) == (
+        date(2026, 5, 24)
+    )
+    # Inside the horizon a stored value before the fetched range stays.
+    later = date(2026, 4, 1)
+    assert complete_until(
+        old_gap, later, TODAY, date(2026, 3, 15), horizon=horizon
+    ) == date(2026, 3, 15)
+    # A window entirely before the horizon leaves the value alone.
+    assert complete_until(
+        old_gap, first, date(2026, 2, 1), date(2026, 5, 24), horizon=horizon
+    ) == date(2026, 5, 24)
 
 
 async def test_daily_run_window(hass: HomeAssistant, env: Any) -> None:
@@ -841,12 +899,14 @@ def test_store_round_trip() -> None:
 EEG_BEGIN = date(2026, 4, 16)
 
 
-def _two_start_mp(eeg_end: str | None = None) -> list[dict[str, Any]]:
-    """BEG active from 2026-01-01, EEG from ``EEG_BEGIN`` (both metering points)."""
+def _two_start_mp(
+    eeg_end: str | None = None, beg_begin: str = "2026-01-01"
+) -> list[dict[str, Any]]:
+    """BEG active from ``beg_begin``, EEG from ``EEG_BEGIN`` (both metering points)."""
 
     gen = FakeClient().gen
     acts = [
-        gen.activation(gen.BEG, "2026-01-01"),
+        gen.activation(gen.BEG, beg_begin),
         gen.activation(gen.EEG, EEG_BEGIN.isoformat(), eeg_end),
     ]
     return [
@@ -897,6 +957,15 @@ def test_site_info_activation_ranges() -> None:
     assert not site.active_on(2002, date(2026, 5, 21))
     # Only the BEG selected: the EEG still counts for P4 where it is active.
     assert not _site(_two_start_mp(), (2001,)).all_communities
+    # Issue #98: completeness counts from the latest selected start per direction.
+    assert site.complete_from == {
+        Direction.CONSUMPTION: EEG_BEGIN,
+        Direction.GENERATION: EEG_BEGIN,
+    }
+    assert _site(_two_start_mp(), (2001,)).complete_from == {
+        Direction.CONSUMPTION: date(2026, 1, 1),
+        Direction.GENERATION: date(2026, 1, 1),
+    }
 
 
 def test_plan_chunks_cut_at_activation() -> None:
@@ -971,6 +1040,54 @@ async def test_initial_run_communities_start_on_different_dates(
     assert (EEG_BEGIN, date(2026, 4, 30)) in beg
     assert len(beg) == summary.chunks == 7
     assert summary.requests == 5 + 7 + 3 == client.request_count
+
+
+@pytest.mark.usefixtures("no_writes")
+async def test_complete_until_after_refetch_from_old_activation(
+    hass: HomeAssistant, env: Any
+) -> None:
+    """Issue #98, reporter's shape: BEG from more than 13 months ago.
+
+    The re-fetch from the earliest activation hit its incomplete first day
+    and *Data complete until* stuck the day before it; daily runs kept it.
+    """
+
+    client = FakeClient()
+    client.mp_raw = _two_start_mp(beg_begin="2024-09-02")
+    client.incomplete = {date(2024, 9, 2), date(2026, 5, 25)}
+    client.future_from = TODAY
+    coordinator, _, _ = make(hass, client)
+    coordinator.state.complete_until = date(2026, 5, 20)
+    summary = await coordinator.async_run(
+        RunRequest(RunType.MANUAL, date(2024, 9, 2), TODAY)
+    )
+    assert summary is not None
+    assert summary.status is RunStatus.OK, summary.error
+    assert coordinator.state.complete_until == date(2026, 5, 24)
+
+    # A store already stuck before the 13-month horizon recovers on a daily run.
+    coordinator.state.complete_until = date(2024, 9, 1)
+    summary = await coordinator.async_run(RunRequest(RunType.DAILY))
+    assert summary is not None
+    assert summary.status is RunStatus.OK, summary.error
+    assert coordinator.state.complete_until == date(2026, 5, 24)
+
+
+@pytest.mark.usefixtures("no_writes")
+async def test_complete_until_before_second_activation(
+    hass: HomeAssistant, env: Any
+) -> None:
+    """Issue #98: days before the EEG starts, flagged incomplete, are not missing."""
+
+    client = FakeClient()
+    client.mp_raw = _two_start_mp()
+    client.incomplete = {*_range(date(2026, 1, 1), EEG_BEGIN), date(2026, 5, 25)}
+    client.future_from = TODAY
+    coordinator, _, _ = make(hass, client, initial_done=False)
+    summary = await coordinator.async_run(RunRequest(RunType.INITIAL))
+    assert summary is not None
+    assert summary.status is RunStatus.OK, summary.error
+    assert coordinator.state.complete_until == date(2026, 5, 24)
 
 
 async def test_site_totals_before_second_activation(
