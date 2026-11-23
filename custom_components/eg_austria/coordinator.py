@@ -858,11 +858,11 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             start, end, settlements, changed, site.earliest_activation
         )
         comp_start = start
+        # 13 months back, inclusive: the days every daily run checks.
+        horizon = add_months(today, -COMPLETENESS_MONTHS) + timedelta(days=1)
         if request.run_type is RunType.DAILY:
-            # 13 months back, inclusive: one completeness request.
-            comp_start = min(
-                start, add_months(today, -COMPLETENESS_MONTHS) + timedelta(days=1)
-            )
+            # One completeness request.
+            comp_start = min(start, horizon)
         self._check_stop()
         completeness, validation = await async_fetch_completeness(
             client, setup, comp_start, end
@@ -942,7 +942,12 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             if (rest := [d for d in days if d not in window])
         }
         self.state.complete_until = complete_until(
-            completeness, comp_start, end, self.state.complete_until
+            completeness,
+            comp_start,
+            end,
+            self.state.complete_until,
+            horizon=horizon,
+            exempt=site.complete_from,
         )
         meter = meter_data_until(
             {k: w.newest_hour for k, w in result.writes.items()}, setup.site_slug

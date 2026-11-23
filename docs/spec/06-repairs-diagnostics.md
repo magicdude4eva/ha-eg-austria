@@ -25,7 +25,7 @@ One device per entry (`DeviceEntryType.SERVICE`, identifier and name from the en
 | Key | Type | Value |
 |---|---|---|
 | `token_expires` | timestamp | `token_exp` |
-| `data_complete_until` | date | last date of the contiguous run of days where both completeness flags are true, starting from the first activation |
+| `data_complete_until` | date | last date of the contiguous run of days where both completeness flags are true, within the last 13 months; days up to a direction's latest community activation do not count as missing (issue #98, spec 03) |
 | `meter_data_until` | date | last local day whose meter statistics (site consumption and generation, the earlier of the two) reach its last hour, from each run's newest known hour; stored as `meter_until` (issue #51) |
 | `last_import` | timestamp | end of last successful run |
 | `last_run_status` | enum | `ok`, `partial`, `skipped_maintenance`, `auth_failed`, `api_changed`, `unavailable`, `rate_limited`; kept in the store, so a restart shows the last finished run; unknown only before the first run |

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 import itertools
@@ -181,24 +181,52 @@ def complete_until(
     start: date,
     end: date,
     previous: date | None,
+    *,
+    horizon: date | None = None,
+    exempt: Mapping[Direction, date] | None = None,
 ) -> date | None:
     """Last date of the contiguous complete run (spec 06 ``data_complete_until``).
 
-    The walk starts at ``start`` (the first fetched day). If the stored value
-    ends before that, the days in between were not re-checked and the stored
-    value stays. Returns ``None`` when nothing is known to be complete.
+    The walk starts at ``start`` (the first fetched day), never before
+    ``horizon`` (the first day a daily run checks): older gaps are never
+    re-checked, so they must not hold the value back (issue #98). If the
+    stored value ends before the walk but inside the horizon, the days in
+    between were not re-checked and the stored value stays. ``exempt`` maps a
+    direction to the latest activation start of the selected communities in
+    it; that direction's flag does not count up to and including that day,
+    since the portal reports days before a community's activation (and a
+    partial activation day) as incomplete (issue #98). Returns ``None`` when
+    nothing is known to be complete.
     """
 
-    if previous is not None and previous < start - timedelta(days=1):
+    walk = start if horizon is None else max(start, horizon)
+    if walk > end:
         return previous
-    stop = first_incomplete(entries, start, end)
+    if (
+        previous is not None
+        and previous < walk - timedelta(days=1)
+        and (horizon is None or previous >= horizon - timedelta(days=1))
+    ):
+        return previous
+    if exempt:
+        cons = exempt.get(Direction.CONSUMPTION, date.min)
+        gen = exempt.get(Direction.GENERATION, date.min)
+        entries = [
+            replace(
+                e,
+                consumption_complete=e.consumption_complete or e.day <= cons,
+                generation_complete=e.generation_complete or e.day <= gen,
+            )
+            for e in entries
+        ]
+    stop = first_incomplete(entries, walk, end)
     if stop is None:
         return end
-    if stop > start:
+    if stop > walk:
         return stop - timedelta(days=1)
-    # The first fetched day is incomplete: the run ends the day before, as far
+    # The first walked day is incomplete: the run ends the day before, as far
     # as an earlier run saw complete days up to there.
-    return start - timedelta(days=1) if previous is not None else None
+    return walk - timedelta(days=1) if previous is not None else None
 
 
 def chunk_window(start: date, end: date) -> list[tuple[date, date]]:
@@ -341,6 +369,9 @@ class SiteInfo:
     # Issue #89: days with an own-site Zero plan (sending and receiving point
     # both selected), merged. Empty: no Zero estimate.
     zero_ranges: tuple[DateRange, ...] = ()
+    # Issue #98: direction -> latest first activation of the selected
+    # communities with a selected metering point in it (``complete_until``).
+    complete_from: Mapping[Direction, date] = field(default_factory=dict)
 
     def own_zero_on(self, day: date) -> bool:
         """Return True when an own-site Zero plan is active on ``day``."""
@@ -393,6 +424,7 @@ def site_info(
     names: dict[int, str] = {}
     ranges: dict[int, list[DateRange]] = defaultdict(list)
     starts: list[date] = []
+    first: dict[tuple[int, Direction], date] = {}
     for mp in points:
         for act in mp.activations:
             if act.active_to is not None and act.active_to < act.active_from:
@@ -401,6 +433,11 @@ def site_info(
             if act.community_id in selected:
                 names[act.community_id] = act.community_name
                 starts.append(act.active_from)
+                key = (act.community_id, mp.direction)
+                first[key] = min(first.get(key, act.active_from), act.active_from)
+    complete_from: dict[Direction, date] = {}
+    for (_, direction), begin in first.items():
+        complete_from[direction] = max(complete_from.get(direction, begin), begin)
     numbers = {mp.number for mp in points if mp.number}
     zero = [
         (plan.active_from, plan.active_to)
@@ -419,6 +456,7 @@ def site_info(
         all_communities=set(ranges) <= selected,
         missing_mp_ids=tuple(sorted(set(mp_ids) - found)),
         activations={cid: merge_ranges(r) for cid, r in ranges.items()},
+        complete_from=complete_from,
     )
 
 
