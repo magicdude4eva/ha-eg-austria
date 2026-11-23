@@ -40,6 +40,7 @@ from custom_components.eg_austria.const import (
     CONF_SOURCE_FEED_IN,
     CONF_SOURCE_GRID_CONSUMPTION,
     CONF_SOURCE_PV,
+    CONF_SUPPLIER_PRICE,
     CONF_SURPLUS_PRICE,
     CONF_TOKEN,
     CONF_TOKEN_EXP,
@@ -1262,7 +1263,12 @@ async def test_options_flow(hass: HomeAssistant) -> None:
     entry = make_entry(hass, options_extra={CONF_SOURCE_PV: "sensor.pv"})
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU
-    assert result["menu_options"] == ["import_settings", "sources", "surplus_price"]
+    assert result["menu_options"] == [
+        "import_settings",
+        "sources",
+        "surplus_price",
+        "supplier_price",
+    ]
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "import_settings"}
     )
@@ -2155,3 +2161,50 @@ async def test_options_surplus_table_none_found(hass: HomeAssistant) -> None:
     schema = result["data_schema"].schema
     suggested = {str(k): (k.description or {}).get("suggested_value") for k in schema}
     assert suggested["entity"] is None
+
+
+async def _open_supplier(hass: HomeAssistant, entry, source: str):
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "supplier_price"}
+    )
+    assert result["step_id"] == "supplier_price"
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], {"source": source}
+    )
+
+
+async def test_options_supplier_number_and_none(hass: HomeAssistant) -> None:
+    """Issue #73: the supplier price uses the same steps, stored on its own."""
+
+    entry = make_entry(hass)
+    result = await _open_supplier(hass, entry, "number")
+    assert result["step_id"] == "supplier_number"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"periods": "2030-01-01: 12,5\n2031-01-01: 18"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_SUPPLIER_PRICE] == {
+        "source": "number",
+        "periods": [["2030-01-01", 12.5], ["2031-01-01", 18.0]],
+    }
+    assert CONF_SURPLUS_PRICE not in entry.options
+    result = await _open_supplier(hass, entry, "none")
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert CONF_SUPPLIER_PRICE not in entry.options
+
+
+async def test_options_supplier_table_not_prefilled(hass: HomeAssistant) -> None:
+    """The ÖMAG price table is only suggested for the surplus price."""
+
+    hass.states.async_set(
+        "sensor.oemag_price_table", "10", {"preise": {"2030-01": 9.5}}
+    )
+    entry = make_entry(hass)
+    result = await _open_supplier(hass, entry, "table")
+    assert result["step_id"] == "supplier_table"
+    suggested = {
+        str(k): (k.description or {}).get("suggested_value")
+        for k in result["data_schema"].schema
+    }
+    assert suggested.get("entity") is None

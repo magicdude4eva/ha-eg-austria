@@ -14,6 +14,7 @@ Created with `issue_registry.async_create_issue(hass, DOMAIN, f"{issue}_{entry_i
 | `implausible_data` | warning | a plausibility or history rule blocked a write | next run with no blocking result, or `release_held` once no held days remain | no |
 | `portal_unreachable` | warning | 3 consecutive calendar days without a successful run | next successful run | no |
 | `price_missing` | warning | a run has surplus kWh on an overdue day without a surplus price (spec 04 "Money"); placeholder `date` = first such day | next run that writes and finds a price for every overdue hour (also when the price is removed) | no; text points to the options |
+| `supplier_price_missing` | warning | the same for community kWh without a supplier price (import savings, issue #73) | as `price_missing` | no; text points to the options |
 
 Placeholders in issue texts contain only the entry title, rule id, statistic key and dates.
 

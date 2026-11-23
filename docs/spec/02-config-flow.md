@@ -75,7 +75,7 @@ Files: `config_flow.py`, `token.py` (parsing), `strings.json`, `translations/{en
 
 Number selectors (box): `max_hourly_kwh` 1-1000 in steps of 0.5, `daily_window_days` 31-400, `long_refetch_months` 1-36. The options flow reloads the entry on change (`OptionsFlowWithReload`).
 
-The options flow opens with a menu (`init`): `import_settings` (the four options above), `sources` and `surplus_price` (below). Each step saves only its own keys and keeps the others.
+The options flow opens with a menu (`init`): `import_settings` (the four options above), `sources`, `surplus_price` and `supplier_price` (below). Each step saves only its own keys and keeps the others.
 
 ### Comparison sources (issue #50)
 
@@ -101,6 +101,8 @@ Option `surplus_price`: a dict, or absent. Step `surplus_price` picks the source
 | `surplus_table` | `entity`, `attribute` (default `preise`), `unit` (`ct/kWh` or `EUR/kWh`) | `{"source": "table", "entity", "attribute", "unit"}` | `bad_price_table` (attribute is not a non-empty `YYYY-MM` → number map) |
 
 The table step suggests the first entity whose `preise` attribute is a valid month table (for example the ha-oemag price table sensor). Saved values are shown again when the step is reopened.
+
+Option `supplier_price` (issue #73, ADR 0015): the same steps and storage with the prefix `supplier_` (`supplier_price`, `supplier_number`, `supplier_sensor`, `supplier_table`), stored under its own key; the table step suggests nothing (the ÖMAG table is a surplus price). The texts ask for the energy price only (no base charge, grid fees or levies).
 
 ## Translations
 

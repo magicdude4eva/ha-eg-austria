@@ -246,7 +246,8 @@
         "menu_options": {
           "import_settings": "Import settings",
           "sources": "Comparison sources",
-          "surplus_price": "Surplus price"
+          "surplus_price": "Surplus price",
+          "supplier_price": "Supplier price"
         }
       },
       "import_settings": {
@@ -321,6 +322,50 @@
           "attribute": "Name of the attribute with the month table, for example `preise`.",
           "unit": "Unit of the prices in the table."
         }
+      },
+      "supplier_price": {
+        "title": "Supplier price",
+        "description": "Your supplier's energy price per kWh, the part you save for every kWh a community delivers. Only the energy price: no grid fees, levies or monthly base charges. With a price, the integration adds import savings per community and for the site (community kWh at this price minus what the community charged).",
+        "data": {
+          "source": "Price source"
+        },
+        "data_description": {
+          "source": "None removes the supplier price and stops the savings statistics (their history stays)."
+        }
+      },
+      "supplier_number": {
+        "title": "Supplier price: fixed",
+        "description": "One line per period: start date and energy price in ct/kWh, for example `2026-01-01: 12.5`. A period runs until the next one starts, so a supplier or price change is a new line.",
+        "data": {
+          "periods": "Periods"
+        },
+        "data_description": {
+          "periods": "Energy price in ct/kWh including VAT, as on your bill, without base charges and grid fees."
+        }
+      },
+      "supplier_sensor": {
+        "title": "Supplier price: sensor",
+        "description": "A sensor with your energy price in EUR/kWh or ct/kWh and long-term statistics, for example of a dynamic tariff. The hourly mean is used, because community data arrives weeks late.",
+        "data": {
+          "entity": "Price sensor"
+        },
+        "data_description": {
+          "entity": "Its unit must be EUR/kWh or ct/kWh, and it needs a state class so the recorder keeps hourly means."
+        }
+      },
+      "supplier_table": {
+        "title": "Supplier price: monthly table",
+        "description": "An entity attribute that maps months (`YYYY-MM`) to your energy price, for a tariff with a monthly price. Months not in the table yet stay empty until their price is there.",
+        "data": {
+          "entity": "Entity",
+          "attribute": "Attribute",
+          "unit": "Unit"
+        },
+        "data_description": {
+          "entity": "The entity with the month table.",
+          "attribute": "Name of the attribute with the month table.",
+          "unit": "Unit of the prices in the table."
+        }
       }
     },
     "error": {
@@ -351,7 +396,9 @@
         "site_surplus_eur": "Surplus income",
         "site_feed_in_total_eur": "Feed-in compensation",
         "community_feed_in_eur": "Feed-in income",
-        "community_consumption_eur": "Cost of consumption"
+        "community_consumption_eur": "Cost of consumption",
+        "site_import_savings_eur": "Import savings",
+        "community_import_savings_eur": "Import savings"
       }
     },
     "price_source": {
@@ -471,6 +518,10 @@
     "price_missing": {
       "title": "EG Austria surplus price missing",
       "description": "{title} has surplus kWh from {date} on without a surplus price, so surplus income and feed-in compensation stay empty for those hours. Add a period or check the price source in the integration options (Surplus price). The message clears after a run finds a price for every overdue hour."
+    },
+    "supplier_price_missing": {
+      "title": "EG Austria supplier price missing",
+      "description": "{title} has community kWh from {date} on without a supplier price, so import savings stay empty for those hours. Add a period or check the price source in the integration options (Supplier price). The message clears after a run finds a price for every overdue hour."
     }
   },
   "entity": {

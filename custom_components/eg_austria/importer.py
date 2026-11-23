@@ -282,6 +282,7 @@ class EntrySetup:
     site_label: str | None = None
     labels: Mapping[str, str] = field(default_factory=dict)
     surplus_price: PriceSource | None = None  # ADR 0015
+    supplier_price: PriceSource | None = None  # ADR 0015, issue #73
 
     @property
     def community_ids(self) -> list[int]:
@@ -492,6 +493,7 @@ def statistic_defs(setup: EntrySetup, site: SiteInfo) -> list[StatisticDef]:
     kwargs: dict[str, Any] = {
         "labels": dict(setup.labels),
         "surplus": setup.surplus_price is not None,
+        "supplier": setup.supplier_price is not None,
     }
     if setup.site_label:
         kwargs["site_label"] = setup.site_label
@@ -549,6 +551,7 @@ class ImportResult:
     chunks: int
     blocked: dict[str, list[date]]  # every day held back per statistic key
     price_missing: date | None = None  # first overdue day without surplus price
+    supplier_price_missing: date | None = None  # the same for the supplier price
     # Issue #74: how each settled community, direction and month was scaled.
     settlement: dict[Key, MonthFactor] = field(default_factory=dict)
     # Issue #89: latest derived Zero rate per community and direction, and the
@@ -706,10 +709,15 @@ async def async_import(
         hourly = apply_settlements(hourly, factors)
         day_values = apply_settlements(day_values, factors)
 
+    hours = [h for d in window for h in day_hours(d)]
     prices: dict[datetime, float] | None = None
     if setup.surplus_price is not None:
-        hours = [h for d in window for h in day_hours(d)]
         prices = (await async_hourly_prices(hass, setup.surplus_price, hours)).prices
+    supplier_prices: dict[datetime, float] | None = None
+    if setup.supplier_price is not None:
+        supplier_prices = (
+            await async_hourly_prices(hass, setup.supplier_price, hours)
+        ).prices
 
     writes = await async_import_window(
         hass,
@@ -722,25 +730,38 @@ async def async_import(
         held_days=blocked,
         active_days=active_days,
         prices=prices,
+        supplier_prices=supplier_prices,
     )
-    price_missing: date | None = None
-    if setup.surplus_price is not None:
-        surplus = writes.get(f"{setup.site_slug}_{Quantity.SURPLUS_EUR}")
-        if surplus is not None:
-            price_missing = first_unpriced(
-                surplus.unpriced,
-                {},
-                setup.surplus_price,
-                local_today(dt_util.utcnow()),
-                # No repair for hours before the source's first price.
-                covered_from=min(prices) if prices else None,
-            )
+    today = local_today(dt_util.utcnow())
+
+    def missing(
+        quantity: Quantity,
+        source: PriceSource | None,
+        known: Mapping[datetime, float] | None,
+    ) -> date | None:
+        write = writes.get(f"{setup.site_slug}_{quantity}")
+        if source is None or write is None:
+            return None
+        return first_unpriced(
+            write.unpriced,
+            {},
+            source,
+            today,
+            # No repair for hours before the source's first price.
+            covered_from=min(known) if known else None,
+        )
+
+    price_missing = missing(Quantity.SURPLUS_EUR, setup.surplus_price, prices)
+    supplier_missing = missing(
+        Quantity.IMPORT_SAVINGS_EUR, setup.supplier_price, supplier_prices
+    )
     return ImportResult(
         validation=result,
         writes=writes,
         chunks=len(plan),
         blocked=blocked,
         price_missing=price_missing,
+        supplier_price_missing=supplier_missing,
         settlement=factors,
         zero_rates=rates,
         zero_months=sorted(

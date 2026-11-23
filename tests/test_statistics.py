@@ -769,6 +769,30 @@ def test_derive_surplus_and_total() -> None:
     assert series["home_feed_in_total_eur"].values == {h1: pytest.approx(0.7)}
 
 
+def test_derive_import_savings_site_and_community() -> None:
+    """Issue #73: community kWh x supplier price - community cost, per hour."""
+
+    defs = build_statistic_defs("home", [BEG], BOTH, supplier=True)
+    keys = {d.key for d in defs}
+    assert {"home_import_savings_eur", "home_beg_import_savings_eur"} <= keys
+    assert "home_surplus_eur" not in keys
+    h1 = datetime(2026, 6, 1, 10, tzinfo=UTC)
+    h2 = h1 + timedelta(hours=1)
+    h3 = h2 + timedelta(hours=1)
+    series = {d.key: stats.Series() for d in defs}
+    for prefix in ("home_", "home_beg_"):
+        series[prefix + "consumption_from_community"] = stats.Series(
+            {h1: 2.0, h2: 1.0, h3: 3.0}
+        )
+        series[prefix + "consumption_eur"] = stats.Series({h1: 0.05, h2: 0.12})
+    stats.derive_series(defs, series, None, {h1: 0.12, h3: 0.12})
+    for prefix in ("home_", "home_beg_"):
+        savings = series[prefix + "import_savings_eur"]
+        # h2 has no price, h3 no cost: only h1 is known.
+        assert savings.values == {h1: pytest.approx(0.19)}
+        assert savings.unpriced == [h2]
+
+
 def test_derive_without_surplus_defs_is_noop() -> None:
     """Without a surplus price nothing is derived."""
 

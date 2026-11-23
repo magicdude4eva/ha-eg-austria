@@ -357,6 +357,8 @@ Statistics in € (unit `€`, hourly, with a running sum), next to the kWh ones
 | `eg_austria:<site>_<c>_consumption_eur` | *community name* Cost of consumption | The same for community `<c>` |
 | `eg_austria:<site>_surplus_eur` | Home Surplus income | Surplus kWh × your [surplus price](#surplus-price) (only with a surplus price) |
 | `eg_austria:<site>_feed_in_total_eur` | Home Feed-in compensation | Community income + surplus income (only with a surplus price) |
+| `eg_austria:<site>_import_savings_eur` | Home Import savings | Community kWh × your [supplier price](#supplier-price) − cost of consumption from communities (only with a supplier price) |
+| `eg_austria:<site>_<c>_import_savings_eur` | *community name* Import savings | The same for community `<c>` |
 
 - **No tariffs to enter.** The community amounts are the hourly amounts the
   portal itself shows (`earnings`, `spendings`); they already contain the
@@ -487,6 +489,26 @@ compensation* (see [Money](#money)). Pick one source:
 | Monthly price table | An entity attribute that maps months to prices, for example the price table sensor of the [ÖMAG integration](https://github.com/nn-homeassistant/ha-oemag) (attribute `preise`, ct/kWh). It is suggested when found. |
 
 *None* removes the price; the surplus statistics stop, their history stays.
+
+### Supplier price
+
+Optional. Your supplier's **energy price** per kWh: what you would have paid
+your supplier for the kWh a community delivered. With it you get *Import
+savings* per community and for the site: community kWh at this price minus
+what the community charged (see [Money](#money)). The cost side follows the
+invoices and the Zero estimate, so savings do too.
+
+Enter the energy price only, incl. VAT, as on your supplier's bill: no base
+charge, no grid fees or levies. A supplier or price change is a new period.
+Example with made-up prices: `2026-01-01: 12.5` and `2026-10-01: 15.2`.
+The same sources as for the surplus price are available (fixed, price sensor,
+monthly table); nothing is suggested.
+
+Grid-fee and levy reductions for community kWh (for example the reduced grid
+price of a regional EEG) are not part of the savings yet, so EEG savings are
+understated ([#76](https://github.com/magicdude4eva/ha-eg-austria/issues/76)).
+
+*None* removes the price; the savings statistics stop, their history stays.
 
 ## Energy community dashboard
 
@@ -755,6 +777,13 @@ There are surplus kWh on days without a [surplus price](#surplus-price), so
 surplus income and feed-in compensation stay empty for those hours. Add a
 period, or check the price source, in the options. The repair clears after a
 run finds a price for every overdue hour.
+
+### Supplier price missing
+
+There are community kWh on days without a [supplier price](#supplier-price),
+so import savings stay empty for those hours. Add a period, or check the
+price source, in the options. The repair clears after a run finds a price for
+every overdue hour.
 
 ### Diagnostic sensors
 

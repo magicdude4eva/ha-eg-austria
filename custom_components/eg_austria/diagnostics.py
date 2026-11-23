@@ -27,6 +27,7 @@ from .const import (
     CONF_MP_IDS,
     CONF_RETIRED_SLUGS,
     CONF_SITE_SLUG,
+    CONF_SUPPLIER_PRICE,
     CONF_SURPLUS_PRICE,
     CONF_TOKEN,
     CONF_TOKEN_ID,
@@ -166,6 +167,7 @@ async def _statistics_section(
             set(Direction),
             # Surplus and total compensation exist with a surplus price.
             surplus=bool(entry.options.get(CONF_SURPLUS_PRICE)),
+            supplier=bool(entry.options.get(CONF_SUPPLIER_PRICE)),
         )
     ]
     return await get_instance(hass).async_add_executor_job(_stored_ranges, hass, ids)

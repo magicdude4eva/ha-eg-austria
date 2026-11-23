@@ -387,6 +387,8 @@ Statistiken in € (Einheit `€`, stündlich, mit laufender Summe), neben den k
 | `eg_austria:<site>_<c>_consumption_eur` | *Gemeinschaftsname* Bezugskosten | Dasselbe für Gemeinschaft `<c>` |
 | `eg_austria:<site>_surplus_eur` | Home Überschuss-Ertrag | Überschuss-kWh × dein [Überschusspreis](#überschusspreis) (nur mit Überschusspreis) |
 | `eg_austria:<site>_feed_in_total_eur` | Home Einspeisevergütung | Ertrag aus Gemeinschaften + Überschuss-Ertrag (nur mit Überschusspreis) |
+| `eg_austria:<site>_import_savings_eur` | Home Ersparnis beim Bezug | Gemeinschafts-kWh × dein [Lieferantenpreis](#lieferantenpreis) − Bezugskosten aus Gemeinschaften (nur mit Lieferantenpreis) |
+| `eg_austria:<site>_<c>_import_savings_eur` | *Gemeinschaftsname* Ersparnis beim Bezug | Dasselbe für Gemeinschaft `<c>` |
 
 - **Keine Tarife einzugeben.** Die Gemeinschaftsbeträge sind die stündlichen
   Beträge, die das Portal selbst zeigt (`earnings`, `spendings`); sie enthalten
@@ -524,6 +526,29 @@ Quelle:
 | Monatliche Preistabelle | Ein Attribut einer Entität, das Monate auf Preise abbildet, z. B. der Preistabellen-Sensor der [ÖMAG-Integration](https://github.com/nn-homeassistant/ha-oemag) (Attribut `preise`, ct/kWh). Wird vorgeschlagen, wenn vorhanden. |
 
 *Keine* entfernt den Preis; die Überschuss-Statistiken enden, ihr Verlauf bleibt.
+
+### Lieferantenpreis
+
+Optional. Der **Energiepreis** deines Stromlieferanten pro kWh: was du deinem
+Lieferanten für die kWh bezahlt hättest, die eine Gemeinschaft geliefert hat.
+Damit bekommst du die *Ersparnis beim Bezug* pro Gemeinschaft und für den
+Standort: Gemeinschafts-kWh zu diesem Preis minus dem, was die Gemeinschaft
+verrechnet hat (siehe [Geld](#geld)). Die Kostenseite folgt den Rechnungen und
+der Zero-Schätzung, die Ersparnis also auch.
+
+Trage nur den Energiepreis inkl. USt. laut Lieferantenrechnung ein: ohne
+Grundgebühr, Netzentgelte und Abgaben. Ein Lieferanten- oder Preiswechsel ist
+ein neuer Zeitraum. Beispiel mit erfundenen Preisen: `2026-01-01: 12,5` und
+`2026-10-01: 15,2`. Es gibt dieselben Quellen wie beim Überschusspreis (fix,
+Preissensor, Monatstabelle); vorgeschlagen wird nichts.
+
+Ersparnisse bei Netzentgelten und Abgaben für Gemeinschafts-kWh (z. B. der
+reduzierte Netzarbeitspreis einer regionalen EEG) sind noch nicht enthalten,
+EEG-Ersparnisse sind also zu niedrig
+([#76](https://github.com/magicdude4eva/ha-eg-austria/issues/76)).
+
+*Keine* entfernt den Preis; die Ersparnis-Statistiken enden, ihr Verlauf
+bleibt.
 
 ## Energiegemeinschafts-Dashboard
 
@@ -811,6 +836,13 @@ Es gibt Überschuss-kWh an Tagen ohne [Überschusspreis](#überschusspreis);
 Ergänze in den Optionen einen Zeitraum oder prüfe die Preisquelle. Die
 Reparatur verschwindet, sobald ein Lauf für jede fällige Stunde einen Preis
 findet.
+
+### Lieferantenpreis fehlt
+
+Es gibt Gemeinschafts-kWh an Tagen ohne [Lieferantenpreis](#lieferantenpreis);
+die Ersparnis bleibt für diese Stunden leer. Ergänze in den Optionen einen
+Zeitraum oder prüfe die Preisquelle. Die Reparatur verschwindet, sobald ein
+Lauf für jede fällige Stunde einen Preis findet.
 
 ## Fehlerbehebung
 

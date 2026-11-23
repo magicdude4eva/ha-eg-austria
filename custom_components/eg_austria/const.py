@@ -37,6 +37,7 @@ SOURCE_KEYS: Final = (CONF_SOURCE_FEED_IN, CONF_SOURCE_GRID_CONSUMPTION, CONF_SO
 
 # Money (options, ADR 0015): price source dicts, see prices.py.
 CONF_SURPLUS_PRICE: Final = "surplus_price"
+CONF_SUPPLIER_PRICE: Final = "supplier_price"  # issue #73, ADR 0015
 
 # Personal token: default stated lifetime (ADR 0007).
 PERSONAL_TOKEN_DEFAULT_DAYS: Final = 365

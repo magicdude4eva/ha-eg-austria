@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Import savings against your supplier's energy price (#73): optional
+  *Supplier price* (fixed periods, price sensor or monthly table) gives
+  *Import savings* per community and for the site, community kWh at that price
+  minus what the community charged, and a *supplier price missing* repair.
+  Grid-fee and levy reductions are not included yet (#76).
+
 - Zero estimate for months not billed yet (#89): with an own-site Zero plan,
   each day's Zero kWh (the smaller of feed-in to and consumption from the
   community) are priced at a Zero rate derived from the settled invoices, so
