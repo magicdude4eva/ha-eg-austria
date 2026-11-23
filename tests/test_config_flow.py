@@ -2208,3 +2208,36 @@ async def test_options_supplier_table_not_prefilled(hass: HomeAssistant) -> None
         for k in result["data_schema"].schema
     }
     assert suggested.get("entity") is None
+
+
+async def test_options_supplier_sensor_and_table_saved(hass: HomeAssistant) -> None:
+    """Issue #73: sensor and table sources are stored as the supplier price."""
+
+    hass.states.async_set(
+        "sensor.tariff",
+        "0.15",
+        {"unit_of_measurement": "EUR/kWh", "state_class": "measurement"},
+    )
+    hass.states.async_set("sensor.months", "1", {"prices": {"2030-01": 15.0}})
+    entry = make_entry(hass)
+    result = await _open_supplier(hass, entry, "sensor")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"entity": "sensor.tariff"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_SUPPLIER_PRICE] == {
+        "source": "sensor",
+        "entity": "sensor.tariff",
+    }
+    result = await _open_supplier(hass, entry, "table")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {"entity": "sensor.months", "attribute": "prices", "unit": "ct/kWh"},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_SUPPLIER_PRICE] == {
+        "source": "table",
+        "entity": "sensor.months",
+        "attribute": "prices",
+        "unit": "ct/kWh",
+    }
