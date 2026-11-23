@@ -344,3 +344,75 @@ async def test_device_diagnostics_same_as_entry(
     output = await async_get_device_diagnostics(hass, loaded.entry, devices[0])
     assert output == await async_get_config_entry_diagnostics(hass, loaded.entry)
     assert_clean(output, token)
+
+
+async def test_diagnostics_after_restart_keep_setup_and_shapes(
+    hass: HomeAssistant, env: Any
+) -> None:
+    """Issue #78: last run, setup shape and response shapes survive a restart."""
+
+    from custom_components.eg_austria.exceptions import SchemaError
+
+    loaded = await async_setup_fake_entry(hass, token_exp=int(NOW.timestamp()) + 9e6)
+    client = loaded.client
+    client.schema_fingerprints = {
+        "analysis-data": schema_fingerprint(
+            {"totalConsumption": 1.5, "consumptionDataPoints": [], "x": None}
+        )
+    }
+    client.errors["get_analysis"] = SchemaError(
+        "S2", "totalGeneration", "required key missing"
+    )
+    await loaded.coordinator.async_run(RunRequest(RunType.DAILY))
+    await hass.async_block_till_done()
+    # A restart: nothing in memory any more, only the store.
+    loaded.coordinator.data = None
+    client.schema_fingerprints = {}
+    loaded.coordinator.site = None
+    output = await async_get_config_entry_diagnostics(hass, loaded.entry)
+    text = assert_clean(output, loaded.entry.data["token"])
+    assert output["last_run"]["status"] == "api_changed"
+    assert output["last_run"]["validation"]["findings"][0]["rule"] == "S2"
+    assert "totalGeneration" in output["last_run"]["error"]
+    assert output["schema_fingerprint"]["analysis-data"]["totalConsumption"] == (
+        "float"
+    )
+    setup = output["setup"]
+    assert setup["location_found"] is True
+    assert setup["selected_found"] == len(setup["selected"]) > 0
+    assert setup["selected_missing"] == 0
+    assert {p["direction"] for p in setup["selected"]} <= {"Consumption", "Generation"}
+    for point in setup["selected"]:
+        for act in point["activations"]:
+            assert act["community"] in {"beg", "eeg", "other"}
+            assert act["from"] is None or len(act["from"]) == 7  # YYYY-MM
+    # Not repeated inside the store section.
+    for key in ("last_run", "setup", "schema_fingerprints"):
+        assert key not in output["store"]
+    assert "Example" not in text
+
+
+def test_setup_shape_other_community_and_months() -> None:
+    """Unselected communities show as ``other``; no ids, names or numbers."""
+
+    from custom_components.eg_austria.models import parse_metering_points
+    from custom_components.eg_austria.snapshot import setup_shape
+
+    from .conftest import load_fixture
+
+    info = parse_metering_points(load_fixture("metering_point_single.json"))
+    location = info.locations[0]
+    mp_ids = [mp.id for mp in location.metering_points]
+    first = location.metering_points[0].activations[0].community_id
+    shape = setup_shape(info, location.id, mp_ids, {first: "beg"})
+    text = json.dumps(shape)
+    for value in SENSITIVE:
+        assert value not in text, value
+    communities = {a["community"] for p in shape["selected"] for a in p["activations"]}
+    assert "beg" in communities
+    assert communities <= {"beg", "other"}
+    assert shape["selected_found"] == len(mp_ids)
+    assert sum(shape["location_points"].values()) == len(mp_ids)
+    assert setup_shape(info, "no-such-location", mp_ids, {})["location_found"] is (
+        False
+    )
