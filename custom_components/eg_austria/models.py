@@ -786,3 +786,48 @@ def parse_version(raw: Any) -> PortalVersion:
         build_time=_str(_get(obj, "buildTime", ""), "buildTime"),
         extra=_extra(obj, frozenset(("gitCommit", "buildTime"))),
     )
+
+
+# ---------------------------------------------------------------------------
+# billing/transactions (issue #74, ADR 0008)
+
+
+@dataclass(frozen=True, slots=True)
+class Transaction:
+    """One ``billing/transactions`` row (amount in EUR, + paid to the member).
+
+    Only these fields are kept: ``document`` (its ``fileName`` holds the
+    member's name), ``invoiceNumber`` and the status fields are dropped.
+    """
+
+    date: date  # settlement date (local)
+    amount: float
+    description: str = field(repr=False)
+    community_name: str | None = field(repr=False)  # energyCommunityShortName
+
+
+def parse_transactions(raw: Any) -> list[Transaction]:
+    """Parse ``billing/transactions`` (a list, newest first in the portal)."""
+
+    result = []
+    for i, item in enumerate(_require_list(raw, "")):
+        path = f"[{i}]"
+        obj = _require_dict(item, path)
+        amount = _number(_get(obj, "amount", path), _key(path, "amount"))
+        if amount is None:
+            raise SchemaError("S3", _key(path, "amount"), "expected number, got null")
+        when = _str(_get(obj, "date", path), _key(path, "date"))
+        result.append(
+            Transaction(
+                date=_date(when[:10], _key(path, "date")),
+                amount=amount,
+                description=_str(
+                    _get(obj, "description", path), _key(path, "description")
+                ),
+                community_name=_opt_str(
+                    _get(obj, "energyCommunityShortName", path),
+                    _key(path, "energyCommunityShortName"),
+                ),
+            )
+        )
+    return result

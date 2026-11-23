@@ -252,11 +252,16 @@ def first_unpriced(
     prices: Mapping[datetime, float],
     source: PriceSource,
     today: date,
+    covered_from: datetime | None = None,
 ) -> date | None:
     """Return the first local date with kWh but no price that is overdue.
 
     A monthly table may lack the current month and ``late_months`` before it;
     those hours are expected to get a price later and are not reported.
+    Hours before ``covered_from`` (the first hour the source has a price for)
+    are before the source starts, for example a history import older than a
+    price table that only keeps the running year: they get no row, but no
+    repair either, since no price can be added there.
     """
 
     first_due = date(today.year, today.month, 1)
@@ -266,6 +271,7 @@ def first_unpriced(
         local_date(h)
         for h in kwh_hours
         if h not in prices
+        and (covered_from is None or h >= covered_from)
         and (source.source is not SourceType.TABLE or local_date(h) < first_due)
     ]
     return min(missing) if missing else None

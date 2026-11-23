@@ -92,6 +92,12 @@ from .importer import (
 from .models import Maintenance, PortalVersion
 from .prices import PriceSource
 from .redact import redact_text
+from .settlement import (
+    build_settlements,
+    changed_months,
+    diagnostics as settlement_diagnostics,
+    settled_window_start,
+)
 from .snapshot import run_snapshot, setup_shape, slug_map
 from .sources import configured_sources
 from .statistics import Quantity
@@ -182,6 +188,9 @@ class StoreData:
     last_run: dict[str, Any] | None = None
     setup: dict[str, Any] | None = None
     schema_fingerprints: dict[str, Any] = field(default_factory=dict)
+    # Issue #74: value-free digest per "<slug>/<direction>/<YYYY-MM>" of the
+    # settled amount, to re-fetch a month whose settlement changed.
+    settlement_digests: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any] | None) -> StoreData:
@@ -207,6 +216,10 @@ class StoreData:
             last_run=_mapping(raw.get("last_run")),
             setup=_mapping(raw.get("setup")),
             schema_fingerprints=_mapping(raw.get("schema_fingerprints")) or {},
+            settlement_digests={
+                str(k): str(v)
+                for k, v in (_mapping(raw.get("settlement_digests")) or {}).items()
+            },
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -238,6 +251,7 @@ class StoreData:
             "last_run": self.last_run,
             "setup": self.setup,
             "schema_fingerprints": dict(self.schema_fingerprints),
+            "settlement_digests": dict(self.settlement_digests),
         }
 
 
@@ -290,6 +304,7 @@ class RunSummary:
     stale_client: bool = False  # api_changed came from a "portal updated" 400
     rescheduled_for: datetime | None = None  # after maintenance
     price_missing_from: date | None = None  # first overdue day without a price
+    settlement: dict[str, Any] | None = None  # value-free summary (issue #74)
     issues: IssueHints = field(default_factory=IssueHints)
 
     @property
@@ -771,8 +786,21 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             )
         self._refresh_names(site.names)
 
+        # Settlements (issue #74, ADR 0008): one request per run.
+        self._check_stop()
+        names = {c.slug: site.names.get(c.id) or c.name for c in setup.communities}
+        settlements = build_settlements(
+            await client.get_transactions(setup.member), names
+        )
+        digests = settlements.digests()
+        changed = changed_months(self.state.settlement_digests, digests)
+
         # 3. Window and day completeness.
         start, end = self._window_bounds(request, today, site.earliest_activation)
+        # Whole settled months, and months whose settlement changed.
+        start = settled_window_start(
+            start, end, settlements, changed, site.earliest_activation
+        )
         comp_start = start
         if request.run_type is RunType.DAILY:
             # 13 months back, inclusive: one completeness request.
@@ -790,6 +818,15 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
                 ),
                 site.earliest_activation or date.min,
             )
+            start = max(
+                min(
+                    start,
+                    settled_window_start(
+                        start, end, settlements, changed, site.earliest_activation
+                    ),
+                ),
+                comp_start,
+            )
         summary.window = (start, end)
 
         # 4.-8. Chunks, validation, statistics.
@@ -805,7 +842,9 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             released=released,
             validation=validation,
             check_stop=self._check_stop,
+            settlements=settlements,
         )
+        summary.settlement = settlement_diagnostics(result.settlement, settlements)
         summary.chunks = result.chunks
         summary.validation = result.validation
         summary.blocked = result.blocked
@@ -823,6 +862,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         )
 
         # 9. Store bookkeeping.
+        self.state.settlement_digests = digests
         window = set(days_between(start, end))
         held = {
             k: [d for d in days if d not in window]

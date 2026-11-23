@@ -29,7 +29,7 @@
 - Statistics (unit EUR, `has_sum`, no mean), per community and as a site total: **feed-in income** and **community consumption cost**, both as positive amounts. Ids follow ADR 0012 (`<site>[_<community>]_feed_in_eur`, `…_consumption_eur`; final names in spec 04). The site feed-in income is meant as compensation for a feed-in source in the Energy dashboard (ADR 0011).
 - **Surplus income** (optional): surplus kWh (`generation_to_surplus`) × the surplus price (ADR 0015), per site. With it, the site also gets a **total feed-in compensation** = community feed-in income + surplus income, so all feed-in is priced once, community kWh at the community rate. It is not rescaled by community settlements.
 - **Import savings** (optional): per community and site, community kWh × supplier energy price (ADR 0015) − community consumption cost. Zero kWh count like other community kWh. Grid-fee and levy reductions for community kWh are not included (ADR 0009).
-- Diagnostics: per community and month, the standard rates seen, provisional total, settled total, scale factor, estimated Zero kWh, derived Zero rates, and the state (provisional, settled, unmatched correction).
+- Diagnostics: per community, direction and month, the state (provisional, settled, unmatched correction, provisional total 0) and the scale factor; with #89 also the estimated Zero kWh and derived Zero rates. Amounts are left out (diagnostics stay value-free, spec 06; amended 2026-11-23 in #74); the debug export (ADR 0016) has the raw responses when values are needed.
 
 ## Consequences
 

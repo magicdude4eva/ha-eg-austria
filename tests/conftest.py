@@ -22,6 +22,7 @@ from custom_components.eg_austria.models import (
     parse_maintenance,
     parse_metering_points,
     parse_session,
+    parse_transactions,
     parse_version,
 )
 
@@ -216,6 +217,7 @@ class FakeClient:
         self.mutate: Any = None
         self.before: Any = None
         self.session_raw: Any = load_fixture("session_one_member.json")
+        self.transactions_raw: Any = []  # billing/transactions (issue #74)
         self.raw_sink: Any = None  # debug export (issue #84), like the client
 
     def _emit(self, template: str, params: list[tuple[str, str]], raw: Any) -> None:
@@ -258,6 +260,15 @@ class FakeClient:
         await self._call("get_version")
         self._emit("/v1/version", [], self.version_raw)
         return parse_version(self.version_raw)
+
+    async def get_transactions(self, member: str) -> Any:
+        """Return the parsed settlements."""
+
+        await self._call("get_transactions", member)
+        self._emit(
+            "/v1/portal/member/{member}/billing/transactions", [], self.transactions_raw
+        )
+        return parse_transactions(self.transactions_raw)
 
     async def get_session(self) -> Any:
         """Return the parsed portal session."""

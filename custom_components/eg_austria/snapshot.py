@@ -100,6 +100,7 @@ def run_snapshot(summary: RunSummary | None) -> dict[str, Any] | None:
         "rescheduled_for": _iso(summary.rescheduled_for),
         "stale_client": summary.stale_client,
         "error": summary.error,
+        "settlement": getattr(summary, "settlement", None),
         "issues": {
             "api_changed": summary.issues.api_changed,
             "implausible_data": summary.issues.implausible_data,
