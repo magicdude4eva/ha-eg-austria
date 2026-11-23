@@ -137,11 +137,50 @@ def test_null_hours_are_none() -> None:
 
 
 def test_empty_day() -> None:
-    """Empty lists and null totals are valid."""
+    """Empty lists and omitted totals (the portal's real shape) are valid."""
 
-    data = parse("analysis_empty_day.json")
+    assert parse("analysis_empty_day.json").is_empty  # nulls sent
+    data = parse("analysis_empty_day_portal.json")  # keys left out
     assert data.is_empty
     assert data.totals.consumption is None
+    assert data.totals.generation is None
+    assert not data.flags.generation
+    assert data.extra == {}
+
+
+def test_null_totals_same_as_omitted() -> None:
+    """A total sent as null parses like an omitted one."""
+
+    raw = load_fixture("analysis_empty_day_portal.json")
+    raw["totalGeneration"] = None
+    assert parse_analysis(raw) == parse("analysis_empty_day_portal.json")
+
+
+def test_site_without_generation_issue_78() -> None:
+    """Issue #78: consumption data, no generation totals or flags at all."""
+
+    raw = load_fixture("analysis_hour_normal_beg.json")
+    for key in [k for k in raw if k.startswith(("totalGeneration", "generation"))]:
+        if key != "generationDataPoints":
+            del raw[key]
+    raw["generationDataPoints"] = []
+    data = parse_analysis(raw)
+    assert data.consumption
+    assert not data.generation
+    assert data.totals.consumption is not None
+    assert data.totals.generation is None
+    assert data.totals.generation_to_community is None
+    assert not data.flags.generation_to_community
+
+
+def test_point_lists_still_required() -> None:
+    """Missing point lists are still a schema change (S2)."""
+
+    raw = load_fixture("analysis_empty_day_portal.json")
+    del raw["generationDataPoints"]
+    with pytest.raises(SchemaError) as err:
+        parse_analysis(raw)
+    assert err.value.rule == "S2"
 
 
 def test_dst_autumn_shape() -> None:
@@ -240,24 +279,42 @@ def test_shape_errors(name: str, rule: str, path: str) -> None:
         assert excinfo.value.path == path
 
 
-@pytest.mark.parametrize(
-    "key",
-    [
-        "consumptionDataPoints",
-        "generationDataPoints",
-        "totalConsumption",
-        "totalGenerationInExcess",
-        "generationToCommunityFaulty",
-    ],
-)
+@pytest.mark.parametrize("key", ["consumptionDataPoints", "generationDataPoints"])
 def test_missing_top_level_key(key: str) -> None:
-    """Missing required top-level keys raise S2 with the key as path."""
+    """Missing point lists raise S2 with the key as path."""
 
     raw = load_fixture("analysis_hour_null_hours.json")
     del raw[key]
     with pytest.raises(SchemaError, match="required key missing") as excinfo:
         parse_analysis(raw)
     assert excinfo.value.path == key
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["totalConsumption", "totalGenerationInExcess", "generationToCommunityFaulty"],
+)
+def test_missing_total_or_flag_with_points_is_s2(key: str) -> None:
+    """With data points, a missing total or flag is still S2 (issue #16 body)."""
+
+    raw = load_fixture("analysis_hour_null_hours.json")
+    del raw[key]
+    with pytest.raises(SchemaError, match="required key missing") as excinfo:
+        parse_analysis(raw)
+    assert excinfo.value.path == key
+
+
+def test_missing_total_of_empty_direction_is_null() -> None:
+    """Issue #78: only the direction without points may leave its keys out."""
+
+    raw = load_fixture("analysis_hour_null_hours.json")
+    raw["consumptionDataPoints"] = []
+    del raw["totalConsumption"]
+    del raw["consumptionFaulty"]
+    data = parse_analysis(raw)
+    assert data.totals.consumption is None
+    assert data.flags.consumption is False
+    assert data.generation
 
 
 def test_offset_timestamp_converted_to_utc() -> None:

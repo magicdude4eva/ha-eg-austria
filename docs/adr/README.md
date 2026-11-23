@@ -21,5 +21,6 @@ Forum references are `topic/post` on forum.eg-austria.at; `*` marks an EG Austri
 | [0013](0013-setup-check.md) | Test the portal before setup: one GET, retry or reauth | accepted |
 | [0014](0014-summary-sensors.md) | Summary sensors for shares, an exception to "no energy sensors" | accepted |
 | [0015](0015-surplus-supplier-prices.md) | Surplus and supplier prices: number, price sensor or monthly price table | accepted (phase 2) |
+| [0016](0016-debug-export.md) | Opt-in redacted debug export with values | accepted |
 
 Several records depend on the portal API as it was before the mandatory portal update of 2026-11-09. Each such record says so under "Depends on".

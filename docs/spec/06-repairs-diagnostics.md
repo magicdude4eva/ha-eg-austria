@@ -63,6 +63,16 @@ Implemented in S5; details (defaults, refusals, `released`) in spec 03 "Services
 - `schema_fingerprint`: for the last `analysis-data`, `day-completeness` and `metering-point` responses, key → type name, recursively, first list element only. No values. The client records it when the response arrives, before parsing (`EgAustriaClient.schema_fingerprints`, `redact.schema_fingerprint()`), so the shape of a response that failed to parse is included. The coordinator stores it after every run (issue #78), so diagnostics after a restart show the last stored shapes until a new run replaces them.
 - `statistics`: statistic ids with first and last stored hour (one `min`/`max` query over the recorder's statistics table). No sums or states.
 
+### Debug export (ADR 0016, issue #84)
+
+`eg_austria.debug_export` (fields `config_entry_id`, `days` 1-31, default 7; response `path`, `responses`, `failed_steps`) writes `eg_austria_debug_<site>_<UTC time>.json` to the configuration folder (`export.py`). Refused while a run holds the lock (`run_in_progress`). Requests, in order, through the normal client (whitelist, spacing): `version`, `maintenance`, `portal-session`, `metering-point`, `day-completeness` (window), then per selected community `analysis-data` Day and Hour for all selected metering points and Day per metering point. The client's `raw_sink` hands every decoded body to the export before parsing; a `SchemaError` or portal error ends only that step (`steps[].result`), an auth error stops the export.
+
+File sections: `notice` (says values are included), `export_version`, `created`, versions, `window`, `entry` (options, slugs, synthetic ids), `setup` (`snapshot.setup_shape()`), `steps` (name, result, response indexes), `responses` (`endpoint`, `params`, `schema_fingerprint`, `raw`, and for `analysis-data` `key_presence` per direction: `points`, `missing` totals / day flags).
+
+Redaction: ids are replaced by stable synthetic values (member `9000001`, location `5001`, metering points from `1001`, communities from `2001`, numbers `AT` + 31 digits) under `memberId`, `locationId`, `energyCommunityId`, `communityId`, `energyCommunityIds`, `desiredPartFactorParticipatingCommunityIds`, `meteringPointId`, `mpIds`, and `id` / `number` inside `memberMeteringpoints`, in bodies and request parameters alike; every other `TO_REDACT` key becomes `REDACTED`; every other string goes through `redact_text()` with the original ids. Energy and money values are kept.
+
+The startup check (ADR 0013) also stores the `setup` shape from its `metering-point` response, so diagnostics show it before the first run.
+
 ### Redaction
 
 `TO_REDACT = {"token", "token_id", "member_number", "location_id", "mp_ids", "id", "energyCommunityId", "communityId", "meteringPointId", "meteringPointNumber", "email", "name", "firstName", "lastName", "address", "street", "zip", "city", "iban", "bic", "instance", "traceId", "memberId", "locationId", "number", "houseNumber", "postalCode", "stairsFloorDoor", "displayName", "energyCommunityName", "fromName", "toName", "fromMeteringpointNumber", "toMeteringpointNumber", "ecNumber", "substationName"}` (the `metering-point` and `portal-session` keys from G1).

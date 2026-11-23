@@ -22,6 +22,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: My Home Assistant buttons to open the repository in the Marketplace
   and to start the setup.
 
+## [0.1.4.3] - 2026-11-23
+
+Patch release: a parser fix and a debug export on top of 0.1.4.2 (from branch
+`release/0.1.4.x`). No configuration changes are needed.
+
+### Added
+
+- Debug export (`eg_austria.debug_export`, #84): writes the portal responses
+  of a few recent days to a JSON file in the configuration folder, with ids
+  replaced by synthetic values and names, addresses and tokens removed, for
+  issue reports. Contains energy values; opt-in and only on request.
+- Diagnostics show the setup shape right after a restart, from the startup
+  check (#84).
+
+### Fixed
+
+- The first import no longer stops with *Portal changed* on a site whose
+  metering points have no generation data: the portal leaves out the totals of
+  a direction without data points, which now count as empty (#78).
+
 ## [0.1.4.2] - 2026-11-23
 
 Patch release: better diagnostics on top of 0.1.4.1 (from branch
@@ -169,7 +189,8 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.2...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.3...HEAD
+[0.1.4.3]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.2...0.1.4.3
 [0.1.4.2]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.1...0.1.4.2
 [0.1.4.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4...0.1.4.1
 [0.1.4]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.3...0.1.4

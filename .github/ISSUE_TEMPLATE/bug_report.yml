@@ -9,7 +9,9 @@ body:
         metering point numbers (AT...), names, addresses, email, community names
         you belong to, or real kWh/EUR values. Use the integration's diagnostics
         download (redacted) and check it before attaching. Never attach HAR files
-        or portal exports.
+        or portal exports. If a maintainer asks for it, the integration's own
+        debug export (`eg_austria.debug_export`) replaces ids and removes names,
+        but contains energy values of a few days: share it only if that's OK.
   - type: input
     id: version
     attributes:
@@ -38,5 +40,5 @@ body:
     attributes:
       label: Privacy check
       options:
-        - label: I removed tokens, ids, names, addresses, emails and real values.
+        - label: I removed tokens, ids, names, addresses, emails and real values (a requested debug export may contain values).
           required: true

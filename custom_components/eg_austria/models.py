@@ -376,6 +376,22 @@ class AnalysisData:
         return keys
 
 
+def _direction_of(key: str) -> Direction:
+    return (
+        Direction.GENERATION if "generation" in key.lower() else Direction.CONSUMPTION
+    )
+
+
+def _get_unless_empty(
+    obj: Mapping[str, Any], key: str, empty: set[Direction], default: Any = None
+) -> Any:
+    """``_get()``, but ``default`` for a missing key of a direction without points."""
+
+    if key not in obj and _direction_of(key) in empty:
+        return default
+    return _get(obj, key, "")
+
+
 def parse_analysis(raw: Any) -> AnalysisData:
     """Parse an ``analysis-data`` response."""
 
@@ -388,8 +404,18 @@ def parse_analysis(raw: Any) -> AnalysisData:
             for i, item in enumerate(items)
         ]
         lists[direction] = tuple(sorted(points, key=lambda p: p.start))
-    totals = AnalysisTotals(*(_number(_get(obj, k, ""), k) for k in _TOTALS))
-    flags = AnalysisFlags(*(_bool(_get(obj, k, ""), k) for k in _DAY_FLAGS))
+    # Issue #78: the portal leaves out the totals (and may leave out the day
+    # flags) of a direction without any data point, for example a site
+    # without generation, so there a missing key is null / not faulty. With
+    # points, a missing key is still S2: that is the reduced body sent for a
+    # day outside a community's activation (issue #16).
+    empty = {d for d, points in lists.items() if not points}
+    totals = AnalysisTotals(
+        *(_number(_get_unless_empty(obj, k, empty), k) for k in _TOTALS)
+    )
+    flags = AnalysisFlags(
+        *(_bool(_get_unless_empty(obj, k, empty, False), k) for k in _DAY_FLAGS)
+    )
     return AnalysisData(
         consumption=lists[Direction.CONSUMPTION],
         generation=lists[Direction.GENERATION],
