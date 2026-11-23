@@ -3,7 +3,7 @@
 from typing import Final
 
 DOMAIN: Final = "eg_austria"
-VERSION: Final = "0.2.0.1"  # keep equal to manifest.json "version"
+VERSION: Final = "0.2.1"  # keep equal to manifest.json "version"
 
 # Config entry data keys (spec 02 "Create entry").
 CONF_TOKEN: Final = "token"  # noqa: S105 - key name
