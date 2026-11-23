@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- One community reporting a faulty 0 for the meter while another has the
+  reading no longer holds the site meter statistic for the whole month
+  (P6 / P4): a faulty meter value counts as unknown, and the site meter is
+  read from the first community whose hour isn't faulty (#78).
+
 ## [0.2.0] - 2026-11-23
 
 Phase 2: money in € (#55). Community income and cost come from the portal and
