@@ -583,6 +583,34 @@ data:
 Pick the entry in the action's UI editor, or copy its id from the address bar
 of the entry's page.
 
+### `eg_austria.debug_export`: Debug export
+
+Only when a maintainer asks for it in an issue. It fetches a few recent days
+from the portal and writes them, as the portal sent them, to a JSON file in
+your configuration folder (`eg_austria_debug_<site>_<time>.json`); the action's
+response shows the path. Statistics are not changed.
+
+- **Removed or replaced:** tokens, member number, location, metering point and
+  community ids (replaced by synthetic values such as `1001`), metering point
+  numbers, names, addresses, emails.
+- **Kept:** your **energy and money values** for those days, the community
+  types and activation dates. That is what makes the export useful for
+  reproducing a problem. Look at the file before you attach it.
+
+| Field | Required | Description |
+|---|---|---|
+| `config_entry_id` (Entry) | yes | The EG Austria entry. |
+| `days` (Days) | no | Number of recent days, 1-31. Default: 7. |
+
+```yaml
+action: eg_austria.debug_export
+data:
+  config_entry_id: 0123456789abcdef0123456789abcdef
+  days: 7
+```
+
+It sends about a dozen read-only requests and is refused while an import runs.
+
 ## Examples
 
 ### Statistics card: how much came from the community
@@ -695,7 +723,9 @@ client is out of date. Nothing is written until a run passes the checks
 again, so your statistics stay correct. Please download the diagnostics of the
 entry or its device (three-dot menu > Download diagnostics; tokens, ids, names
 and values are removed) and attach them to an
-[issue](https://github.com/magicdude4eva/ha-eg-austria/issues).
+[issue](https://github.com/magicdude4eva/ha-eg-austria/issues). If the
+diagnostics are not enough, we may ask for a
+[debug export](#eg_austriadebug_export-debug-export).
 
 ### Held data
 

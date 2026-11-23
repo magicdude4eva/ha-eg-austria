@@ -21,6 +21,7 @@ from custom_components.eg_austria.models import (
     parse_day_completeness,
     parse_maintenance,
     parse_metering_points,
+    parse_session,
     parse_version,
 )
 
@@ -214,6 +215,18 @@ class FakeClient:
         self.errors: dict[str, BaseException] = {}
         self.mutate: Any = None
         self.before: Any = None
+        self.session_raw: Any = load_fixture("session_one_member.json")
+        self.raw_sink: Any = None  # debug export (issue #84), like the client
+
+    def _emit(self, template: str, params: list[tuple[str, str]], raw: Any) -> None:
+        if self.raw_sink is not None:
+            self.raw_sink(template, params, raw)
+
+    @staticmethod
+    def _ids(cids: Any, mps: Any) -> list[tuple[str, str]]:
+        return [("energyCommunityIds", str(c)) for c in cids] + [
+            ("mpIds", str(m)) for m in mps
+        ]
 
     async def _call(self, name: str, *args: Any) -> None:
         self.calls.append((name, args))
@@ -236,18 +249,28 @@ class FakeClient:
         """Return the parsed maintenance list."""
 
         await self._call("get_maintenance")
+        self._emit("/v1/portal/maintenance", [], self.maintenance_raw)
         return parse_maintenance(self.maintenance_raw)
 
     async def get_version(self) -> Any:
         """Return the parsed version."""
 
         await self._call("get_version")
+        self._emit("/v1/version", [], self.version_raw)
         return parse_version(self.version_raw)
+
+    async def get_session(self) -> Any:
+        """Return the parsed portal session."""
+
+        await self._call("get_session")
+        self._emit("/v1/portal/portal-session", [], self.session_raw)
+        return parse_session(self.session_raw)
 
     async def get_metering_points(self, member: str) -> Any:
         """Return the parsed metering points."""
 
         await self._call("get_metering_points", member)
+        self._emit("/v1/portal/member/{member}/metering-point", [], self.mp_raw)
         return parse_metering_points(self.mp_raw)
 
     async def get_day_completeness(
@@ -257,6 +280,11 @@ class FakeClient:
 
         await self._call("get_day_completeness", member, start, end, cids, mps)
         raw = self.gen.completeness(start, end, self.incomplete, self.future_from)
+        self._emit(
+            "/v1/portal/member/{member}/analysis-data/day-completeness",
+            [("startDate", str(start)), ("endDate", str(end)), *self._ids(cids, mps)],
+            raw,
+        )
         return parse_day_completeness(raw)
 
     def _members(self, mps: Any) -> Any:
@@ -299,6 +327,16 @@ class FakeClient:
             raw.pop("totalConsumption", None)  # reduced body (issue #16)
         if self.mutate is not None:
             raw = self.mutate(raw, str(aggregation), start, end, cids[0])
+        self._emit(
+            "/v1/portal/member/{member}/analysis-data",
+            [
+                ("aggregation", str(aggregation)),
+                ("startDate", str(start)),
+                ("endDate", str(end)),
+                *self._ids(cids, mps),
+            ],
+            raw,
+        )
         return parse_analysis(raw)
 
 
