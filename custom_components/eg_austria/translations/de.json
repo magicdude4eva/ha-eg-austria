@@ -398,7 +398,8 @@
         "community_feed_in_eur": "Einspeiseertrag",
         "community_consumption_eur": "Bezugskosten",
         "site_import_savings_eur": "Ersparnis beim Bezug",
-        "community_import_savings_eur": "Ersparnis beim Bezug"
+        "community_import_savings_eur": "Ersparnis beim Bezug",
+        "site_supplier_eur": "Energiekosten Lieferant"
       }
     },
     "price_source": {
@@ -606,6 +607,240 @@
       },
       "grid_consumption_deviation_last_month": {
         "name": "Abweichung Netzbezug, Vormonat"
+      },
+      "feed_in_income_month_so_far": {
+        "name": "Einspeiseertrag aus Gemeinschaften, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "feed_in_income_last_month": {
+        "name": "Einspeiseertrag aus Gemeinschaften, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "consumption_cost_month_so_far": {
+        "name": "Kosten für Bezug aus Gemeinschaften, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "consumption_cost_last_month": {
+        "name": "Kosten für Bezug aus Gemeinschaften, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "surplus_income_month_so_far": {
+        "name": "Überschuss-Ertrag, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "surplus_income_last_month": {
+        "name": "Überschuss-Ertrag, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "feed_in_compensation_month_so_far": {
+        "name": "Einspeisevergütung, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "feed_in_compensation_last_month": {
+        "name": "Einspeisevergütung, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "import_savings_month_so_far": {
+        "name": "Ersparnis beim Bezug, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "import_savings_last_month": {
+        "name": "Ersparnis beim Bezug, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "community_feed_in_income_month_so_far": {
+        "name": "{community} Einspeiseerlös, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "community_feed_in_income_last_month": {
+        "name": "{community} Einspeiseerlös, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "community_consumption_cost_month_so_far": {
+        "name": "{community} Bezugskosten, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "community_consumption_cost_last_month": {
+        "name": "{community} Bezugskosten, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "community_import_savings_month_so_far": {
+        "name": "{community} Ersparnis beim Bezug, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "community_import_savings_last_month": {
+        "name": "{community} Ersparnis beim Bezug, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "supplier_cost_month_so_far": {
+        "name": "Energiekosten Lieferant, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "supplier_cost_last_month": {
+        "name": "Energiekosten Lieferant, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
       }
     }
   }

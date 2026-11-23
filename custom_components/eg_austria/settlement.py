@@ -346,3 +346,26 @@ def diagnostics(
             for slug, (year, month) in settlements.unmatched
         ),
     }
+
+
+def settled_months(
+    settlements: Settlements, factors: Mapping[Key, MonthFactor]
+) -> dict[str, list[str]]:
+    """Settled months per ``"<slug>/<direction>"`` (issue #75), value-free.
+
+    A month counts as settled when it has a settlement and no unmatched
+    correction, and this run didn't find it without provisional amounts to
+    scale (``zero_provisional``: its money stays provisional). The dashboard
+    and the € summary sensors use it for the settled / provisional marker.
+    """
+
+    out: dict[str, set[str]] = defaultdict(set)
+    for key in settlements.amounts:
+        slug, direction, (year, month) = key
+        if (slug, (year, month)) in settlements.unmatched:
+            continue
+        factor = factors.get(key)
+        if factor is not None and factor.state is not MonthState.SETTLED:
+            continue
+        out[f"{slug}/{direction.value}"].add(f"{year:04d}-{month:02d}")
+    return {k: sorted(v) for k, v in sorted(out.items())}

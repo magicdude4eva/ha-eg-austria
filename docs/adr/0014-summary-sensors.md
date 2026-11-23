@@ -1,7 +1,7 @@
 # 0014: Summary sensors for shares, an exception to "no energy sensors"
 
 - Status: accepted
-- Date: 2026-11-22
+- Date: 2026-11-22, amended 2026-11-23 (issue #75: € values)
 - Amends: ADR 0003 ("No sensor entities for the energy values")
 
 ## Context
@@ -18,6 +18,7 @@
 - The sensors have **no `state_class`**, so the recorder compiles no long-term statistics from them and nothing is counted twice. kWh values are attributes (`numerator_kwh`, `denominator_kwh`) next to `period_start` and `period_end`; there are still no kWh sensor states.
 - A value is unknown when its period has no complete day or its denominator is 0 (ADR 0005: unknown is not zero).
 - Values are recomputed at startup and after every run, once the recorder has written the run's statistics.
+- **€ values** (issue #75, ADR 0008/0015): the same two periods also get sums of the money statistics (community income and cost, site and per community; surplus income, feed-in compensation and import savings when their price is set), unit EUR, device class monetary, no `state_class`. Attribute `settlement`: `settled` when every community month the value depends on is settled, `partly_settled`, `provisional`, or `null` without community settlements (surplus income). The settled months per community and direction are kept in the entry store (value-free) and passed to the generated dashboard for the same marker.
 - A diagnostic **Meter data until** date sensor shows the last day with meter values for every hour, next to *Data complete until* (community side).
 
 ## Consequences

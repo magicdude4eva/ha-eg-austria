@@ -513,3 +513,14 @@ async def test_supplier_price_missing_created_and_cleared(
     }
     await run(loaded)
     assert issue(hass, ISSUE_SUPPLIER_PRICE_MISSING, loaded) is None
+    # Issue #75: unpriced supplier kWh raise it too; the earlier day wins.
+    no_writes.return_value = {
+        "home_import_savings_eur": WriteResult(
+            key="home_import_savings_eur", unpriced=[hour]
+        ),
+        "home_supplier_eur": WriteResult(
+            key="home_supplier_eur", unpriced=[hour - timedelta(days=1)]
+        ),
+    }
+    summary = await run(loaded)
+    assert summary.supplier_price_missing_from == date(2026, 5, 2)

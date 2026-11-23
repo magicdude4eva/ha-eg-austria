@@ -13,11 +13,13 @@ import {
   applySelection,
   previousPeriod,
   segmentDetail,
+  settlementState,
   infoIcon,
   periodCardIds,
   periodTitle,
   pickerCard,
   pickerCollection,
+  periodMonths,
   renderCommunityCard,
   renderPeriodCard,
   renderStatusCard,
@@ -392,11 +394,11 @@ test("segment detail: previous period with change, best day before the cut", () 
   const part = PERIOD.donuts[0].parts[0];
   assert.equal(
     segmentDetail(part, 25, EXTRA, "en", TEXT),
-    "September 2030: 50.0 kWh (-50 %) · Best day Oct 2: 9.3 kWh"
+    "September 2030: 50.0 kWh (-50 %)\nBest day Oct 2: 9.3 kWh"
   );
   // PV self-consumed per day: PV minus feed-in (15 on the 1st, 2 on the 2nd).
   const pv = PERIOD.donuts[1].parts[0];
-  assert.equal(segmentDetail(pv, 50, EXTRA, "en", TEXT), "September 2030: 80.0 kWh (-38 %) · Best day Oct 1: 15.0 kWh");
+  assert.equal(segmentDetail(pv, 50, EXTRA, "en", TEXT), "September 2030: 80.0 kWh (-38 %)\nBest day Oct 1: 15.0 kWh");
   // Nothing before: no change; nothing at all: empty.
   assert.equal(
     segmentDetail(part, 25, { previous: { totals: { "s:a_in": 0 }, label: "Sep" } }, "en", TEXT),
@@ -411,7 +413,7 @@ test("period card: segments and legend rows carry share, kWh and detail", () => 
   assert.match(html, /<circle data-seg="0-0" /);
   assert.match(
     html,
-    /<button type="button" class="part" data-seg="0-0" data-pct="25\.0 %" data-kwh="25\.0 kWh" data-detail="September 2030: 50\.0 kWh \(-50 %\) · Best day Oct 2: 9\.3 kWh">/
+    /<button type="button" class="part" data-seg="0-0" data-pct="25\.0 %" data-kwh="25\.0 kWh" data-detail="September 2030: 50\.0 kWh \(-50 %\)\nBest day Oct 2: 9\.3 kWh">/
   );
   assert.match(html, /<span class="say" data-key="detail" data-default="Communities covered 25\.0 % of your import">/);
   assert.match(html, /<text data-key="kwh" data-default="100\.0 kWh"/);
@@ -484,4 +486,180 @@ test("period card element: second render with previous period and best day", asy
   assert.ok(asked.includes("recorder/statistics_during_period"));
   assert.match(card.shadowRoot.innerHTML, /data-detail="September 2030: 50\.0 kWh/);
   card.disconnectedCallback();
+});
+
+// --- € (#75) ---------------------------------------------------------------
+
+const MONEY_TEXT = {
+  ...TEXT,
+  settled: "settled",
+  provisional: "provisional",
+  partlySettled: "partly settled",
+  saved: "Saved",
+  moneyInfo: "€: provisional until settled.",
+};
+const SETTLED = {
+  a: { generation: ["2030-09", "2030-10"], consumption: ["2030-09"] },
+  b: { generation: ["2030-09"], consumption: [] },
+};
+const MONEY_PERIOD = {
+  ...PERIOD,
+  settled: SETTLED,
+  text: MONEY_TEXT,
+  donuts: [
+    {
+      title: "Import",
+      say: "Communities covered {pct} of your import",
+      money: [
+        { name: "Cost", statistic: "s:cost", settle: [{ slug: "a", direction: "consumption" }] },
+        { name: "Saved", statistic: "s:saved", settle: [{ slug: "a", direction: "consumption" }] },
+      ],
+      parts: [
+        {
+          name: "A",
+          statistic: "s:a_in",
+          color: "#2f7fd1",
+          share: true,
+          money: "s:a_cost",
+          settle: [{ slug: "a", direction: "consumption" }],
+        },
+        { name: "Supplier", statistic: "s:supplier", color: "#9aa3ad" },
+      ],
+    },
+    {
+      title: "Feed-in",
+      say: "Communities took {pct} of your feed-in",
+      money: [
+        {
+          name: "Income",
+          statistic: "s:income",
+          settle: [
+            { slug: "a", direction: "generation" },
+            { slug: "b", direction: "generation" },
+          ],
+        },
+      ],
+      parts: [
+        {
+          name: "A",
+          statistic: "s:a_out",
+          color: "#2f7fd1",
+          share: true,
+          money: "s:a_income",
+          settle: [{ slug: "a", direction: "generation" }],
+        },
+        { name: "Surplus buyer", statistic: "s:surplus", color: "#e0a030", money: "s:surplus_eur" },
+      ],
+    },
+  ],
+};
+const MONEY_TOTALS = {
+  ...TOTALS,
+  "s:surplus": 120,
+  "s:cost": 2.5,
+  "s:saved": 0.56,
+  "s:a_cost": 2.5,
+  "s:income": 4.1,
+  "s:a_income": 1.2,
+  "s:surplus_eur": 2.9,
+};
+
+test("settlement state: all, some or none of the community months", () => {
+  const oct = clipPeriod(october, null);
+  assert.deepEqual(periodMonths(oct), ["2030-10"]);
+  const year = clipPeriod({ start: new Date(2030, 0, 1), end: new Date(2031, 0, 1) }, new Date(2030, 10, 7));
+  assert.equal(periodMonths(year).length, 11);
+  const a = [{ slug: "a", direction: "generation" }];
+  const ab = [...a, { slug: "b", direction: "generation" }];
+  assert.equal(settlementState(a, SETTLED, oct), "settled");
+  assert.equal(settlementState(ab, SETTLED, oct), "partly");
+  assert.equal(settlementState([{ slug: "b", direction: "consumption" }], SETTLED, oct), "provisional");
+  // A cut month 1-6 Oct is still October.
+  assert.equal(settlementState(a, SETTLED, clipPeriod(october, new Date(2030, 9, 7))), "settled");
+  assert.equal(settlementState(undefined, SETTLED, oct), null);
+  assert.equal(settlementState(a, undefined, oct), null);
+  assert.equal(settlementState(a, {}, oct), "provisional");
+});
+
+test("period card: € per segment and per donut, settled or provisional", () => {
+  const period = clipPeriod(october, null);
+  const html = renderPeriodCard(MONEY_PERIOD, MONEY_TOTALS, period, "en");
+  // Import, October: A's consumption not settled → provisional, in italics.
+  assert.match(html, /<span class="money provisional">Cost €2\.50 · Saved €0\.56 · provisional<\/span>/);
+  assert.match(html, /<span class="value">25\.0 kWh<\/span><span class="eur provisional">€2\.50<\/span>/);
+  assert.match(html, /data-detail="€2\.50 provisional"/);
+  // Feed-in: A settled, B not → partly settled for the donut, A settled.
+  assert.match(html, /<span class="money provisional">Income €4\.10 · partly settled<\/span>/);
+  assert.match(html, /<span class="eur">€1\.20<\/span>/);
+  assert.match(html, /data-detail="€1\.20 settled"/);
+  // Surplus income: € without a marker.
+  assert.match(html, /<span class="eur">€2\.90<\/span>/);
+  assert.match(html, /data-detail="€2\.90"/);
+  // Supplier part has no €.
+  assert.match(html, /<span class="value">75\.0 kWh<\/span><\/button>/);
+  assert.match(html, /€: provisional until settled\./);
+  // No € totals yet: no money line, no € cells.
+  const kwhOnly = renderPeriodCard(MONEY_PERIOD, TOTALS, period, "en").split("</style>")[1];
+  assert.doesNotMatch(kwhOnly, /class="money|class="eur/);
+  assert.deepEqual(periodCardIds(MONEY_PERIOD), [
+    "s:a_in",
+    "s:a_cost",
+    "s:supplier",
+    "s:cost",
+    "s:saved",
+    "s:a_out",
+    "s:a_income",
+    "s:surplus",
+    "s:surplus_eur",
+    "s:income",
+  ]);
+  // German number format.
+  assert.match(renderPeriodCard(MONEY_PERIOD, MONEY_TOTALS, period, "de"), /Cost 2,50\s€/);
+});
+
+test("community card: € per row, savings, marker next to the period", () => {
+  const config = {
+    ...COMMUNITY,
+    name: "A",
+    settled: SETTLED,
+    text: MONEY_TEXT,
+    rows: [
+      { ...COMMUNITY.rows[0], money: "s:a_income", settle: [{ slug: "a", direction: "generation" }] },
+      {
+        ...COMMUNITY.rows[1],
+        money: "s:a_cost",
+        saved: "s:saved",
+        settle: [{ slug: "a", direction: "consumption" }],
+      },
+    ],
+  };
+  const period = clipPeriod(october, null);
+  const html = renderCommunityCard(config, MONEY_TOTALS, period, "en");
+  assert.match(html, /October 2030 · partly settled/);
+  assert.match(html, /30\.0 kWh<\/span><span class="eur">€1\.20<\/span>/);
+  assert.match(html, /25\.0 kWh<\/span><span class="eur provisional">€2\.50<\/span>/);
+  assert.match(html, /<span class="money">Saved €0\.56<\/span>/);
+  const sept = renderCommunityCard(
+    config,
+    MONEY_TOTALS,
+    clipPeriod({ start: new Date(2030, 8, 1), end: new Date(2030, 9, 1) }, null),
+    "en"
+  );
+  assert.match(sept, /September 2030 · settled/);
+  assert.deepEqual(communityCardIds(config), ["s:a_out", "s:gen", "s:a_income", "s:a_in", "s:a_cost", "s:saved"]);
+  // Without € statistics nothing changes.
+  const body = renderCommunityCard(COMMUNITY, TOTALS, period, "en").split("</style>")[1];
+  assert.doesNotMatch(body, /class="eur|settled|provisional/);
+});
+
+test("layout: legend and community rows share columns, headings on top", () => {
+  const period = clipPeriod(october, null);
+  const html = renderPeriodCard(MONEY_PERIOD, MONEY_TOTALS, period, "en");
+  assert.match(html, /\.donut\{[^}]*align-items:flex-start/);
+  assert.match(html, /grid-template-columns:subgrid/);
+  assert.match(html, /<div class="legend"><button type="button" class="part"/);
+  const card = renderCommunityCard(COMMUNITY, TOTALS, period, "en");
+  // A row without € or share keeps empty cells, so the kWh stay in one column.
+  assert.match(card, /<div class="rows"><div class="bar">/);
+  assert.match(card, /25\.0 kWh<\/span><span><\/span><span class="of"><\/span>/);
 });

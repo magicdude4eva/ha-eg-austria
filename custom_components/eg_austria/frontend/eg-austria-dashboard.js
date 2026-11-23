@@ -10,7 +10,8 @@
 // month. Two small cards of our own follow the picker: the period card
 // (import, feed-in and PV donuts) and one card per community. The by-day
 // split and the meter check follow it too; the 12-month charts don't. Charts
-// sit in pairs on a wide screen.
+// sit in pairs on a wide screen. With money statistics (#75) both cards show
+// € next to the kWh, marked settled or provisional.
 
 const STRATEGY_TYPE = "eg-austria";
 const PERIOD_TAG = "eg-austria-period-card";
@@ -89,6 +90,14 @@ const TEXT = {
     yourConsumption: "Your grid consumption source",
     feedInCheck: "Metered vs your feed-in source",
     consumptionCheck: "Metered vs your grid consumption source",
+    cost: "Cost",
+    saved: "Saved",
+    income: "Income",
+    settled: "settled",
+    provisional: "provisional",
+    partlySettled: "partly settled",
+    infoMoney:
+      "€: community amounts are provisional until EG Austria settles the month, then they match the invoice. They differ from the portal's Energieanalyse, which prices Zero kWh at the standard rate. Surplus uses your surplus price; supplier cost (energy only, no grid fees) and savings use your supplier price (options).",
   },
   de: {
     name: "EG Austria Energiegemeinschaft",
@@ -147,6 +156,14 @@ const TEXT = {
     yourConsumption: "Deine Netzbezugsquelle",
     feedInCheck: "Gemessen vs. deine Einspeisequelle",
     consumptionCheck: "Gemessen vs. deine Netzbezugsquelle",
+    cost: "Kosten",
+    saved: "Gespart",
+    income: "Ertrag",
+    settled: "abgerechnet",
+    provisional: "vorläufig",
+    partlySettled: "teilweise abgerechnet",
+    infoMoney:
+      "€: Gemeinschaftsbeträge sind vorläufig, bis EG Austria den Monat abrechnet; danach entsprechen sie der Rechnung. Sie weichen von der Energieanalyse im Portal ab, die Zero-kWh zum Standardtarif bewertet. Der Überschuss nutzt deinen Überschusspreis, Lieferantenkosten (nur Energie, ohne Netzentgelte) und Ersparnis deinen Lieferantenpreis (Optionen).",
   },
 };
 
@@ -259,15 +276,41 @@ const communityColor = (i) => COLORS.communities[i % COLORS.communities.length];
 // Labels the cards of our own need; the strategy passes them in the config.
 const cardText = (t, info) => ({ total: t.total, until: t.until, noData: t.noData, info });
 
-const communityParts = (entry, quantity) =>
+// € (#75): `money` is the € statistic of a part or line, `settle` the
+// community settlements ({ slug, direction }) that make it final. Without
+// `settle` (surplus income) there is no settled / provisional marker.
+const settlesOf = (entry, direction) =>
+  entry.communities.map((c) => ({ slug: c.slug, direction }));
+
+const communityParts = (entry, quantity, moneyQuantity, direction) =>
   entry.communities
-    .map((c, i) => ({
-      name: c.name,
-      statistic: (entry.community_statistics[c.slug] || {})[quantity],
-      color: communityColor(i),
-      share: true,
-    }))
+    .map((c, i) => {
+      const stats = entry.community_statistics[c.slug] || {};
+      const part = {
+        name: c.name,
+        statistic: stats[quantity],
+        color: communityColor(i),
+        share: true,
+      };
+      if (stats[moneyQuantity]) {
+        part.money = stats[moneyQuantity];
+        part.settle = [{ slug: c.slug, direction }];
+      }
+      return part;
+    })
     .filter((p) => p.statistic);
+
+const moneyLines = (lines) => lines.filter((l) => l.statistic);
+const hasMoney = (entry) =>
+  Object.keys(entry.statistics).some((k) => k.endsWith("_eur")) ||
+  Object.values(entry.community_statistics).some((stats) =>
+    Object.keys(stats || {}).some((k) => k.endsWith("_eur"))
+  );
+const moneyText = (t) => ({
+  settled: t.settled,
+  provisional: t.provisional,
+  partlySettled: t.partlySettled,
+});
 
 // Each donut: the parts that make up a total; `share` parts give the % in
 // the sentence. PV self-consumed is PV production minus metered feed-in.
@@ -278,12 +321,25 @@ const donuts = (entry, t) => {
       title: t.importTitle,
       say: t.importSay,
       info: t.infoImport,
+      money: moneyLines([
+        {
+          name: t.cost,
+          statistic: s.consumption_eur,
+          settle: settlesOf(entry, "consumption"),
+        },
+        {
+          name: t.saved,
+          statistic: s.import_savings_eur,
+          settle: settlesOf(entry, "consumption"),
+        },
+      ]),
       parts: [
-        ...communityParts(entry, "consumption_from_community"),
+        ...communityParts(entry, "consumption_from_community", "consumption_eur", "consumption"),
         s.consumption_from_supplier && {
           name: t.supplier,
           statistic: s.consumption_from_supplier,
           color: COLORS.supplier,
+          ...(s.supplier_eur ? { money: s.supplier_eur } : {}),
         },
       ],
     },
@@ -291,12 +347,21 @@ const donuts = (entry, t) => {
       title: t.feedInTitle,
       say: t.feedInSay,
       info: t.infoFeedIn,
+      // With a surplus price: community income + surplus income.
+      money: moneyLines([
+        {
+          name: t.income,
+          statistic: s.feed_in_total_eur || s.feed_in_eur,
+          settle: settlesOf(entry, "generation"),
+        },
+      ]),
       parts: [
-        ...communityParts(entry, "generation_to_community"),
+        ...communityParts(entry, "generation_to_community", "feed_in_eur", "generation"),
         s.generation_to_surplus && {
           name: t.surplusBuyer,
           statistic: s.generation_to_surplus,
           color: COLORS.surplus,
+          ...(s.surplus_eur ? { money: s.surplus_eur } : {}),
         },
       ],
     },
@@ -319,22 +384,30 @@ const donuts = (entry, t) => {
     });
   }
   return list
-    .map((d) => ({ ...d, parts: d.parts.filter(Boolean) }))
+    .map(({ money, ...d }) => ({
+      ...d,
+      ...(money && money.length ? { money } : {}),
+      parts: d.parts.filter(Boolean),
+    }))
     .filter((d) => d.parts.length > 1 && d.parts.some((p) => p.share));
 };
 
 const periodCard = (entry, t, collection) => {
   const list = donuts(entry, t);
-  return list.length
-    ? {
-        type: `custom:${PERIOD_TAG}`,
-        collection_key: collection,
-        complete_until: entry.entities.data_complete_until || null,
-        donuts: list,
-        text: { ...cardText(t, t.infoTotals), best: t.best },
-        grid_options: FULL,
-      }
-    : null;
+  if (!list.length) return null;
+  const card = {
+    type: `custom:${PERIOD_TAG}`,
+    collection_key: collection,
+    complete_until: entry.entities.data_complete_until || null,
+    donuts: list,
+    text: { ...cardText(t, t.infoTotals), best: t.best },
+    grid_options: FULL,
+  };
+  if (hasMoney(entry)) {
+    card.settled = entry.settled || {};
+    card.text = { ...card.text, ...moneyText(t), moneyInfo: t.infoMoney };
+  }
+  return card;
 };
 
 // One small card per community (a meter can be in up to five): kWh fed in
@@ -345,22 +418,46 @@ const communityCards = (entry, t, collection) =>
       const stats = entry.community_statistics[c.slug] || {};
       const s = entry.statistics;
       const rows = [
-        [stats.generation_to_community, t.fedIn, s.generation, t.ofFeedIn],
-        [stats.consumption_from_community, t.drawn, s.consumption, t.ofImport],
+        [
+          stats.generation_to_community,
+          t.fedIn,
+          s.generation,
+          t.ofFeedIn,
+          { money: stats.feed_in_eur, direction: "generation" },
+        ],
+        [
+          stats.consumption_from_community,
+          t.drawn,
+          s.consumption,
+          t.ofImport,
+          { money: stats.consumption_eur, saved: stats.import_savings_eur, direction: "consumption" },
+        ],
       ]
         .filter(([statistic]) => statistic)
-        .map(([statistic, name, total, of]) => ({ statistic, name, total: total || null, of }));
-      return rows.length
-        ? {
-            type: `custom:${COMMUNITY_TAG}`,
-            collection_key: collection,
-            complete_until: entry.entities.data_complete_until || null,
-            name: c.name,
-            color: communityColor(i),
-            rows,
-            text: cardText(t, t.infoCommunity),
+        .map(([statistic, name, total, of, eur]) => {
+          const row = { statistic, name, total: total || null, of };
+          if (eur.money) {
+            row.money = eur.money;
+            row.settle = [{ slug: c.slug, direction: eur.direction }];
+            if (eur.saved) row.saved = eur.saved;
           }
-        : null;
+          return row;
+        });
+      if (!rows.length) return null;
+      const card = {
+        type: `custom:${COMMUNITY_TAG}`,
+        collection_key: collection,
+        complete_until: entry.entities.data_complete_until || null,
+        name: c.name,
+        color: communityColor(i),
+        rows,
+        text: cardText(t, t.infoCommunity),
+      };
+      if (rows.some((r) => r.money)) {
+        card.settled = entry.settled || {};
+        card.text = { ...card.text, ...moneyText(t), saved: t.saved, moneyInfo: t.infoMoney };
+      }
+      return card;
     })
     .filter(Boolean);
 
@@ -626,6 +723,53 @@ const percent = (lang, part, total) =>
     ? `${new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format((100 * part) / total)} %`
     : "–";
 
+const eur = (lang, value) =>
+  new Intl.NumberFormat(lang, { style: "currency", currency: "EUR" }).format(value);
+
+const moneyValue = (statistic, totals) => {
+  const value = statistic ? totals[statistic] : null;
+  return typeof value === "number" ? value : null;
+};
+
+// "YYYY-MM" of every month the period touches (start up to the cut).
+export const periodMonths = (period) => {
+  const months = [];
+  const last = new Date(period.until - 1);
+  const d = new Date(period.start.getFullYear(), period.start.getMonth(), 1);
+  while (d <= last) {
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    d.setMonth(d.getMonth() + 1);
+  }
+  return months;
+};
+
+// "settled" when every community month it depends on is settled,
+// "provisional" when none is, else "partly"; null without dependencies.
+export const settlementState = (settle, settled, period) => {
+  if (!settle || !settle.length || !settled) return null;
+  const months = periodMonths(period);
+  let done = 0;
+  let all = 0;
+  for (const { slug, direction } of settle) {
+    const list = (settled[slug] || {})[direction] || [];
+    for (const month of months) {
+      all += 1;
+      if (list.includes(month)) done += 1;
+    }
+  }
+  if (!all) return null;
+  return done === all ? "settled" : done ? "partly" : "provisional";
+};
+
+const stateText = (text, state) =>
+  state === "settled"
+    ? text.settled
+    : state === "partly"
+      ? text.partlySettled
+      : state === "provisional"
+        ? text.provisional
+        : "";
+
 const partValue = (part, totals) => {
   const value = totals[part.statistic];
   if (value === null || value === undefined) return null;
@@ -665,7 +809,10 @@ export const segmentDetail = (part, value, extra, lang, text) => {
     const best = bestDay(part, extra.daily, extra.until);
     if (best) {
       const date = new Date(best.start).toLocaleDateString(lang, { day: "numeric", month: "short" });
-      bits.push(text.best.replace("{date}", date).replace("{kwh}", kwh(lang, best.value)));
+      // Its own line (the detail line keeps line breaks).
+      return [bits.join(" · "), text.best.replace("{date}", date).replace("{kwh}", kwh(lang, best.value))]
+        .filter(Boolean)
+        .join("\n");
     }
   }
   return bits.join(" · ");
@@ -695,8 +842,9 @@ ha-tooltip::part(base__popup){margin-top:4px}
 .head{display:flex;align-items:baseline;gap:6px 10px;flex-wrap:wrap}
 h2{margin:0;font-size:1.2em;font-weight:500;color:var(--primary-text-color)}
 .meta,.say,.empty,.of{color:var(--secondary-text-color);font-size:.875em}
+.say{white-space:pre-line;min-height:2.5em}
 .donuts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px 24px}
-.donut{display:flex;gap:14px;align-items:center;min-width:0}
+.donut{display:flex;gap:14px;align-items:flex-start;min-width:0}
 svg{flex:none;width:120px;height:120px}
 .text{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 h3{margin:0;font-size:1em;font-weight:500}
@@ -708,11 +856,20 @@ circle[data-seg]{cursor:pointer;transition:opacity .15s}
 .focus [data-seg]:not(.sel){opacity:.35}
 @media (prefers-reduced-motion:reduce){circle[data-seg],.part{transition:none}}
 .dot{width:10px;height:10px;border-radius:3px;flex:none}
-.value{margin-left:auto;padding-left:8px;font-weight:500;white-space:nowrap}
+.value{margin-left:auto;padding-left:8px;font-weight:500;white-space:nowrap;text-align:right}
 .name{min-width:0;overflow-wrap:anywhere}
-.bar{display:flex;flex-direction:column;gap:4px}
+.legend{display:grid;grid-template-columns:auto 1fr auto auto;row-gap:4px}
+.legend .part{grid-column:1/-1;display:grid;grid-template-columns:subgrid;column-gap:8px}
+.rows{display:grid;grid-template-columns:1fr auto auto auto;row-gap:14px}
+.bar{grid-column:1/-1;display:grid;grid-template-columns:subgrid;row-gap:4px}
+.bar .row{grid-column:1/-1;display:grid;grid-template-columns:subgrid;align-items:baseline}
+.bar .track,.bar .money{grid-column:1/-1}
+.of{padding-left:8px;text-align:right;white-space:nowrap}
 .track{height:8px;border-radius:4px;background:var(--divider-color);overflow:hidden}
 .track i{display:block;height:100%;border-radius:4px}
+.eur{padding-left:8px;color:var(--secondary-text-color);white-space:nowrap;text-align:right}
+.money{color:var(--secondary-text-color);font-size:.875em}
+.provisional{font-style:italic}
 </style>`;
 
 const donutSvg = (parts, total, lang, label, d) => {
@@ -740,7 +897,11 @@ const untilText = (config, period, lang) =>
 
 // Community card: its name, then the period and how far the data goes.
 const header = (config, period, lang) => {
-  const meta = [periodTitle(period.start, period.end, lang), untilText(config, period, lang)]
+  const meta = [
+    periodTitle(period.start, period.end, lang),
+    untilText(config, period, lang),
+    cardMarker(config, period),
+  ]
     .filter(Boolean)
     .join(" · ");
   return `<div class="head"><h2>${escapeHtml(config.name)}</h2><span class="meta">${escapeHtml(meta)}</span></div>`;
@@ -770,6 +931,24 @@ export const infoIcon = (lines) => {
   return `<ha-svg-icon id="info" path="${INFO_PATH}" title="${escapeHtml(text.join("\n\n"))}"></ha-svg-icon>`;
 };
 
+// The € line under a donut's sentence: "Cost 5,23 € · Saved 2,87 €" and the
+// marker of its community months; nothing without € values.
+const moneyLine = (donut, totals, config, period, lang) => {
+  const bits = [];
+  let state = null;
+  for (const line of donut.money || []) {
+    const value = moneyValue(line.statistic, totals);
+    if (value === null) continue;
+    bits.push(`${line.name} ${eur(lang, value)}`);
+    state = state || settlementState(line.settle, config.settled, period);
+  }
+  if (!bits.length) return "";
+  const marker = stateText(config.text, state);
+  if (marker) bits.push(marker);
+  const cls = state && state !== "settled" ? "money provisional" : "money";
+  return `<span class="${cls}">${escapeHtml(bits.join(" · "))}</span>`;
+};
+
 // `extra` (after a second fetch): { previous: { totals, label }, daily,
 // until } for the segment details.
 export const renderPeriodCard = (config, totals, period, lang, extra = {}) => {
@@ -787,16 +966,32 @@ export const renderPeriodCard = (config, totals, period, lang, extra = {}) => {
         const share = parts.filter((p) => p.share).reduce((sum, p) => sum + p.value, 0);
         const rows = parts
           .map((p) => {
-            const detail = segmentDetail(p, p.value, details, lang, config.text);
-            return `<button type="button" class="part" data-seg="${di}-${p.index}" data-pct="${percent(lang, p.value, total)}" data-kwh="${kwh(lang, p.value)}" data-detail="${escapeHtml(detail)}"><span class="dot" style="background:${p.color}"></span><span class="name">${escapeHtml(p.name)}</span><span class="value">${kwh(lang, p.value)}</span></button>`;
+            const money = moneyValue(p.money, totals);
+            const state = settlementState(p.settle, config.settled, period);
+            const marker = stateText(config.text, state);
+            const eurText = money === null ? "" : eur(lang, money);
+            const detail = [
+              eurText && [eurText, marker].filter(Boolean).join(" "),
+              segmentDetail(p, p.value, details, lang, config.text),
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            const eurCell = eurText
+              ? `<span class="eur${state && state !== "settled" ? " provisional" : ""}">${eurText}</span>`
+              : "";
+            return `<button type="button" class="part" data-seg="${di}-${p.index}" data-pct="${percent(lang, p.value, total)}" data-kwh="${kwh(lang, p.value)}" data-detail="${escapeHtml(detail)}"><span class="dot" style="background:${p.color}"></span><span class="name">${escapeHtml(p.name)}</span><span class="value">${kwh(lang, p.value)}</span>${eurCell}</button>`;
           })
           .join("");
         const say = escapeHtml(d.say.replace("{pct}", percent(lang, share, total)));
-        return `<div class="donut">${donutSvg(parts, total, lang, config.text.total, di)}<div class="text"><h3>${escapeHtml(d.title)}</h3><span class="say" data-key="detail" data-default="${say}">${say}</span>${rows}</div></div>`;
+        return `<div class="donut">${donutSvg(parts, total, lang, config.text.total, di)}<div class="text"><h3>${escapeHtml(d.title)}</h3><span class="say" data-key="detail" data-default="${say}">${say}</span>${moneyLine(d, totals, config, period, lang)}<div class="legend">${rows}</div></div></div>`;
       })
       .join("")}</div>`;
   }
-  const info = infoIcon([config.text.info, ...config.donuts.map((d) => d.info)]);
+  const info = infoIcon([
+    config.text.info,
+    ...config.donuts.map((d) => d.info),
+    config.text.moneyInfo,
+  ]);
   return `${STYLE}<ha-card>${info}${untilLine(config, period, lang)}${body}</ha-card>`;
 };
 
@@ -811,17 +1006,42 @@ export const renderCommunityCard = (config, totals, period, lang) => {
         const total = row.total ? totals[row.total] || 0 : 0;
         const width = total > 0 ? Math.min(100, (100 * value) / total) : 0;
         const of = row.total ? row.of.replace("{pct}", percent(lang, value, total)) : "";
-        return `<div class="bar"><div class="row"><span class="name">${escapeHtml(row.name)}</span><span class="value">${kwh(lang, value)}</span>${of ? `<span class="of">${escapeHtml(of)}</span>` : ""}</div><div class="track"><i style="width:${width.toFixed(1)}%;background:${config.color}"></i></div></div>`;
+        const money = moneyValue(row.money, totals);
+        const saved = moneyValue(row.saved, totals);
+        const state = settlementState(row.settle, config.settled, period);
+        const eurCell =
+          money === null
+            ? ""
+            : `<span class="eur${state && state !== "settled" ? " provisional" : ""}">${eur(lang, money)}</span>`;
+        const savedLine =
+          saved === null
+            ? ""
+            : `<span class="money">${escapeHtml(`${config.text.saved} ${eur(lang, saved)}`)}</span>`;
+        // Empty cells keep the columns: kWh, € and share line up across rows.
+        return `<div class="bar"><div class="row"><span class="name">${escapeHtml(row.name)}</span><span class="value">${kwh(lang, value)}</span>${eurCell || "<span></span>"}<span class="of">${escapeHtml(of)}</span></div><div class="track"><i style="width:${width.toFixed(1)}%;background:${config.color}"></i></div>${savedLine}</div>`;
       })
       .join("");
+    body = `<div class="rows">${body}</div>`;
   }
-  return `${STYLE}<ha-card>${infoIcon([config.text.info])}${header(config, period, lang)}${body}</ha-card>`;
+  const info = infoIcon([config.text.info, config.text.moneyInfo]);
+  return `${STYLE}<ha-card>${info}${header(config, period, lang)}${body}</ha-card>`;
+};
+
+// The community card's marker next to the period: settled, partly settled
+// or provisional over the rows that have € (both directions).
+const cardMarker = (config, period) => {
+  if (!config.settled || period.empty) return "";
+  const settle = (config.rows || []).flatMap((r) => (r.money ? r.settle || [] : []));
+  return stateText(config.text, settlementState(settle, config.settled, period));
 };
 
 export const periodCardIds = (config) =>
-  config.donuts.flatMap((d) => d.parts.flatMap((p) => [p.statistic, p.subtract].filter(Boolean)));
+  config.donuts.flatMap((d) => [
+    ...d.parts.flatMap((p) => [p.statistic, p.subtract, p.money].filter(Boolean)),
+    ...(d.money || []).map((l) => l.statistic),
+  ]);
 export const communityCardIds = (config) =>
-  config.rows.flatMap((r) => [r.statistic, r.total].filter(Boolean));
+  config.rows.flatMap((r) => [r.statistic, r.total, r.money, r.saved].filter(Boolean));
 
 // The element: finds the picker's collection (it may appear a moment after
 // the card), follows its period and renders when period or cutoff change.

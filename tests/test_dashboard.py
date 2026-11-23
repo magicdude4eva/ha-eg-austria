@@ -97,7 +97,18 @@ async def test_websocket_config(
 ) -> None:
     """Existing statistics, sources and enabled sensors of the loaded entry."""
 
-    loaded = await _setup(hass, freezer, options={CONF_SOURCE_PV: "example:pv"})
+    freezer.move_to(NOW)
+    await hass.config.async_set_time_zone("Europe/Vienna")
+    loaded = await async_setup_fake_entry(
+        hass,
+        token_exp=EXP,
+        store={
+            "initial_done": True,
+            "last_attempt": NOW.isoformat(),
+            "settled_months": {"beg/Generation": ["2026-05", "2026-04", "bad"]},
+        },
+        options={CONF_SOURCE_PV: "example:pv"},
+    )
     for stat_id in (
         "eg_austria:home_generation",
         "eg_austria:home_generation_to_community",
@@ -151,6 +162,13 @@ async def test_websocket_config(
     assert "pv_self_consumed_last_month" in entities
     assert "pv_to_surplus_last_month" not in entities
     assert not any("deviation" in key for key in entities)
+    # Issue #75: € sensors and settled months per community and direction.
+    assert "feed_in_income_last_month" in entities
+    assert "beg_consumption_cost_month_so_far" in entities
+    assert entry["settled"] == {
+        "beg": {"consumption": [], "generation": ["2026-04", "2026-05"]},
+        "eeg": {"consumption": [], "generation": []},
+    }
 
 
 async def test_websocket_config_skips_unloaded(

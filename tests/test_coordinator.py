@@ -809,6 +809,7 @@ def test_store_round_trip() -> None:
         last_run={"status": "api_changed"},
         setup={"locations": 1, "selected": [{"direction": "Consumption"}]},
         schema_fingerprints={"analysis-data": {"totalConsumption": "float"}},
+        settled_months={"beg/Generation": ["2026-04", "2026-05"]},
     )
     assert StoreData.from_dict(state.as_dict()) == state
     broken = StoreData.from_dict(
@@ -822,6 +823,7 @@ def test_store_round_trip() -> None:
             "last_run": [],
             "setup": "x",
             "schema_fingerprints": None,
+            "settled_months": {"a": "2026-05", "b": ["x", 5]},
         }
     )
     assert broken == StoreData()

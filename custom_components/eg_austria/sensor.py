@@ -1,8 +1,9 @@
 """Diagnostic and summary sensors (spec 06 "Diagnostic entities", ADR 0014).
 
 One service device per entry. Diagnostic sensors are
-``EntityCategory.DIAGNOSTIC``. Summary sensors show shares in percent with no
-``state_class``: the energy values stay in external statistics (ADR 0003).
+``EntityCategory.DIAGNOSTIC``. Summary sensors show shares in percent and € sums (issue #75) with no
+``state_class``: the energy and money values stay in external statistics
+(ADR 0003).
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
 )
-from homeassistant.const import PERCENTAGE, EntityCategory
+from homeassistant.const import CURRENCY_EURO, PERCENTAGE, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -28,7 +29,7 @@ from homeassistant.loader import async_get_integration
 from .const import DOMAIN
 from .importer import RunStatus
 from .repairs import token_expiry
-from .summary import Period, SummaryDef, SummaryValue
+from .summary import MoneyDef, MoneyValue, Period, Settlement, SummaryDef, SummaryValue
 
 if TYPE_CHECKING:
     from .coordinator import EgAustriaConfigEntry, EgAustriaCoordinator
@@ -122,6 +123,11 @@ async def async_setup_entry(
     async_add_entities(
         EgSummarySensor(coordinator, d, period, sw_version)
         for d in coordinator.summary_defs
+        for period in Period
+    )
+    async_add_entities(
+        EgMoneySensor(coordinator, d, period, sw_version)
+        for d in coordinator.money_defs
         for period in Period
     )
 
@@ -241,3 +247,73 @@ class EgSummarySensor(SensorEntity):
         if summary is None:
             return None
         return summary.values.get(self._definition.key)
+
+
+class EgMoneySensor(SensorEntity):
+    """A € sum for one period (issue #75, ADR 0014 pattern).
+
+    No ``state_class``: the money statistics are the long-term record. The
+    attribute ``settlement`` says whether the communities have settled the
+    month (ADR 0008); values change when they do.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = CURRENCY_EURO
+    _attr_suggested_display_precision = 2
+
+    def __init__(
+        self,
+        coordinator: EgAustriaCoordinator,
+        definition: MoneyDef,
+        period: Period,
+        sw_version: str | None = None,
+    ) -> None:
+        """Attach to the entry's service device."""
+
+        self.coordinator = coordinator
+        self._definition = definition
+        self._period = period
+        entry = coordinator.config_entry
+        self._attr_unique_id = f"{entry.entry_id}_{definition.key}_{period}"
+        self._attr_translation_key = f"{definition.translation_key}_{period}"
+        if definition.community is not None:
+            self._attr_translation_placeholders = {"community": definition.community}
+        self._attr_device_info = _device_info(entry, sw_version)
+
+    async def async_added_to_hass(self) -> None:
+        """Follow the summary signal."""
+
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, self.coordinator.summary_signal, self.async_write_ha_state
+            )
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the sum, or None (unknown) without money rows."""
+
+        value = self._value()
+        return value.value if value is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the period and the settlement state."""
+
+        summary = self.coordinator.summary.get(self._period)
+        dates = summary.dates if summary is not None else None
+        value = self._value()
+        settlement: Settlement | None = value.settlement if value else None
+        return {
+            "period_start": dates.start.isoformat() if dates else None,
+            "period_end": dates.end.isoformat() if dates else None,
+            "settlement": settlement.value if settlement else None,
+        }
+
+    def _value(self) -> MoneyValue | None:
+        summary = self.coordinator.summary.get(self._period)
+        if summary is None:
+            return None
+        return summary.money.get(self._definition.key)

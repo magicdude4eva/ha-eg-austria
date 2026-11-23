@@ -752,9 +752,14 @@ async def async_import(
         )
 
     price_missing = missing(Quantity.SURPLUS_EUR, setup.surplus_price, prices)
-    supplier_missing = missing(
-        Quantity.IMPORT_SAVINGS_EUR, setup.supplier_price, supplier_prices
-    )
+    # Issue #75: unpriced supplier kWh count as well as unpriced savings.
+    supplier_days = [
+        first
+        for quantity in (Quantity.IMPORT_SAVINGS_EUR, Quantity.SUPPLIER_EUR)
+        if (first := missing(quantity, setup.supplier_price, supplier_prices))
+        is not None
+    ]
+    supplier_missing = min(supplier_days) if supplier_days else None
     return ImportResult(
         validation=result,
         writes=writes,

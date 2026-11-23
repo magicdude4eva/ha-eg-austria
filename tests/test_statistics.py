@@ -793,6 +793,26 @@ def test_derive_import_savings_site_and_community() -> None:
         assert savings.unpriced == [h2]
 
 
+def test_derive_supplier_energy_cost() -> None:
+    """Issue #75: supplier kWh x supplier price, site only; unpriced listed."""
+
+    defs = build_statistic_defs("home", [BEG], BOTH, supplier=True)
+    by_key = {d.key: d for d in defs}
+    assert by_key["home_supplier_eur"].name == "Home Supplier energy cost"
+    assert by_key["home_supplier_eur"].gate_keys == ("home_consumption_from_supplier",)
+    assert "home_beg_supplier_eur" not in by_key
+    assert "home_supplier_eur" not in {
+        d.key for d in build_statistic_defs("home", [BEG], BOTH, surplus=True)
+    }
+    h1 = datetime(2026, 6, 1, 10, tzinfo=UTC)
+    h2 = h1 + timedelta(hours=1)
+    series = {d.key: stats.Series() for d in defs}
+    series["home_consumption_from_supplier"] = stats.Series({h1: 2.0, h2: 1.0})
+    stats.derive_series(defs, series, None, {h1: 0.1224})
+    assert series["home_supplier_eur"].values == {h1: pytest.approx(0.2448)}
+    assert series["home_supplier_eur"].unpriced == [h2]
+
+
 def test_derive_without_surplus_defs_is_noop() -> None:
     """Without a surplus price nothing is derived."""
 
