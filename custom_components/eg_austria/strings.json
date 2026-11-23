@@ -398,7 +398,8 @@
         "community_feed_in_eur": "Feed-in income",
         "community_consumption_eur": "Cost of consumption",
         "site_import_savings_eur": "Import savings",
-        "community_import_savings_eur": "Import savings"
+        "community_import_savings_eur": "Import savings",
+        "site_supplier_eur": "Supplier energy cost"
       }
     },
     "price_source": {
@@ -804,6 +805,32 @@
       },
       "community_import_savings_last_month": {
         "name": "{community} import savings, last month",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "supplier_cost_month_so_far": {
+        "name": "Supplier energy cost, month so far",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "supplier_cost_last_month": {
+        "name": "Supplier energy cost, last month",
         "state_attributes": {
           "settlement": {
             "name": "Settlement",

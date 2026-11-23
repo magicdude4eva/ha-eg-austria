@@ -389,6 +389,7 @@ Statistiken in € (Einheit `€`, stündlich, mit laufender Summe), neben den k
 | `eg_austria:<site>_feed_in_total_eur` | Home Einspeisevergütung | Ertrag aus Gemeinschaften + Überschuss-Ertrag (nur mit Überschusspreis) |
 | `eg_austria:<site>_import_savings_eur` | Home Ersparnis beim Bezug | Gemeinschafts-kWh × dein [Lieferantenpreis](#lieferantenpreis) − Bezugskosten aus Gemeinschaften (nur mit Lieferantenpreis) |
 | `eg_austria:<site>_<c>_import_savings_eur` | *Gemeinschaftsname* Ersparnis beim Bezug | Dasselbe für Gemeinschaft `<c>` |
+| `eg_austria:<site>_supplier_eur` | Home Energiekosten Lieferant | Bezug vom Lieferanten × dein Lieferantenpreis: nur der Energieanteil, nicht deine Lieferantenrechnung (nur mit Lieferantenpreis) |
 
 - **Keine Tarife einzugeben.** Die Gemeinschaftsbeträge sind die stündlichen
   Beträge, die das Portal selbst zeigt (`earnings`, `spendings`); sie enthalten
@@ -426,7 +427,7 @@ Dienste → EG Austria → Konfigurieren** öffnen:
    monatliche Preistabelle der ÖMAG) ergänzt *Überschuss-Ertrag* und
    *Einspeisevergütung*.
 2. **Lieferantenpreis** (der Energiepreis deines Lieferanten pro kWh) ergänzt
-   *Ersparnis beim Bezug*.
+   *Ersparnis beim Bezug* und *Energiekosten Lieferant*.
 
 Die [€-Zusammenfassungssensoren](#-zusammenfassungssensoren) und das
 [Dashboard](#energiegemeinschafts-dashboard) übernehmen sie beim nächsten Lauf.
@@ -505,13 +506,14 @@ in €:
 | Einspeisevergütung | `<site>_feed_in_total_eur` (nur mit Überschusspreis) |
 | Ersparnis beim Bezug | `<site>_import_savings_eur` (nur mit [Lieferantenpreis](#lieferantenpreis)) |
 | *Gemeinschaft* Ersparnis beim Bezug | `<site>_<c>_import_savings_eur` (nur mit Lieferantenpreis) |
+| Energiekosten Lieferant | `<site>_supplier_eur` (nur mit Lieferantenpreis) |
 
 Attribute: `period_start`, `period_end` und `settlement` (*Abrechnung*):
 *abgerechnet*, wenn jede Gemeinschaft, von der der Wert abhängt, diesen Monat
 abgerechnet hat (der Wert entspricht den Rechnungen), *teilweise abgerechnet*,
 wenn erst manche, *vorläufig* davor (die Portalbeträge mit der Zero-Schätzung).
-Der Überschuss-Ertrag hat keine Abrechnung (`null`): sein Preis kommt von
-deinem Überschussabnehmer. Wie die Anteile haben sie keine State-Class und sind
+Überschuss-Ertrag und Energiekosten Lieferant haben keine Abrechnung (`null`):
+ihre Preise kommen von deinem Überschussabnehmer und Lieferanten. Wie die Anteile haben sie keine State-Class und sind
 unbekannt, solange ein Zeitraum keinen vollständigen Tag oder keine
 Geldwerte hat.
 
@@ -677,8 +679,14 @@ Richtung abgerechnet hat, sonst *vorläufig* oder *teilweise abgerechnet*
 (kursiv); die Gemeinschaftskarte zeigt das neben dem Zeitraum. Die
 abgerechneten Monate werden beim Laden des Dashboards gelesen; nach einem
 Lauf also neu laden, um eine neue Abrechnung zu sehen. Der Lieferantenteil
-von *Bezug* hat keine €: die Integration kennt deine Lieferantenrechnung
-nicht.
+von *Bezug* zeigt mit Lieferantenpreis die Energiekosten beim Lieferanten (nur
+der Energieanteil, ohne Grundpreis und Netzentgelte, also nicht deine
+Lieferantenrechnung).
+
+Die € weichen von der *Energieanalyse* im Portal (*Ausgaben*, *Einkünfte*)
+ab: das Portal bewertet Zero-kWh zum Standardtarif ("Zero-Option nicht
+berücksichtigt"), die Integration folgt ab der Abrechnung eines Monats deinen
+Rechnungen und schätzt Zero davor (siehe [Geld](#geld)).
 
 ## Aktionen
 

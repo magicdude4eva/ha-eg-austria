@@ -18,11 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - € summary sensors (#75) for the month so far and the last complete month,
   like the share sensors (ADR 0014, no state class): feed-in income and cost
   of consumption (site and per community), and with the matching price surplus
-  income, feed-in compensation and import savings. Attribute `settlement`:
-  `settled`, `partly_settled` or `provisional`.
-- README: setting up €, the € summary sensors, € in the dashboard, and when to
-  use *Feed-in compensation* in the Energy dashboard (after two settled
-  months).
+  income, feed-in compensation, import savings and supplier energy cost.
+  Attribute `settlement`: `settled`, `partly_settled` or `provisional`.
+- Supplier energy cost (#75): new statistic `<site>_supplier_eur` with a
+  supplier price, consumption from the supplier × the supplier price (energy
+  part only), the import-side mirror of surplus income. Shown on the
+  *Supplier* segment of the *Import* donut.
+- README and the dashboard's (i) text: setting up €, the € summary sensors,
+  € in the dashboard, why the € differ from the portal's Energieanalyse (it
+  prices Zero kWh at the standard rate), and when to use *Feed-in
+  compensation* in the Energy dashboard (after two settled months).
 
 ### Upgrade
 

@@ -359,6 +359,7 @@ Statistics in € (unit `€`, hourly, with a running sum), next to the kWh ones
 | `eg_austria:<site>_feed_in_total_eur` | Home Feed-in compensation | Community income + surplus income (only with a surplus price) |
 | `eg_austria:<site>_import_savings_eur` | Home Import savings | Community kWh × your [supplier price](#supplier-price) − cost of consumption from communities (only with a supplier price) |
 | `eg_austria:<site>_<c>_import_savings_eur` | *community name* Import savings | The same for community `<c>` |
+| `eg_austria:<site>_supplier_eur` | Home Supplier energy cost | Consumption from supplier × your supplier price: the energy part only, not your supplier bill (only with a supplier price) |
 
 - **No tariffs to enter.** The community amounts are the hourly amounts the
   portal itself shows (`earnings`, `spendings`); they already contain the
@@ -393,7 +394,7 @@ Austria → Configure**:
 1. **Surplus price** (what your surplus buyer pays, for example ÖMAG's
    monthly price table) adds *Surplus income* and *Feed-in compensation*.
 2. **Supplier price** (your supplier's energy price per kWh) adds *Import
-   savings*.
+   savings* and *Supplier energy cost*.
 
 The [€ summary sensors](#-summary-sensors) and the
 [dashboard](#energy-community-dashboard) pick them up on the next run.
@@ -469,12 +470,14 @@ The money totals for the same two periods and the same complete hours
 | Feed-in compensation | `<site>_feed_in_total_eur` (only with a surplus price) |
 | Import savings | `<site>_import_savings_eur` (only with a [supplier price](#supplier-price)) |
 | *community* import savings | `<site>_<c>_import_savings_eur` (only with a supplier price) |
+| Supplier energy cost | `<site>_supplier_eur` (only with a supplier price) |
 
 Attributes: `period_start`, `period_end` and `settlement`: *settled* when
 every community it depends on has billed that month (the value equals the
 invoices), *partly settled* when only some have, *provisional* before that
-(the portal's amounts with the Zero estimate). Surplus income has no
-settlement (`null`): its price comes from your surplus buyer. Like the shares,
+(the portal's amounts with the Zero estimate). Surplus income and
+supplier energy cost have no settlement (`null`): their prices come from your
+surplus buyer and supplier. Like the shares,
 they have no state class and are unknown while a period has no complete day
 or no money rows.
 
@@ -626,7 +629,13 @@ has billed every month of the picked period for that community and direction,
 else *provisional* or *partly settled* (in italics); the community card shows
 the marker next to the period. The settled months are read when the dashboard
 loads, so reload it after a run to see a new settlement. The supplier part of
-*Import* has no €: the integration doesn't know your supplier's bill.
+*Import* shows the supplier energy cost with a supplier price (energy part
+only, without base charge and grid fees, so not your supplier bill).
+
+The € differ from the portal's *Energieanalyse* (*Ausgaben*, *Einkünfte*):
+the portal prices Zero kWh at the standard rate ("Zero-Option nicht
+berücksichtigt"), while the integration follows your invoices once a month is
+settled and estimates Zero before that (see [Money](#money)).
 
 ## Actions
 

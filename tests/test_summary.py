@@ -426,10 +426,13 @@ def test_money_defs_without_and_with_prices() -> None:
         "surplus_income",
         "feed_in_compensation",
         "import_savings",
+        "supplier_cost",
         "beg_feed_in_income",
         "beg_consumption_cost",
         "beg_import_savings",
     ]
+    assert full["supplier_cost"].statistic_id == "eg_austria:home_supplier_eur"
+    assert full["supplier_cost"].settles == ()
     assert full["surplus_income"].settles == ()
     assert (
         full["feed_in_compensation"].statistic_id == "eg_austria:home_feed_in_total_eur"
@@ -510,7 +513,12 @@ async def test_money_sensors(
     )
     entry_id = loaded.entry.entry_id
     eid = _entity_id(hass, entry_id, "feed_in_compensation_last_month")
-    for key in ("surplus_income", "import_savings", "beg_import_savings"):
+    for key in (
+        "surplus_income",
+        "import_savings",
+        "beg_import_savings",
+        "supplier_cost",
+    ):
         _entity_id(hass, entry_id, f"{key}_month_so_far")
     state = hass.states.get(eid)
     assert state.state == STATE_UNKNOWN
@@ -554,5 +562,10 @@ async def test_no_price_sensors_without_prices(
     assert not any(
         k in uid
         for uid in unique_ids
-        for k in ("surplus_income", "feed_in_compensation", "import_savings")
+        for k in (
+            "surplus_income",
+            "feed_in_compensation",
+            "import_savings",
+            "supplier_cost",
+        )
     )

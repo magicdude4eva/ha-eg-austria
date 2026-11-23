@@ -419,6 +419,7 @@ const moneyEntry = () => {
       surplus_eur: S("surplus_eur"),
       feed_in_total_eur: S("feed_in_total_eur"),
       import_savings_eur: S("import_savings_eur"),
+      supplier_eur: S("supplier_eur"),
     },
     community_statistics: {
       beg: {
@@ -441,6 +442,7 @@ test("€: parts, donut lines and settled months in the period card", () => {
   assert.deepEqual(card.settled, moneyEntry().settled);
   assert.equal(card.text.provisional, "provisional");
   assert.match(card.text.moneyInfo, /^€: community amounts are provisional/);
+  assert.match(card.text.moneyInfo, /prices Zero kWh at the standard rate/);
   const [imp, feed] = card.donuts;
   assert.deepEqual(imp.money, [
     {
@@ -462,7 +464,9 @@ test("€: parts, donut lines and settled months in the period card", () => {
   ]);
   assert.equal(imp.parts[0].money, S("beg_consumption_eur"));
   assert.deepEqual(imp.parts[0].settle, [{ slug: "beg", direction: "consumption" }]);
-  assert.equal(imp.parts[1].money, undefined);
+  // Supplier: its energy cost at the supplier price, no settlement marker.
+  assert.equal(imp.parts[1].money, S("supplier_eur"));
+  assert.equal(imp.parts[1].settle, undefined);
   // Feed-in: compensation (community + surplus) when there is a surplus price.
   assert.equal(feed.money[0].statistic, S("feed_in_total_eur"));
   assert.deepEqual(

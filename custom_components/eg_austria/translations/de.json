@@ -398,7 +398,8 @@
         "community_feed_in_eur": "Einspeiseertrag",
         "community_consumption_eur": "Bezugskosten",
         "site_import_savings_eur": "Ersparnis beim Bezug",
-        "community_import_savings_eur": "Ersparnis beim Bezug"
+        "community_import_savings_eur": "Ersparnis beim Bezug",
+        "site_supplier_eur": "Energiekosten Lieferant"
       }
     },
     "price_source": {
@@ -804,6 +805,32 @@
       },
       "community_import_savings_last_month": {
         "name": "{community} Ersparnis beim Bezug, Vormonat",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "supplier_cost_month_so_far": {
+        "name": "Energiekosten Lieferant, Monat bisher",
+        "state_attributes": {
+          "settlement": {
+            "name": "Abrechnung",
+            "state": {
+              "settled": "Abgerechnet",
+              "partly_settled": "Teilweise abgerechnet",
+              "provisional": "Vorläufig"
+            }
+          }
+        }
+      },
+      "supplier_cost_last_month": {
+        "name": "Energiekosten Lieferant, Vormonat",
         "state_attributes": {
           "settlement": {
             "name": "Abrechnung",

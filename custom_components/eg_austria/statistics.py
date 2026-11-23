@@ -78,6 +78,7 @@ class Quantity(StrEnum):
     SURPLUS_EUR = "surplus_eur"
     FEED_IN_TOTAL_EUR = "feed_in_total_eur"
     IMPORT_SAVINGS_EUR = "import_savings_eur"  # issue #73
+    SUPPLIER_EUR = "supplier_eur"  # issue #75
 
 
 # ``attr`` of quantities computed from other statistics, not from a point.
@@ -191,6 +192,19 @@ QUANTITIES: Final[Mapping[Quantity, QuantityInfo]] = {
         MONEY_UNIT,
         None,
         (Quantity.CONSUMPTION_FROM_COMMUNITY,),
+        "supplier",
+    ),
+    # Issue #75: the import side's mirror of surplus income, the supplier kWh
+    # at the supplier's energy price (no grid fees or base charge).
+    Quantity.SUPPLIER_EUR: QuantityInfo(
+        Direction.CONSUMPTION,
+        DERIVED,
+        True,
+        "Supplier energy cost",
+        None,
+        MONEY_UNIT,
+        None,
+        (Quantity.CONSUMPTION_FROM_SUPPLIER,),
         "supplier",
     ),
 }
@@ -617,7 +631,8 @@ def derive_series(
     ``prices`` maps UTC hours to the surplus price in EUR/kWh; an hour without
     a price or without surplus kWh has no surplus income (ADR 0005). The
     feed-in compensation is community income plus surplus income, known only
-    where both are.
+    where both are. ``supplier_prices`` gives import savings (#73) and the
+    supplier energy cost (#75) the same way.
     """
 
     by_quantity = {(d.community, d.quantity): d for d in defs}
@@ -628,18 +643,29 @@ def derive_series(
         sdef = by_quantity.get((None, quantity))
         return series[sdef.key].values if sdef and sdef.key in series else {}
 
+    def priced(
+        kwh: Mapping[datetime, float], price: Mapping[datetime, float]
+    ) -> Series:
+        return Series(
+            {
+                h: round(v * price[h], MONEY_DIGITS) + 0.0
+                for h, v in kwh.items()
+                if h in price
+            },
+            unpriced=sorted(h for h in kwh if h not in price),
+        )
+
+    # Issue #75: supplier kWh at the supplier's energy price.
+    supplier_def = by_quantity.get((None, Quantity.SUPPLIER_EUR))
+    if supplier_def is not None:
+        series[supplier_def.key] = priced(
+            values(Quantity.CONSUMPTION_FROM_SUPPLIER), supplier_prices or {}
+        )
+
     surplus_def = by_quantity.get((None, Quantity.SURPLUS_EUR))
     if surplus_def is None:
         return
-    kwh = values(Quantity.GENERATION_TO_SURPLUS)
-    surplus = Series(
-        {
-            h: round(v * prices[h], MONEY_DIGITS) + 0.0
-            for h, v in kwh.items()
-            if h in prices
-        },
-        unpriced=sorted(h for h in kwh if h not in prices),
-    )
+    surplus = priced(values(Quantity.GENERATION_TO_SURPLUS), prices)
     series[surplus_def.key] = surplus
     total_def = by_quantity.get((None, Quantity.FEED_IN_TOTAL_EUR))
     if total_def is not None:

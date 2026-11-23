@@ -289,7 +289,8 @@ def build_money_defs(
 
     Surplus income and the total feed-in compensation need a surplus price,
     import savings a supplier price (ADR 0015); without one they aren't
-    created, like their statistics.
+    created, like their statistics. With a supplier price there is also the
+    supplier energy cost (supplier kWh at that price).
     """
 
     feed_in = tuple((c.slug, Direction.GENERATION) for c in communities)
@@ -321,14 +322,20 @@ def build_money_defs(
             ),
         ]
     if supplier:
-        defs.append(
+        defs += [
             MoneyDef(
                 "import_savings",
                 "import_savings",
                 _stat(site, Quantity.IMPORT_SAVINGS_EUR),
                 settles=consumption,
-            )
-        )
+            ),
+            # Priced by your supplier, not settled here: no marker.
+            MoneyDef(
+                "supplier_cost",
+                "supplier_cost",
+                _stat(site, Quantity.SUPPLIER_EUR),
+            ),
+        ]
     for c in communities:
         defs += [
             MoneyDef(

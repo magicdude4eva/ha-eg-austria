@@ -97,7 +97,7 @@ const TEXT = {
     provisional: "provisional",
     partlySettled: "partly settled",
     infoMoney:
-      "€: community amounts are provisional until EG Austria settles the month, then they match the invoice. Surplus income uses your surplus price, savings your supplier price (options).",
+      "€: community amounts are provisional until EG Austria settles the month, then they match the invoice. They differ from the portal's Energieanalyse, which prices Zero kWh at the standard rate. Surplus uses your surplus price; supplier cost (energy only, no grid fees) and savings use your supplier price (options).",
   },
   de: {
     name: "EG Austria Energiegemeinschaft",
@@ -163,7 +163,7 @@ const TEXT = {
     provisional: "vorläufig",
     partlySettled: "teilweise abgerechnet",
     infoMoney:
-      "€: Gemeinschaftsbeträge sind vorläufig, bis EG Austria den Monat abrechnet; danach entsprechen sie der Rechnung. Der Überschusserlös nutzt deinen Überschusspreis, die Ersparnis deinen Lieferantenpreis (Optionen).",
+      "€: Gemeinschaftsbeträge sind vorläufig, bis EG Austria den Monat abrechnet; danach entsprechen sie der Rechnung. Sie weichen von der Energieanalyse im Portal ab, die Zero-kWh zum Standardtarif bewertet. Der Überschuss nutzt deinen Überschusspreis, Lieferantenkosten (nur Energie, ohne Netzentgelte) und Ersparnis deinen Lieferantenpreis (Optionen).",
   },
 };
 
@@ -339,6 +339,7 @@ const donuts = (entry, t) => {
           name: t.supplier,
           statistic: s.consumption_from_supplier,
           color: COLORS.supplier,
+          ...(s.supplier_eur ? { money: s.supplier_eur } : {}),
         },
       ],
     },
@@ -808,7 +809,10 @@ export const segmentDetail = (part, value, extra, lang, text) => {
     const best = bestDay(part, extra.daily, extra.until);
     if (best) {
       const date = new Date(best.start).toLocaleDateString(lang, { day: "numeric", month: "short" });
-      bits.push(text.best.replace("{date}", date).replace("{kwh}", kwh(lang, best.value)));
+      // Its own line (the detail line keeps line breaks).
+      return [bits.join(" · "), text.best.replace("{date}", date).replace("{kwh}", kwh(lang, best.value))]
+        .filter(Boolean)
+        .join("\n");
     }
   }
   return bits.join(" · ");
@@ -838,8 +842,9 @@ ha-tooltip::part(base__popup){margin-top:4px}
 .head{display:flex;align-items:baseline;gap:6px 10px;flex-wrap:wrap}
 h2{margin:0;font-size:1.2em;font-weight:500;color:var(--primary-text-color)}
 .meta,.say,.empty,.of{color:var(--secondary-text-color);font-size:.875em}
+.say{white-space:pre-line;min-height:2.5em}
 .donuts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px 24px}
-.donut{display:flex;gap:14px;align-items:center;min-width:0}
+.donut{display:flex;gap:14px;align-items:flex-start;min-width:0}
 svg{flex:none;width:120px;height:120px}
 .text{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 h3{margin:0;font-size:1em;font-weight:500}
@@ -851,12 +856,18 @@ circle[data-seg]{cursor:pointer;transition:opacity .15s}
 .focus [data-seg]:not(.sel){opacity:.35}
 @media (prefers-reduced-motion:reduce){circle[data-seg],.part{transition:none}}
 .dot{width:10px;height:10px;border-radius:3px;flex:none}
-.value{margin-left:auto;padding-left:8px;font-weight:500;white-space:nowrap}
+.value{margin-left:auto;padding-left:8px;font-weight:500;white-space:nowrap;text-align:right}
 .name{min-width:0;overflow-wrap:anywhere}
-.bar{display:flex;flex-direction:column;gap:4px}
+.legend{display:grid;grid-template-columns:auto 1fr auto auto;row-gap:4px}
+.legend .part{grid-column:1/-1;display:grid;grid-template-columns:subgrid;column-gap:8px}
+.rows{display:grid;grid-template-columns:1fr auto auto auto;row-gap:14px}
+.bar{grid-column:1/-1;display:grid;grid-template-columns:subgrid;row-gap:4px}
+.bar .row{grid-column:1/-1;display:grid;grid-template-columns:subgrid;align-items:baseline}
+.bar .track,.bar .money{grid-column:1/-1}
+.of{padding-left:8px;text-align:right;white-space:nowrap}
 .track{height:8px;border-radius:4px;background:var(--divider-color);overflow:hidden}
 .track i{display:block;height:100%;border-radius:4px}
-.eur{padding-left:8px;color:var(--secondary-text-color);white-space:nowrap}
+.eur{padding-left:8px;color:var(--secondary-text-color);white-space:nowrap;text-align:right}
 .money{color:var(--secondary-text-color);font-size:.875em}
 .provisional{font-style:italic}
 </style>`;
@@ -972,7 +983,7 @@ export const renderPeriodCard = (config, totals, period, lang, extra = {}) => {
           })
           .join("");
         const say = escapeHtml(d.say.replace("{pct}", percent(lang, share, total)));
-        return `<div class="donut">${donutSvg(parts, total, lang, config.text.total, di)}<div class="text"><h3>${escapeHtml(d.title)}</h3><span class="say" data-key="detail" data-default="${say}">${say}</span>${moneyLine(d, totals, config, period, lang)}${rows}</div></div>`;
+        return `<div class="donut">${donutSvg(parts, total, lang, config.text.total, di)}<div class="text"><h3>${escapeHtml(d.title)}</h3><span class="say" data-key="detail" data-default="${say}">${say}</span>${moneyLine(d, totals, config, period, lang)}<div class="legend">${rows}</div></div></div>`;
       })
       .join("")}</div>`;
   }
@@ -1006,9 +1017,11 @@ export const renderCommunityCard = (config, totals, period, lang) => {
           saved === null
             ? ""
             : `<span class="money">${escapeHtml(`${config.text.saved} ${eur(lang, saved)}`)}</span>`;
-        return `<div class="bar"><div class="row"><span class="name">${escapeHtml(row.name)}</span><span class="value">${kwh(lang, value)}</span>${eurCell}${of ? `<span class="of">${escapeHtml(of)}</span>` : ""}</div><div class="track"><i style="width:${width.toFixed(1)}%;background:${config.color}"></i></div>${savedLine}</div>`;
+        // Empty cells keep the columns: kWh, € and share line up across rows.
+        return `<div class="bar"><div class="row"><span class="name">${escapeHtml(row.name)}</span><span class="value">${kwh(lang, value)}</span>${eurCell || "<span></span>"}<span class="of">${escapeHtml(of)}</span></div><div class="track"><i style="width:${width.toFixed(1)}%;background:${config.color}"></i></div>${savedLine}</div>`;
       })
       .join("");
+    body = `<div class="rows">${body}</div>`;
   }
   const info = infoIcon([config.text.info, config.text.moneyInfo]);
   return `${STYLE}<ha-card>${info}${header(config, period, lang)}${body}</ha-card>`;

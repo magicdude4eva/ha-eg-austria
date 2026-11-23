@@ -394,11 +394,11 @@ test("segment detail: previous period with change, best day before the cut", () 
   const part = PERIOD.donuts[0].parts[0];
   assert.equal(
     segmentDetail(part, 25, EXTRA, "en", TEXT),
-    "September 2030: 50.0 kWh (-50 %) · Best day Oct 2: 9.3 kWh"
+    "September 2030: 50.0 kWh (-50 %)\nBest day Oct 2: 9.3 kWh"
   );
   // PV self-consumed per day: PV minus feed-in (15 on the 1st, 2 on the 2nd).
   const pv = PERIOD.donuts[1].parts[0];
-  assert.equal(segmentDetail(pv, 50, EXTRA, "en", TEXT), "September 2030: 80.0 kWh (-38 %) · Best day Oct 1: 15.0 kWh");
+  assert.equal(segmentDetail(pv, 50, EXTRA, "en", TEXT), "September 2030: 80.0 kWh (-38 %)\nBest day Oct 1: 15.0 kWh");
   // Nothing before: no change; nothing at all: empty.
   assert.equal(
     segmentDetail(part, 25, { previous: { totals: { "s:a_in": 0 }, label: "Sep" } }, "en", TEXT),
@@ -413,7 +413,7 @@ test("period card: segments and legend rows carry share, kWh and detail", () => 
   assert.match(html, /<circle data-seg="0-0" /);
   assert.match(
     html,
-    /<button type="button" class="part" data-seg="0-0" data-pct="25\.0 %" data-kwh="25\.0 kWh" data-detail="September 2030: 50\.0 kWh \(-50 %\) · Best day Oct 2: 9\.3 kWh">/
+    /<button type="button" class="part" data-seg="0-0" data-pct="25\.0 %" data-kwh="25\.0 kWh" data-detail="September 2030: 50\.0 kWh \(-50 %\)\nBest day Oct 2: 9\.3 kWh">/
   );
   assert.match(html, /<span class="say" data-key="detail" data-default="Communities covered 25\.0 % of your import">/);
   assert.match(html, /<text data-key="kwh" data-default="100\.0 kWh"/);
@@ -650,4 +650,16 @@ test("community card: € per row, savings, marker next to the period", () => {
   // Without € statistics nothing changes.
   const body = renderCommunityCard(COMMUNITY, TOTALS, period, "en").split("</style>")[1];
   assert.doesNotMatch(body, /class="eur|settled|provisional/);
+});
+
+test("layout: legend and community rows share columns, headings on top", () => {
+  const period = clipPeriod(october, null);
+  const html = renderPeriodCard(MONEY_PERIOD, MONEY_TOTALS, period, "en");
+  assert.match(html, /\.donut\{[^}]*align-items:flex-start/);
+  assert.match(html, /grid-template-columns:subgrid/);
+  assert.match(html, /<div class="legend"><button type="button" class="part"/);
+  const card = renderCommunityCard(COMMUNITY, TOTALS, period, "en");
+  // A row without € or share keeps empty cells, so the kWh stay in one column.
+  assert.match(card, /<div class="rows"><div class="bar">/);
+  assert.match(card, /25\.0 kWh<\/span><span><\/span><span class="of"><\/span>/);
 });
