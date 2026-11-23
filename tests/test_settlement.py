@@ -25,12 +25,15 @@ from custom_components.eg_austria.models import (
     parse_transactions,
 )
 from custom_components.eg_austria.settlement import (
+    MonthFactor,
     MonthState,
+    Settlements,
     apply_settlements,
     billed_month,
     build_settlements,
     changed_months,
     month_factors,
+    settled_months,
     settled_window_start,
 )
 from custom_components.eg_austria.statistics import local_date
@@ -396,6 +399,11 @@ async def test_run_writes_settled_month(hass: HomeAssistant, env: Any) -> None:
     assert months["eeg/Consumption/2026-06"]["factor"] == 0
     assert "beg/Generation/2026-06" not in months
     assert coordinator.state.settlement_digests
+    # Issue #75: kept for the settled / provisional marker.
+    assert coordinator.state.settled_months == {
+        "beg/Consumption": ["2026-06"],
+        "eeg/Consumption": ["2026-06"],
+    }
     assert ("get_transactions", ("9000001",)) in client.calls
 
 
@@ -433,3 +441,33 @@ async def test_transactions_schema_change_aborts(hass: HomeAssistant, env: Any) 
     assert summary is not None
     assert summary.status is RunStatus.API_CHANGED
     assert await stored(hass, "home_consumption") == []
+
+
+def test_settled_months() -> None:
+    """Issue #75: settled per community and direction, value-free.
+
+    An unmatched correction (both directions) or a month without provisional
+    amounts to scale isn't settled.
+    """
+
+    gen, con = Direction.GENERATION, Direction.CONSUMPTION
+    settlements = Settlements(
+        amounts={
+            ("beg", gen, (2026, 1)): 1.0,
+            ("beg", con, (2026, 1)): 2.0,
+            ("beg", gen, (2026, 2)): 1.0,
+            ("beg", con, (2026, 3)): 3.0,
+            ("eeg", gen, (2026, 1)): 0.5,
+        }
+    )
+    settlements.unmatched.add(("beg", (2026, 2)))
+    factors = {
+        ("beg", con, (2026, 3)): MonthFactor(MonthState.ZERO_PROVISIONAL, None),
+        ("beg", gen, (2026, 1)): MonthFactor(MonthState.SETTLED, 1.1),
+    }
+    assert settled_months(settlements, factors) == {
+        "beg/Consumption": ["2026-01"],
+        "beg/Generation": ["2026-01"],
+        "eeg/Generation": ["2026-01"],
+    }
+    assert settled_months(Settlements(), {}) == {}

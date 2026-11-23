@@ -406,3 +406,92 @@ test("generate asks the websocket command", async () => {
   assert.deepEqual(calls, [{ type: "eg_austria/dashboard_config" }]);
   assert.equal(dashboard.views.length, 1);
 });
+
+// --- € (#75) ---------------------------------------------------------------
+
+const moneyEntry = () => {
+  const base = entry();
+  return entry({
+    statistics: {
+      ...base.statistics,
+      feed_in_eur: S("feed_in_eur"),
+      consumption_eur: S("consumption_eur"),
+      surplus_eur: S("surplus_eur"),
+      feed_in_total_eur: S("feed_in_total_eur"),
+      import_savings_eur: S("import_savings_eur"),
+    },
+    community_statistics: {
+      beg: {
+        ...base.community_statistics.beg,
+        feed_in_eur: S("beg_feed_in_eur"),
+        consumption_eur: S("beg_consumption_eur"),
+        import_savings_eur: S("beg_import_savings_eur"),
+      },
+      eeg: { ...base.community_statistics.eeg, feed_in_eur: S("eeg_feed_in_eur") },
+    },
+    settled: {
+      beg: { generation: ["2026-09"], consumption: ["2026-09"] },
+      eeg: { generation: [], consumption: [] },
+    },
+  });
+};
+
+test("€: parts, donut lines and settled months in the period card", () => {
+  const card = buildView(moneyEntry(), EN).sections[0].cards[3];
+  assert.deepEqual(card.settled, moneyEntry().settled);
+  assert.equal(card.text.provisional, "provisional");
+  assert.match(card.text.moneyInfo, /^€: community amounts are provisional/);
+  const [imp, feed] = card.donuts;
+  assert.deepEqual(imp.money, [
+    {
+      name: "Cost",
+      statistic: S("consumption_eur"),
+      settle: [
+        { slug: "beg", direction: "consumption" },
+        { slug: "eeg", direction: "consumption" },
+      ],
+    },
+    {
+      name: "Saved",
+      statistic: S("import_savings_eur"),
+      settle: [
+        { slug: "beg", direction: "consumption" },
+        { slug: "eeg", direction: "consumption" },
+      ],
+    },
+  ]);
+  assert.equal(imp.parts[0].money, S("beg_consumption_eur"));
+  assert.deepEqual(imp.parts[0].settle, [{ slug: "beg", direction: "consumption" }]);
+  assert.equal(imp.parts[1].money, undefined);
+  // Feed-in: compensation (community + surplus) when there is a surplus price.
+  assert.equal(feed.money[0].statistic, S("feed_in_total_eur"));
+  assert.deepEqual(
+    feed.parts.map((p) => p.money),
+    [S("beg_feed_in_eur"), S("eeg_feed_in_eur"), S("surplus_eur")]
+  );
+  assert.equal(feed.parts[2].settle, undefined);
+  // Without a surplus price: community income only.
+  const plain = moneyEntry();
+  delete plain.statistics.feed_in_total_eur;
+  delete plain.statistics.surplus_eur;
+  const plainFeed = buildView(plain, EN).sections[0].cards[3].donuts[1];
+  assert.equal(plainFeed.money[0].statistic, S("feed_in_eur"));
+  assert.equal(plainFeed.parts[2].money, undefined);
+});
+
+test("€: community cards get € per row, savings and settled months", () => {
+  const [beg, eeg] = buildView(moneyEntry(), DE).sections[0].cards.slice(4);
+  assert.deepEqual(beg.rows[0].settle, [{ slug: "beg", direction: "generation" }]);
+  assert.equal(beg.rows[0].money, S("beg_feed_in_eur"));
+  assert.equal(beg.rows[1].money, S("beg_consumption_eur"));
+  assert.equal(beg.rows[1].saved, S("beg_import_savings_eur"));
+  assert.equal(beg.text.saved, "Gespart");
+  assert.equal(beg.text.settled, "abgerechnet");
+  assert.deepEqual(beg.settled, moneyEntry().settled);
+  assert.equal(eeg.rows[0].money, S("eeg_feed_in_eur"));
+  // No € statistics: cards as before (no settled map, no € texts).
+  const [old] = buildView(entry(), EN).sections[0].cards.slice(4);
+  assert.equal(old.settled, undefined);
+  assert.equal(old.text.moneyInfo, undefined);
+  assert.equal(buildView(entry(), EN).sections[0].cards[3].settled, undefined);
+});

@@ -386,6 +386,30 @@ Statistics in € (unit `€`, hourly, with a running sum), next to the kWh ones
   [price missing](#price-missing) repair (except the current and previous
   month of a monthly price table, whose prices are published later).
 
+**Setting up €:** community income and cost need nothing: they appear with
+the first run. For the rest, open **Settings → Devices & services → EG
+Austria → Configure**:
+
+1. **Surplus price** (what your surplus buyer pays, for example ÖMAG's
+   monthly price table) adds *Surplus income* and *Feed-in compensation*.
+2. **Supplier price** (your supplier's energy price per kWh) adds *Import
+   savings*.
+
+The [€ summary sensors](#-summary-sensors) and the
+[dashboard](#energy-community-dashboard) pick them up on the next run.
+
+> [!TIP]
+> 💡 **Energy dashboard compensation:** if your feed-in source in **Settings →
+> Dashboards → Energy → Return to grid** is priced with one fixed or ÖMAG
+> price for *all* feed-in, that overstates or understates what you get, since
+> community kWh are paid at the community rate. With a surplus price set, you
+> can use `eg_austria:<site>_feed_in_total_eur` (*Feed-in compensation*) as
+> its compensation instead (*Use an entity tracking the total amount
+> received*). Switch only after comparing the two over **two settled months**
+> (both communities billed, see the *Settlement* attribute of the € summary
+> sensors): before that, the latest weeks are still estimates, and the
+> statistic is about two weeks behind your live source.
+
 ### Diagnostic sensors
 
 On the "EG Austria" service device:
@@ -429,6 +453,30 @@ Attributes: `period_start`, `period_end`, `numerator_kwh`,
 have no state class, so Home Assistant keeps no long-term statistics of them;
 the kWh values stay in the statistics above ([ADR 0014](docs/adr/0014-summary-sensors.md)).
 The values are recomputed after Home Assistant starts and after every import.
+
+### € summary sensors
+
+The money totals for the same two periods and the same complete hours
+(issue [#75](https://github.com/magicdude4eva/ha-eg-austria/issues/75)), in €:
+
+| Sensor | Sum of |
+|---|---|
+| Feed-in income from communities | `<site>_feed_in_eur` |
+| Cost of consumption from communities | `<site>_consumption_eur` |
+| *community* feed-in income | `<site>_<c>_feed_in_eur` |
+| *community* cost of consumption | `<site>_<c>_consumption_eur` |
+| Surplus income | `<site>_surplus_eur` (only with a [surplus price](#surplus-price)) |
+| Feed-in compensation | `<site>_feed_in_total_eur` (only with a surplus price) |
+| Import savings | `<site>_import_savings_eur` (only with a [supplier price](#supplier-price)) |
+| *community* import savings | `<site>_<c>_import_savings_eur` (only with a supplier price) |
+
+Attributes: `period_start`, `period_end` and `settlement`: *settled* when
+every community it depends on has billed that month (the value equals the
+invoices), *partly settled* when only some have, *provisional* before that
+(the portal's amounts with the Zero estimate). Surplus income has no
+settlement (`null`): its price comes from your surplus buyer. Like the shares,
+they have no state class and are unknown while a period has no complete day
+or no money rows.
 
 > [!TIP]
 > 💡 **Energy dashboard:** the integration never changes your Energy dashboard.
@@ -537,7 +585,7 @@ What it shows, one view per EG Austria entry, from top to bottom:
 
 | Part | Cards |
 |---|---|
-| Picked period | A banner with the two delays (community shares complete until *Data complete until*, meter values until *Meter data until*); the **import status** in one row: *Data complete until*, *Meter data until*, *Last run* (green when OK, amber when a later run catches up: partial, maintenance, rate limited; red when it needs you: login failed, portal changed, unavailable), *Last import*, *Token expires* as a date (amber in the last two weeks, red once expired) and a link to the Energy dashboard; a click on a value opens its details. Then a date picker that opens on **this month**; use ‹ › to step to earlier months, or pick a week, a year or any range. Under it, following the picker: the **period card** with three donuts: *Import* (from each community and from the supplier, with the share covered by communities), *Feed-in* (to each community and to the surplus buyer, with the share the communities took) and, with a PV source, *PV* (self-consumed vs fed in); then **one card per community** with the kWh fed in and drawn and their share of all your feed-in and import; then where the feed-in went and where the import came from, by day |
+| Picked period | A banner with the two delays (community shares complete until *Data complete until*, meter values until *Meter data until*); the **import status** in one row: *Data complete until*, *Meter data until*, *Last run* (green when OK, amber when a later run catches up: partial, maintenance, rate limited; red when it needs you: login failed, portal changed, unavailable), *Last import*, *Token expires* as a date (amber in the last two weeks, red once expired) and a link to the Energy dashboard; a click on a value opens its details. Then a date picker that opens on **this month**; use ‹ › to step to earlier months, or pick a week, a year or any range. Under it, following the picker: the **period card** with three donuts: *Import* (from each community and from the supplier, with the share covered by communities), *Feed-in* (to each community and to the surplus buyer, with the share the communities took) and, with a PV source, *PV* (self-consumed vs fed in); then **one card per community** with the kWh fed in and drawn and their share of all your feed-in and import; with € statistics, both cards show € next to the kWh (see below); then where the feed-in went and where the import came from, by day |
 | Last 12 months | The same two splits by month |
 | Your own sources | With a PV source, PV production vs metered feed-in vs communities by month; with a feed-in or grid consumption source, metered vs your source for the picked period, as bars side by side (the two agree closely, so lines would cover each other) |
 
@@ -566,6 +614,19 @@ shows the year only for months outside the current year (a Home Assistant
 detail with no setting); the community cards always show it. In the built-in charts, Home Assistant
 adds *(Change)* to every series name: the kWh in that bar (the change of the
 meter total); there is no setting to hide it.
+
+**€ in the cards.** Once the [money statistics](#money) exist, every
+community segment of the *Import* and *Feed-in* donuts shows its € (cost or
+income), the surplus buyer its surplus income (with a surplus price), and each
+donut a line with the totals: *Cost* and *Saved* (with a supplier price) under
+*Import*, *Income* under *Feed-in* (community income plus surplus income with a
+surplus price). The community cards show € next to fed in and drawn, and
+*Saved* with a supplier price. Amounts are marked **settled** when EG Austria
+has billed every month of the picked period for that community and direction,
+else *provisional* or *partly settled* (in italics); the community card shows
+the marker next to the period. The settled months are read when the dashboard
+loads, so reload it after a run to see a new settlement. The supplier part of
+*Import* has no €: the integration doesn't know your supplier's bill.
 
 ## Actions
 

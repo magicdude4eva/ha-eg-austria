@@ -4,8 +4,8 @@ The integration ships a Lovelace dashboard strategy (``frontend/``): a small
 script, served from a static path and loaded on every frontend start with
 ``add_extra_js_url``. It registers ``custom:eg-austria`` in the *Add
 dashboard* dialog. When the dashboard loads, the strategy asks the
-``eg_austria/dashboard_config`` websocket command which statistics, sources
-and sensors each entry has, and builds its cards from that, so option changes
+``eg_austria/dashboard_config`` websocket command which statistics, sources,
+sensors and settled months (issue #75) each entry has, and builds its cards from that, so option changes
 show on the next load.
 
 The integration never creates or changes dashboards itself; the user adds it
@@ -14,6 +14,7 @@ once. Nothing here writes anything.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final
 
@@ -30,6 +31,7 @@ from homeassistant.helpers import entity_registry as er
 import probatio as vol
 
 from .const import CONF_COMMUNITIES, CONF_SITE_SLUG, DOMAIN, VERSION
+from .models import Direction
 from .sources import configured_sources
 from .statistics import Quantity
 from .summary import Period
@@ -44,6 +46,10 @@ SITE_QUANTITIES: Final = tuple(Quantity)
 COMMUNITY_QUANTITIES: Final = (
     Quantity.CONSUMPTION_FROM_COMMUNITY,
     Quantity.GENERATION_TO_COMMUNITY,
+    # Issue #75: € per community.
+    Quantity.FEED_IN_EUR,
+    Quantity.CONSUMPTION_EUR,
+    Quantity.IMPORT_SAVINGS_EUR,
 )
 DIAGNOSTIC_KEYS: Final = (
     "data_complete_until",
@@ -147,7 +153,9 @@ def _entry_config(
     data = entry.data
     coordinator = entry.runtime_data
     summary_keys = [
-        f"{d.key}_{period}" for d in coordinator.summary_defs for period in Period
+        f"{d.key}_{period}"
+        for d in (*coordinator.summary_defs, *coordinator.money_defs)
+        for period in Period
     ]
     return {
         "entry_id": entry.entry_id,
@@ -173,4 +181,23 @@ def _entry_config(
         "entities": _entity_ids(
             registry, entry.entry_id, [*DIAGNOSTIC_KEYS, *summary_keys]
         ),
+        "settled": _settled(entry.data, coordinator.state.settled_months),
+    }
+
+
+def _settled(
+    data: Any, months: Mapping[str, list[str]]
+) -> dict[str, dict[str, list[str]]]:
+    """Settled months per community slug and direction (issue #75).
+
+    ``{"<slug>": {"generation": ["YYYY-MM", ...], "consumption": [...]}}``,
+    for the settled / provisional marker of the € values.
+    """
+
+    return {
+        c["slug"]: {
+            str(direction).lower(): list(months.get(f"{c['slug']}/{direction}", []))
+            for direction in Direction
+        }
+        for c in data[CONF_COMMUNITIES]
     }

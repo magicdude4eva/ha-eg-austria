@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- € in the generated dashboard (#75): every community segment of the
+  *Import* and *Feed-in* donuts shows its cost or income, the surplus buyer its
+  surplus income, and each donut a € line (cost and savings, income or
+  feed-in compensation). The community cards show € next to fed in and drawn,
+  plus savings with a supplier price. Amounts are marked *settled*, *partly
+  settled* or *provisional* from the invoices the integration reads.
+- € summary sensors (#75) for the month so far and the last complete month,
+  like the share sensors (ADR 0014, no state class): feed-in income and cost
+  of consumption (site and per community), and with the matching price surplus
+  income, feed-in compensation and import savings. Attribute `settlement`:
+  `settled`, `partly_settled` or `provisional`.
+- README: setting up €, the € summary sensors, € in the dashboard, and when to
+  use *Feed-in compensation* in the Energy dashboard (after two settled
+  months).
+
+### Upgrade
+
+- The settled / provisional marker needs one run after the update: until
+  then every amount shows as provisional. Reload the dashboard page after
+  that run.
+
 ## [0.2.0] - 2026-11-23
 
 Phase 2: money in € (#55). Community income and cost come from the portal and

@@ -9,6 +9,10 @@ Two periods: the month so far (current calendar month up to the complete
 date) and the last complete month (the latest month whose days are all
 complete). Unknown is not zero (ADR 0005): no complete day or a denominator of
 0 gives ``None``.
+
+Issue #75 adds € values over the same hours: the sums of the money
+statistics (ADR 0008, 0015), with a settled / provisional marker from the
+settled months of the communities they depend on.
 """
 
 from __future__ import annotations
@@ -30,12 +34,14 @@ from .const import (
     CONF_SOURCE_PV,
     DOMAIN,
 )
+from .models import Direction
 from .statistics import Quantity, local_date, local_day_start
 
 _LOGGER = logging.getLogger(__name__)
 
 PRECISION: Final = 1  # decimals of a share in percent
 KWH_PRECISION: Final = 3
+EUR_PRECISION: Final = 2
 
 
 class Period(StrEnum):
@@ -115,12 +121,46 @@ class SummaryValue:
     denominator_kwh: float | None
 
 
+class Settlement(StrEnum):
+    """Whether the € value of a period is final (issue #75, ADR 0008)."""
+
+    SETTLED = "settled"  # every community month it depends on is settled
+    PARTLY_SETTLED = "partly_settled"
+    PROVISIONAL = "provisional"
+
+
+# Settled months ("YYYY-MM") per "<community slug>/<direction>" (StoreData).
+SettledMonths = Mapping[str, Collection[str]]
+
+
+@dataclass(frozen=True, slots=True)
+class MoneyDef:
+    """One € value: the sum of a money statistic over the period."""
+
+    key: str
+    translation_key: str
+    statistic_id: str
+    community: str | None = None  # community display name (placeholder)
+    # Community settlements that make the value final; empty: no marker
+    # (surplus income is priced by the surplus buyer, not settled here).
+    settles: tuple[tuple[str, Direction], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class MoneyValue:
+    """A € sum and whether it is settled."""
+
+    value: float | None
+    settlement: Settlement | None
+
+
 @dataclass(frozen=True, slots=True)
 class PeriodSummary:
     """All values of one period."""
 
     dates: DateRange | None
     values: Mapping[str, SummaryValue] = field(default_factory=dict)
+    money: Mapping[str, MoneyValue] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,6 +278,117 @@ def build_summary_defs(
     return defs
 
 
+def build_money_defs(
+    site: str,
+    communities: Sequence[CommunityName],
+    *,
+    surplus: bool = False,
+    supplier: bool = False,
+) -> list[MoneyDef]:
+    """Return the € values of one entry (issue #75).
+
+    Surplus income and the total feed-in compensation need a surplus price,
+    import savings a supplier price (ADR 0015); without one they aren't
+    created, like their statistics.
+    """
+
+    feed_in = tuple((c.slug, Direction.GENERATION) for c in communities)
+    consumption = tuple((c.slug, Direction.CONSUMPTION) for c in communities)
+    defs = [
+        MoneyDef(
+            "feed_in_income",
+            "feed_in_income",
+            _stat(site, Quantity.FEED_IN_EUR),
+            settles=feed_in,
+        ),
+        MoneyDef(
+            "consumption_cost",
+            "consumption_cost",
+            _stat(site, Quantity.CONSUMPTION_EUR),
+            settles=consumption,
+        ),
+    ]
+    if surplus:
+        defs += [
+            MoneyDef(
+                "surplus_income", "surplus_income", _stat(site, Quantity.SURPLUS_EUR)
+            ),
+            MoneyDef(
+                "feed_in_compensation",
+                "feed_in_compensation",
+                _stat(site, Quantity.FEED_IN_TOTAL_EUR),
+                settles=feed_in,
+            ),
+        ]
+    if supplier:
+        defs.append(
+            MoneyDef(
+                "import_savings",
+                "import_savings",
+                _stat(site, Quantity.IMPORT_SAVINGS_EUR),
+                settles=consumption,
+            )
+        )
+    for c in communities:
+        defs += [
+            MoneyDef(
+                f"{c.slug}_feed_in_income",
+                "community_feed_in_income",
+                _stat(site, Quantity.FEED_IN_EUR, c.slug),
+                community=c.name,
+                settles=((c.slug, Direction.GENERATION),),
+            ),
+            MoneyDef(
+                f"{c.slug}_consumption_cost",
+                "community_consumption_cost",
+                _stat(site, Quantity.CONSUMPTION_EUR, c.slug),
+                community=c.name,
+                settles=((c.slug, Direction.CONSUMPTION),),
+            ),
+        ]
+        if supplier:
+            defs.append(
+                MoneyDef(
+                    f"{c.slug}_import_savings",
+                    "community_import_savings",
+                    _stat(site, Quantity.IMPORT_SAVINGS_EUR, c.slug),
+                    community=c.name,
+                    settles=((c.slug, Direction.CONSUMPTION),),
+                )
+            )
+    return defs
+
+
+def settlement_state(
+    settles: Collection[tuple[str, Direction]], month: str, settled: SettledMonths
+) -> Settlement | None:
+    """Settled, partly settled or provisional for one month (``YYYY-MM``)."""
+
+    if not settles:
+        return None
+    done = sum(
+        1
+        for slug, direction in settles
+        if month in settled.get(f"{slug}/{direction.value}", ())
+    )
+    if done == len(settles):
+        return Settlement.SETTLED
+    return Settlement.PARTLY_SETTLED if done else Settlement.PROVISIONAL
+
+
+def compute_money(
+    d: MoneyDef, totals: Totals, month: str, settled: SettledMonths
+) -> MoneyValue:
+    """Compute one € value; unknown (no rows) has no marker either."""
+
+    total = totals.get(d.statistic_id)
+    if total is None:
+        return MoneyValue(None, None)
+    return MoneyValue(
+        round(total, EUR_PRECISION), settlement_state(d.settles, month, settled)
+    )
+
+
 def compute_value(d: SummaryDef, totals: Totals) -> SummaryValue:
     """Compute one value from period totals (kWh per statistic id)."""
 
@@ -309,10 +460,18 @@ async def async_compute(
     defs: Collection[SummaryDef],
     today: date,
     complete_until: date | None,
+    money_defs: Collection[MoneyDef] = (),
+    settled: SettledMonths | None = None,
 ) -> dict[Period, PeriodSummary]:
-    """Compute every value for both periods."""
+    """Compute every value for both periods.
 
-    statistic_ids = {sid for d in defs for sid in d.statistic_ids}
+    Both periods lie in one calendar month, so one month decides the
+    settled / provisional marker of the € values.
+    """
+
+    statistic_ids = {sid for d in defs for sid in d.statistic_ids} | {
+        d.statistic_id for d in money_defs
+    }
     result: dict[Period, PeriodSummary] = {}
     for period in Period:
         dates = period_range(period, today, complete_until)
@@ -322,7 +481,10 @@ async def async_compute(
         totals = await get_instance(hass).async_add_executor_job(
             _load_totals, hass, dates, statistic_ids
         )
+        month = f"{dates.start.year:04d}-{dates.start.month:02d}"
         result[period] = PeriodSummary(
-            dates, {d.key: compute_value(d, totals) for d in defs}
+            dates,
+            {d.key: compute_value(d, totals) for d in defs},
+            {d.key: compute_money(d, totals, month, settled or {}) for d in money_defs},
         )
     return result

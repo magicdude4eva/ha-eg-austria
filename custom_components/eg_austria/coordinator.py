@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 import logging
 import random
+import re
 from typing import Any, Final
 
 from homeassistant.config_entries import ConfigEntry
@@ -97,6 +98,7 @@ from .settlement import (
     build_settlements,
     changed_months,
     diagnostics as settlement_diagnostics,
+    settled_months,
     settled_window_start,
 )
 from .snapshot import run_snapshot, setup_shape, slug_map
@@ -104,10 +106,12 @@ from .sources import configured_sources
 from .statistics import Quantity
 from .summary import (
     CommunityName,
+    MoneyDef,
     Period,
     PeriodSummary,
     SummaryDef,
     async_compute,
+    build_money_defs,
     build_summary_defs,
     meter_data_until,
 )
@@ -165,6 +169,25 @@ def _days_map(value: Any) -> dict[str, list[date]]:
     return out
 
 
+_MONTH_KEY = re.compile(r"^\d{4}-\d{2}$")
+
+
+def _months_map(value: Any) -> dict[str, list[str]]:
+    """``{"<slug>/<direction>": ["YYYY-MM", ...]}``; anything else is dropped."""
+
+    out: dict[str, list[str]] = {}
+    if isinstance(value, dict):
+        for key, months in value.items():
+            if not isinstance(months, list):
+                continue
+            parsed = sorted(
+                {m for m in months if isinstance(m, str) and _MONTH_KEY.match(m)}
+            )
+            if parsed:
+                out[str(key)] = parsed
+    return out
+
+
 @dataclass(slots=True)
 class StoreData:
     """The persistent state of spec 03 (dates and counters only, no values)."""
@@ -195,6 +218,8 @@ class StoreData:
     settlement_digests: dict[str, str] = field(default_factory=dict)
     # Issue #89: latest derived Zero rate per "<slug>/<direction>".
     zero_rates: dict[str, Any] = field(default_factory=dict)
+    # Issue #75: settled months ("YYYY-MM") per "<slug>/<direction>".
+    settled_months: dict[str, list[str]] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any] | None) -> StoreData:
@@ -225,6 +250,7 @@ class StoreData:
                 for k, v in (_mapping(raw.get("settlement_digests")) or {}).items()
             },
             zero_rates=rates_to_store(rates_from_store(raw.get("zero_rates"))),
+            settled_months=_months_map(raw.get("settled_months")),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -258,6 +284,7 @@ class StoreData:
             "schema_fingerprints": dict(self.schema_fingerprints),
             "settlement_digests": dict(self.settlement_digests),
             "zero_rates": dict(self.zero_rates),
+            "settled_months": {k: list(v) for k, v in self.settled_months.items()},
         }
 
 
@@ -391,6 +418,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         self._portal_lost = False
         # Summary values (ADR 0014); computed after startup and every run.
         self.summary_defs = self._summary_defs()
+        self.money_defs = self._money_defs()  # issue #75
         self.summary: dict[Period, PeriodSummary] = {}
 
     # ------------------------------------------------------------------
@@ -613,6 +641,21 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             configured_sources(self.config_entry),
         )
 
+    def _money_defs(self) -> list[MoneyDef]:
+        data = self.config_entry.data
+        options = self.config_entry.options
+        return build_money_defs(
+            data[CONF_SITE_SLUG],
+            [
+                CommunityName(c["slug"], c.get("name") or c["slug"])
+                for c in data[CONF_COMMUNITIES]
+            ],
+            surplus=PriceSource.from_options(options.get(CONF_SURPLUS_PRICE))
+            is not None,
+            supplier=PriceSource.from_options(options.get(CONF_SUPPLIER_PRICE))
+            is not None,
+        )
+
     async def async_refresh_summary(self, *, wait_for_recorder: bool = False) -> None:
         """Recompute the summary values (ADR 0014) and update the sensors.
 
@@ -628,6 +671,8 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
                 self.summary_defs,
                 local_today(dt_util.utcnow()),
                 self.state.complete_until,
+                self.money_defs,
+                self.state.settled_months,
             )
         except Exception:
             _LOGGER.warning("Summary values could not be computed", exc_info=True)
@@ -882,6 +927,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         # 9. Store bookkeeping.
         self.state.settlement_digests = digests
         self.state.zero_rates = rates_to_store(result.zero_rates)
+        self.state.settled_months = settled_months(settlements, result.settlement)
         window = set(days_between(start, end))
         held = {
             k: [d for d in days if d not in window]

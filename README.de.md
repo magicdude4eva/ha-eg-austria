@@ -418,6 +418,32 @@ Statistiken in € (Einheit `€`, stündlich, mit laufender Summe), neben den k
   [Überschusspreis fehlt](#überschusspreis-fehlt) aus (außer im laufenden und
   im Vormonat einer Monatstabelle, deren Preise später veröffentlicht werden).
 
+**€ einrichten:** Ertrag und Kosten der Gemeinschaften brauchen nichts: sie
+erscheinen mit dem ersten Lauf. Für den Rest **Einstellungen → Geräte &
+Dienste → EG Austria → Konfigurieren** öffnen:
+
+1. **Überschusspreis** (was dein Überschussabnehmer zahlt, zum Beispiel die
+   monatliche Preistabelle der ÖMAG) ergänzt *Überschuss-Ertrag* und
+   *Einspeisevergütung*.
+2. **Lieferantenpreis** (der Energiepreis deines Lieferanten pro kWh) ergänzt
+   *Ersparnis beim Bezug*.
+
+Die [€-Zusammenfassungssensoren](#-zusammenfassungssensoren) und das
+[Dashboard](#energiegemeinschafts-dashboard) übernehmen sie beim nächsten Lauf.
+
+> [!TIP]
+> 💡 **Vergütung im Energie-Dashboard:** ist deine Einspeisequelle unter
+> **Einstellungen → Dashboards → Energie → Netzeinspeisung** mit einem festen
+> oder ÖMAG-Preis für die *ganze* Einspeisung bewertet, stimmt das nicht, weil
+> Gemeinschafts-kWh zum Gemeinschaftstarif bezahlt werden. Mit Überschusspreis
+> kannst du stattdessen `eg_austria:<site>_feed_in_total_eur`
+> (*Einspeisevergütung*) als Vergütung nehmen (*Entität verwenden, die den
+> erhaltenen Gesamtbetrag erfasst*). Stelle erst um, wenn du beide über **zwei
+> abgerechnete Monate** verglichen hast (beide Gemeinschaften abgerechnet,
+> siehe das Attribut *Abrechnung* der €-Zusammenfassungssensoren): davor sind
+> die letzten Wochen noch Schätzungen, und die Statistik liegt etwa zwei Wochen
+> hinter deiner Live-Quelle.
+
 ### Diagnosesensoren
 
 Am Dienstgerät "EG Austria":
@@ -462,6 +488,32 @@ haben keine State-Class, Home Assistant führt also keine Langzeitstatistik
 dazu; die kWh-Werte bleiben in den Statistiken oben
 ([ADR 0014](docs/adr/0014-summary-sensors.md)). Die Werte werden nach dem Start
 von Home Assistant und nach jedem Import neu berechnet.
+
+### €-Zusammenfassungssensoren
+
+Die Geldsummen für dieselben zwei Zeiträume und dieselben vollständigen
+Stunden (Issue [#75](https://github.com/magicdude4eva/ha-eg-austria/issues/75)),
+in €:
+
+| Sensor | Summe von |
+|---|---|
+| Einspeiseertrag aus Gemeinschaften | `<site>_feed_in_eur` |
+| Kosten für Bezug aus Gemeinschaften | `<site>_consumption_eur` |
+| *Gemeinschaft* Einspeiseertrag | `<site>_<c>_feed_in_eur` |
+| *Gemeinschaft* Bezugskosten | `<site>_<c>_consumption_eur` |
+| Überschuss-Ertrag | `<site>_surplus_eur` (nur mit [Überschusspreis](#überschusspreis)) |
+| Einspeisevergütung | `<site>_feed_in_total_eur` (nur mit Überschusspreis) |
+| Ersparnis beim Bezug | `<site>_import_savings_eur` (nur mit [Lieferantenpreis](#lieferantenpreis)) |
+| *Gemeinschaft* Ersparnis beim Bezug | `<site>_<c>_import_savings_eur` (nur mit Lieferantenpreis) |
+
+Attribute: `period_start`, `period_end` und `settlement` (*Abrechnung*):
+*abgerechnet*, wenn jede Gemeinschaft, von der der Wert abhängt, diesen Monat
+abgerechnet hat (der Wert entspricht den Rechnungen), *teilweise abgerechnet*,
+wenn erst manche, *vorläufig* davor (die Portalbeträge mit der Zero-Schätzung).
+Der Überschuss-Ertrag hat keine Abrechnung (`null`): sein Preis kommt von
+deinem Überschussabnehmer. Wie die Anteile haben sie keine State-Class und sind
+unbekannt, solange ein Zeitraum keinen vollständigen Tag oder keine
+Geldwerte hat.
 
 > [!TIP]
 > 💡 **Energie-Dashboard:** die Integration ändert dein Energie-Dashboard nie.
@@ -579,7 +631,7 @@ Was es zeigt, eine Ansicht pro EG-Austria-Eintrag, von oben nach unten:
 
 | Teil | Karten |
 |---|---|
-| Gewählter Zeitraum | Ein Hinweis zu den zwei Verzögerungen (Gemeinschaftsanteile vollständig bis *Daten vollständig bis*, Zählerwerte bis *Zählerdaten bis*); der **Importstatus** in einer Zeile: *Daten vollständig bis*, *Zählerdaten bis*, *Letzter Lauf* (grün bei OK, orange, wenn ein späterer Lauf aufholt: teilweise, Wartung, Ratenlimit; rot, wenn du eingreifen musst: Anmeldung fehlgeschlagen, Portal geändert, nicht verfügbar), *Letzter Import*, *Token läuft ab* als Datum (orange in den letzten zwei Wochen, rot nach Ablauf) und ein Link zum Energie-Dashboard; ein Klick auf einen Wert öffnet seine Details. Dann eine Datumsauswahl, die mit dem **aktuellen Monat** öffnet; mit ‹ › zu früheren Monaten blättern oder eine Woche, ein Jahr oder einen beliebigen Zeitraum wählen. Darunter, der Auswahl folgend: die **Zeitraumkarte** mit drei Ringen: *Bezug* (aus jeder Gemeinschaft und vom Lieferanten, mit dem Anteil, den Gemeinschaften gedeckt haben), *Einspeisung* (an jede Gemeinschaft und an den Überschussabnehmer, mit dem Anteil der Gemeinschaften) und, mit PV-Quelle, *PV* (selbst verbraucht vs. eingespeist); dann **eine Karte pro Gemeinschaft** mit den eingespeisten und bezogenen kWh und ihrem Anteil an deiner gesamten Einspeisung und deinem Bezug; dann wohin die Einspeisung ging und woher der Bezug kam, pro Tag |
+| Gewählter Zeitraum | Ein Hinweis zu den zwei Verzögerungen (Gemeinschaftsanteile vollständig bis *Daten vollständig bis*, Zählerwerte bis *Zählerdaten bis*); der **Importstatus** in einer Zeile: *Daten vollständig bis*, *Zählerdaten bis*, *Letzter Lauf* (grün bei OK, orange, wenn ein späterer Lauf aufholt: teilweise, Wartung, Ratenlimit; rot, wenn du eingreifen musst: Anmeldung fehlgeschlagen, Portal geändert, nicht verfügbar), *Letzter Import*, *Token läuft ab* als Datum (orange in den letzten zwei Wochen, rot nach Ablauf) und ein Link zum Energie-Dashboard; ein Klick auf einen Wert öffnet seine Details. Dann eine Datumsauswahl, die mit dem **aktuellen Monat** öffnet; mit ‹ › zu früheren Monaten blättern oder eine Woche, ein Jahr oder einen beliebigen Zeitraum wählen. Darunter, der Auswahl folgend: die **Zeitraumkarte** mit drei Ringen: *Bezug* (aus jeder Gemeinschaft und vom Lieferanten, mit dem Anteil, den Gemeinschaften gedeckt haben), *Einspeisung* (an jede Gemeinschaft und an den Überschussabnehmer, mit dem Anteil der Gemeinschaften) und, mit PV-Quelle, *PV* (selbst verbraucht vs. eingespeist); dann **eine Karte pro Gemeinschaft** mit den eingespeisten und bezogenen kWh und ihrem Anteil an deiner gesamten Einspeisung und deinem Bezug; mit €-Statistiken zeigen beide Karten € neben den kWh (siehe unten); dann wohin die Einspeisung ging und woher der Bezug kam, pro Tag |
 | Letzte 12 Monate | Dieselben zwei Aufteilungen pro Monat |
 | Deine eigenen Quellen | Mit PV-Quelle PV-Erzeugung vs. gemessene Einspeisung vs. Gemeinschaften pro Monat; mit Einspeise- oder Netzbezugsquelle gemessen vs. deine Quelle im gewählten Zeitraum, als Balken nebeneinander (die beiden stimmen eng überein, Linien würden sich verdecken) |
 
@@ -611,6 +663,22 @@ zeigen es immer. In den eingebauten
 Diagrammen hängt Home Assistant an jeden Reihennamen *(Änderung)* an: die kWh
 in diesem Balken (die Änderung des Zählerstands); das lässt sich nicht
 ausblenden.
+
+**€ in den Karten.** Sobald es die [Geld-Statistiken](#geld) gibt, zeigt
+jedes Gemeinschaftssegment der Ringe *Bezug* und *Einspeisung* seine €
+(Kosten oder Ertrag), der Überschussabnehmer seinen Überschuss-Ertrag (mit
+Überschusspreis) und jeder Ring eine Zeile mit den Summen: *Kosten* und
+*Gespart* (mit Lieferantenpreis) unter *Bezug*, *Ertrag* unter *Einspeisung*
+(mit Überschusspreis Gemeinschaftsertrag plus Überschuss-Ertrag). Die
+Gemeinschaftskarten zeigen € neben eingespeist und bezogen und mit
+Lieferantenpreis *Gespart*. Beträge heißen **abgerechnet**, wenn die
+EG Austria jeden Monat des gewählten Zeitraums für diese Gemeinschaft und
+Richtung abgerechnet hat, sonst *vorläufig* oder *teilweise abgerechnet*
+(kursiv); die Gemeinschaftskarte zeigt das neben dem Zeitraum. Die
+abgerechneten Monate werden beim Laden des Dashboards gelesen; nach einem
+Lauf also neu laden, um eine neue Abrechnung zu sehen. Der Lieferantenteil
+von *Bezug* hat keine €: die Integration kennt deine Lieferantenrechnung
+nicht.
 
 ## Aktionen
 

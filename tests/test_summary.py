@@ -23,8 +23,11 @@ from custom_components.eg_austria.const import (
     CONF_SOURCE_FEED_IN,
     CONF_SOURCE_GRID_CONSUMPTION,
     CONF_SOURCE_PV,
+    CONF_SUPPLIER_PRICE,
+    CONF_SURPLUS_PRICE,
     DOMAIN,
 )
+from custom_components.eg_austria.models import Direction
 from custom_components.eg_austria.statistics import (
     Quantity,
     StatisticDef,
@@ -196,9 +199,8 @@ def test_meter_data_until() -> None:
 
 
 def _meta(statistic_id: str, unit: str = "kWh") -> Any:
-    meta = dict(
-        StatisticDef("home_generation", Quantity.GENERATION, "Synthetic").metadata()
-    )
+    quantity = Quantity.FEED_IN_EUR if unit == "EUR" else Quantity.GENERATION
+    meta = dict(StatisticDef("home_generation", quantity, "Synthetic").metadata())
     source = statistic_id.split(":")[0]
     meta |= {
         "statistic_id": statistic_id,
@@ -307,8 +309,9 @@ async def test_summary_sensors(
     entry_id = loaded.entry.entry_id
     entries = er.async_entries_for_config_entry(er.async_get(hass), entry_id)
     summary_ids = {e.unique_id for e in entries if e.entity_category is None}
-    # 2 site + 2 x 2 community + 3 PV values, each for two periods.
-    assert len(summary_ids) == 18
+    # 2 site + 2 x 2 community + 3 PV values, each for two periods, and
+    # (issue #75) 2 site + 2 x 2 community € values without prices.
+    assert len(summary_ids) == 18 + 12
     assert f"{entry_id}_pv_self_consumed_last_month" in summary_ids
     assert not any("deviation" in uid for uid in summary_ids)
 
@@ -386,3 +389,170 @@ async def test_refresh_after_start_and_failure(
         await coordinator.async_refresh_summary(wait_for_recorder=True)
     assert coordinator.summary is kept
     assert "Summary values could not be computed" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# € values (issue #75)
+
+GEN = Direction.GENERATION
+CON = Direction.CONSUMPTION
+
+
+def test_money_defs_without_and_with_prices() -> None:
+    """Community income and cost always; surplus and savings with a price."""
+
+    plain = sm.build_money_defs("home", [BEG, EEG])
+    assert [d.key for d in plain] == [
+        "feed_in_income",
+        "consumption_cost",
+        "beg_feed_in_income",
+        "beg_consumption_cost",
+        "eeg_feed_in_income",
+        "eeg_consumption_cost",
+    ]
+    assert plain[0].statistic_id == "eg_austria:home_feed_in_eur"
+    assert plain[0].settles == (("beg", GEN), ("eeg", GEN))
+    assert plain[3].statistic_id == "eg_austria:home_beg_consumption_eur"
+    assert plain[3].settles == (("beg", CON),)
+    assert plain[3].community == "Example BEG"
+
+    full = {
+        d.key: d
+        for d in sm.build_money_defs("home", [BEG], surplus=True, supplier=True)
+    }
+    assert list(full) == [
+        "feed_in_income",
+        "consumption_cost",
+        "surplus_income",
+        "feed_in_compensation",
+        "import_savings",
+        "beg_feed_in_income",
+        "beg_consumption_cost",
+        "beg_import_savings",
+    ]
+    assert full["surplus_income"].settles == ()
+    assert (
+        full["feed_in_compensation"].statistic_id == "eg_austria:home_feed_in_total_eur"
+    )
+    assert full["feed_in_compensation"].settles == (("beg", GEN),)
+    assert full["beg_import_savings"].statistic_id == (
+        "eg_austria:home_beg_import_savings_eur"
+    )
+    assert full["beg_import_savings"].translation_key == "community_import_savings"
+
+
+def test_settlement_state() -> None:
+    """All settled, some settled, none; no marker without settlements."""
+
+    settled = {"beg/Generation": ["2026-05"], "eeg/Generation": ["2026-04", "2026-05"]}
+    both = (("beg", GEN), ("eeg", GEN))
+    assert sm.settlement_state(both, "2026-05", settled) is sm.Settlement.SETTLED
+    assert sm.settlement_state(both, "2026-04", settled) is sm.Settlement.PARTLY_SETTLED
+    assert sm.settlement_state(both, "2026-06", settled) is sm.Settlement.PROVISIONAL
+    assert sm.settlement_state((("beg", CON),), "2026-05", settled) is (
+        sm.Settlement.PROVISIONAL
+    )
+    assert sm.settlement_state((), "2026-05", settled) is None
+
+
+def test_compute_money() -> None:
+    """Rounded to cents; unknown without rows, then also no marker."""
+
+    d = sm.build_money_defs("home", [BEG])[0]
+    settled = {"beg/Generation": ["2026-05"]}
+    assert sm.compute_money(d, {d.statistic_id: 1.23456}, "2026-05", settled) == (
+        sm.MoneyValue(1.23, sm.Settlement.SETTLED)
+    )
+    assert sm.compute_money(d, {d.statistic_id: 0.0}, "2026-06", settled) == (
+        sm.MoneyValue(0.0, sm.Settlement.PROVISIONAL)
+    )
+    assert sm.compute_money(d, {}, "2026-05", settled) == sm.MoneyValue(None, None)
+
+
+async def test_async_compute_money_from_recorder(
+    recorder_mock: Any, hass: HomeAssistant
+) -> None:
+    """€ sums over the same complete hours, marker per period month."""
+
+    days = [date(2026, 5, 31) + timedelta(days=i) for i in range(4)]  # to 3 June
+    complete = date(2026, 6, 2)
+    await _write(hass, "eg_austria:home_feed_in_eur", 0.01, days, unit="EUR")
+    await _write(hass, "eg_austria:home_beg_feed_in_eur", 0.01, days, unit="EUR")
+    await async_wait_recording_done(hass)
+
+    money = sm.build_money_defs("home", [BEG])
+    result = await sm.async_compute(
+        hass,
+        [],
+        date(2026, 6, 8),
+        complete,
+        money,
+        {"beg/Generation": ["2026-05"]},
+    )
+    june = result[Period.MONTH_SO_FAR].money
+    assert june["feed_in_income"] == sm.MoneyValue(0.48, sm.Settlement.PROVISIONAL)
+    assert june["beg_feed_in_income"] == sm.MoneyValue(0.48, sm.Settlement.PROVISIONAL)
+    assert june["consumption_cost"] == sm.MoneyValue(None, None)
+    may = result[Period.LAST_MONTH].money
+    assert may["feed_in_income"] == sm.MoneyValue(0.24, sm.Settlement.SETTLED)
+
+
+async def test_money_sensors(
+    hass: HomeAssistant, recorder_mock: Any, freezer: FrozenDateTimeFactory
+) -> None:
+    """€ sensors: unit, no state_class, settlement attribute; price-gated ones."""
+
+    price = {"source": "number", "periods": [["2020-01-01", 10.0]]}
+    loaded = await _setup(
+        hass,
+        freezer,
+        options={CONF_SURPLUS_PRICE: price, CONF_SUPPLIER_PRICE: price},
+    )
+    entry_id = loaded.entry.entry_id
+    eid = _entity_id(hass, entry_id, "feed_in_compensation_last_month")
+    for key in ("surplus_income", "import_savings", "beg_import_savings"):
+        _entity_id(hass, entry_id, f"{key}_month_so_far")
+    state = hass.states.get(eid)
+    assert state.state == STATE_UNKNOWN
+    assert state.attributes["unit_of_measurement"] == "€"
+    assert state.attributes["device_class"] == "monetary"
+    assert "state_class" not in state.attributes
+    assert state.attributes["settlement"] is None
+    assert state.name == "EG Austria Home Feed-in compensation, last month"
+
+    coordinator = loaded.coordinator
+    coordinator.summary = {
+        Period.LAST_MONTH: PeriodSummary(
+            DateRange(date(2026, 5, 1), date(2026, 5, 31)),
+            money={"feed_in_compensation": sm.MoneyValue(12.34, sm.Settlement.SETTLED)},
+        )
+    }
+    async_dispatcher_send(hass, coordinator.summary_signal)
+    await hass.async_block_till_done()
+    state = hass.states.get(eid)
+    assert state.state == "12.34"
+    assert state.attributes["settlement"] == "settled"
+    assert state.attributes["period_start"] == "2026-05-01"
+    beg = hass.states.get(_entity_id(hass, entry_id, "beg_consumption_cost_last_month"))
+    assert beg.state == STATE_UNKNOWN
+    assert beg.name == "EG Austria Home Example BEG cost of consumption, last month"
+
+
+async def test_no_price_sensors_without_prices(
+    hass: HomeAssistant, recorder_mock: Any, freezer: FrozenDateTimeFactory
+) -> None:
+    """Without prices: no surplus, compensation or savings sensors."""
+
+    loaded = await _setup(hass, freezer)
+    unique_ids = {
+        e.unique_id
+        for e in er.async_entries_for_config_entry(
+            er.async_get(hass), loaded.entry.entry_id
+        )
+    }
+    assert f"{loaded.entry.entry_id}_feed_in_income_month_so_far" in unique_ids
+    assert not any(
+        k in uid
+        for uid in unique_ids
+        for k in ("surplus_income", "feed_in_compensation", "import_savings")
+    )

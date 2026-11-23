@@ -606,6 +606,214 @@
       },
       "grid_consumption_deviation_last_month": {
         "name": "Grid consumption deviation, last month"
+      },
+      "feed_in_income_month_so_far": {
+        "name": "Feed-in income from communities, month so far",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "feed_in_income_last_month": {
+        "name": "Feed-in income from communities, last month",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "consumption_cost_month_so_far": {
+        "name": "Cost of consumption from communities, month so far",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "consumption_cost_last_month": {
+        "name": "Cost of consumption from communities, last month",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "surplus_income_month_so_far": {
+        "name": "Surplus income, month so far",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "surplus_income_last_month": {
+        "name": "Surplus income, last month",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "feed_in_compensation_month_so_far": {
+        "name": "Feed-in compensation, month so far",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "feed_in_compensation_last_month": {
+        "name": "Feed-in compensation, last month",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "import_savings_month_so_far": {
+        "name": "Import savings, month so far",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "import_savings_last_month": {
+        "name": "Import savings, last month",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "community_feed_in_income_month_so_far": {
+        "name": "{community} feed-in income, month so far",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "community_feed_in_income_last_month": {
+        "name": "{community} feed-in income, last month",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "community_consumption_cost_month_so_far": {
+        "name": "{community} cost of consumption, month so far",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "community_consumption_cost_last_month": {
+        "name": "{community} cost of consumption, last month",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "community_import_savings_month_so_far": {
+        "name": "{community} import savings, month so far",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
+      },
+      "community_import_savings_last_month": {
+        "name": "{community} import savings, last month",
+        "state_attributes": {
+          "settlement": {
+            "name": "Settlement",
+            "state": {
+              "settled": "Settled",
+              "partly_settled": "Partly settled",
+              "provisional": "Provisional"
+            }
+          }
+        }
       }
     }
   }
