@@ -115,6 +115,21 @@ def test_single_normal_passes_with_subset(name: str) -> None:
     assert result.findings == []
 
 
+def test_site_without_generation_passes_issue_78() -> None:
+    """Issue #78: no generation totals or flags in the response is no finding."""
+
+    raw = load_fixture("analysis_hour_normal_beg.json")
+    for key in [k for k in raw if k.startswith(("totalGeneration", "generation"))]:
+        if key != "generationDataPoints":
+            del raw[key]
+    raw["generationDataPoints"] = []
+    result = validate_chunk(
+        *NORMAL, {"beg": parse_analysis(raw)}, site=SITE, all_communities=False
+    )
+    assert not result.schema_failed
+    assert result.findings == []
+
+
 def test_single_community_subset_strict_p4_fails() -> None:
     """A subset of the communities can't satisfy the P4 equality."""
 

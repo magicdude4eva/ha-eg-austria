@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The first import no longer stops with *Portal changed* on a site whose
+  metering points have no generation data: the portal leaves out the totals of
+  a direction without data points, which now count as empty (#78).
+
 ## [0.1.4.2] - 2026-11-23
 
 Patch release: better diagnostics on top of 0.1.4.1. No configuration changes

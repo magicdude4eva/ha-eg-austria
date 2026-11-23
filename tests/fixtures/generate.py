@@ -753,6 +753,35 @@ def all_fixtures() -> dict[str, Any]:
         ),
         "analysis_hour_dst_spring.json": analysis(Scenario(SPRING, SPRING, BEG)),
         "analysis_empty_day.json": response([], []),
+        # Issue #78 / forum 1140: the real portal leaves out null total keys
+        # and sends the percent / part-factor ones as null.
+        "analysis_empty_day_portal.json": {
+            **dict.fromkeys(
+                (
+                    "totalConsumptionFromCommunityPercent",
+                    "totalActualConsumptionPartFactor",
+                    "totalGenerationToCommunityPercent",
+                    "totalActualGenerationPartFactor",
+                    "totalActualConsumptionPartFactorComplete",
+                    "totalConsumptionFromCommunityPercentComplete",
+                    "totalActualGenerationPartFactorComplete",
+                    "totalGenerationToCommunityPercentComplete",
+                )
+            ),
+            **{
+                f"{side}{part}Faulty": False
+                for side in ("consumption", "generation")
+                for part in (
+                    "",
+                    "ByFactor",
+                    "FromCommunity" if side == "consumption" else "ToCommunity",
+                    "InExcess",
+                    "InExcessByFactor",
+                )
+            },
+            "consumptionDataPoints": [],
+            "generationDataPoints": [],
+        },
         "analysis_hour_null_hours.json": analysis(
             Scenario(
                 ONE_DAY,
