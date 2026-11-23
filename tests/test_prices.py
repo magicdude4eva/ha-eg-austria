@@ -172,3 +172,8 @@ def test_first_unpriced() -> None:
     assert first_unpriced([nov, oct_], {}, table, today) is None
     assert first_unpriced([nov, sep], {}, table, today) == date(2026, 9, 15)
     assert first_unpriced([sep], {sep: 0.1}, number, today) is None
+    # Before the source's first price: no repair; a gap after it still is.
+    assert first_unpriced([sep, oct_], {}, number, today, covered_from=oct_) == (
+        date(2026, 10, 15)
+    )
+    assert first_unpriced([sep], {}, table, today, covered_from=oct_) is None

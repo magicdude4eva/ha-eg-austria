@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: My Home Assistant buttons to open the repository in the Marketplace
   and to start the setup.
 
+### Fixed
+
+- No *price missing* repair for hours before the price source's first
+  price, such as a history import older than a price table that only keeps
+  the running year (#90).
+
 ## [0.1.4.3] - 2026-11-23
 
 Patch release: a parser fix and a debug export on top of 0.1.4.2 (from branch

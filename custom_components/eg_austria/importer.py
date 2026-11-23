@@ -687,6 +687,8 @@ async def async_import(
                 {},
                 setup.surplus_price,
                 local_today(dt_util.utcnow()),
+                # No repair for hours before the source's first price.
+                covered_from=min(prices) if prices else None,
             )
     return ImportResult(
         validation=result,
