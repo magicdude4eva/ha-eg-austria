@@ -36,7 +36,7 @@ Arrays are sent as repeated keys: `energyCommunityIds=1&energyCommunityIds=2&mpI
 
 ## Response models
 
-All numeric energy fields are `float | None` (JSON ints accepted and converted; bools and strings rejected). Unknown keys are kept in `model.extra` for diagnostics, not an error; `AnalysisData.extra_keys()` lists their names (never values) for `schema_extra`. Missing required keys raise `SchemaError` with the key path. `SchemaError` also carries the spec 05 rule id (`S1` wrong container, `S2` missing key, `S3` wrong type, `S4` bad timestamp, `S9` bad completeness date), so the parser covers S1-S4 and the date part of S9; S5-S8 and the rest of S9 run on the parsed models in `validation.py`. Sensitive fields (names, addresses, number tails) are excluded from `repr`.
+All numeric energy fields are `float | None` (JSON ints accepted and converted; bools and strings rejected). Unknown keys are kept in `model.extra` for diagnostics, not an error; `AnalysisData.extra_keys()` lists their names (never values) for `schema_extra`. Missing required keys raise `SchemaError` with the key path. Exception (issue #78): the portal leaves out the totals, and may leave out the day flags, of a direction whose point list is empty (an empty day, a site without generation); there a missing total is null and a missing flag false. With points in that direction a missing key is still S2, because that is the reduced body for a day outside a community's activation (issue #16). `SchemaError` also carries the spec 05 rule id (`S1` wrong container, `S2` missing key, `S3` wrong type, `S4` bad timestamp, `S9` bad completeness date), so the parser covers S1-S4 and the date part of S9; S5-S8 and the rest of S9 run on the parsed models in `validation.py`. Sensitive fields (names, addresses, number tails) are excluded from `repr`.
 
 ### `AnalysisData`
 
@@ -46,7 +46,7 @@ Top level (required unless noted):
 |---|---|---|
 | `consumptionDataPoints` | list of `ConsumptionPoint` | yes |
 | `generationDataPoints` | list of `GenerationPoint` | yes |
-| `totalConsumption`, `totalGeneration`, `totalConsumptionFromCommunity`, `totalGenerationToCommunity`, `totalConsumptionInExcess`, `totalGenerationInExcess` | number or null | validation (sum check) |
+| `totalConsumption`, `totalGeneration`, `totalConsumptionFromCommunity`, `totalGenerationToCommunity`, `totalConsumptionInExcess`, `totalGenerationInExcess` | number or null; may be missing for a direction without data points (= null, issue #78) | validation (sum check) |
 | `consumptionFaulty`, `consumptionFromCommunityFaulty`, `consumptionInExcessFaulty`, `generationFaulty`, `generationToCommunityFaulty`, `generationInExcessFaulty` | bool | diagnostics |
 | other `total*`, `*ByFactor*`, `*Complete`, `*Percent*`, `*PartFactor*`, `*EnergyMix*`, `totalEarnings*`, `totalSpendings*` | any | ignored, optional |
 

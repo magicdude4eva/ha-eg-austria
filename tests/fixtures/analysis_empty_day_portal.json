@@ -1,0 +1,22 @@
+{
+ "totalConsumptionFromCommunityPercent": null,
+ "totalActualConsumptionPartFactor": null,
+ "totalGenerationToCommunityPercent": null,
+ "totalActualGenerationPartFactor": null,
+ "totalActualConsumptionPartFactorComplete": null,
+ "totalConsumptionFromCommunityPercentComplete": null,
+ "totalActualGenerationPartFactorComplete": null,
+ "totalGenerationToCommunityPercentComplete": null,
+ "consumptionFaulty": false,
+ "consumptionByFactorFaulty": false,
+ "consumptionFromCommunityFaulty": false,
+ "consumptionInExcessFaulty": false,
+ "consumptionInExcessByFactorFaulty": false,
+ "generationFaulty": false,
+ "generationByFactorFaulty": false,
+ "generationToCommunityFaulty": false,
+ "generationInExcessFaulty": false,
+ "generationInExcessByFactorFaulty": false,
+ "consumptionDataPoints": [],
+ "generationDataPoints": []
+}
