@@ -336,6 +336,20 @@
           "description": "Only this day. Default: all held days."
         }
       }
+    },
+    "debug_export": {
+      "name": "Debug export",
+      "description": "Fetches a few recent days from the member portal and writes them, with ids replaced and names, addresses and tokens removed, to a JSON file in the configuration folder, for an issue report. The file contains your energy and money values: check it before sharing. Statistics are not changed.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Entry",
+          "description": "The EG Austria entry."
+        },
+        "days": {
+          "name": "Days",
+          "description": "Number of recent days to include (1-31). Default: 7."
+        }
+      }
     }
   },
   "exceptions": {
@@ -365,6 +379,9 @@
     },
     "token_expired": {
       "message": "The EG Austria token has expired. Reauthenticate the entry."
+    },
+    "export_maintenance": {
+      "message": "The EG Austria portal announced maintenance. Try the debug export later."
     }
   },
   "issues": {

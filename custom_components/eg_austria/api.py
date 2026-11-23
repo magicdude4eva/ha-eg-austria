@@ -191,6 +191,9 @@ class EgAustriaClient:
         # Key -> type name of the last analysis-data / day-completeness
         # response (spec 06 diagnostics); never values.
         self.schema_fingerprints: dict[str, Any] = {}
+        # Debug export (issue #84): gets (template, params, raw) of every
+        # decoded response before parsing; None outside an export.
+        self.raw_sink: Callable[[str, list[tuple[str, str]], Any], None] | None = None
 
     def __repr__(self) -> str:
         """Never show the token."""
@@ -340,6 +343,8 @@ class EgAustriaClient:
     ) -> Any:
         """Send one whitelisted GET and return the decoded JSON body."""
 
+        params = list(params)
+
         if (_METHOD, template) not in WHITELIST:
             raise NotWhitelistedError("path template is not whitelisted")
         path_args: dict[str, str] = {}
@@ -364,6 +369,8 @@ class EgAustriaClient:
                     )
                     await self._sleep(RETRY_DELAY)
                 else:
+                    if self.raw_sink is not None:
+                        self.raw_sink(template, params, raw)
                     if template in _FINGERPRINTED:
                         self.schema_fingerprints[_FINGERPRINTED[template]] = (
                             schema_fingerprint(raw)

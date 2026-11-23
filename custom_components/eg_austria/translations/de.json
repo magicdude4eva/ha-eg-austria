@@ -336,6 +336,20 @@
           "description": "Nur dieser Tag. Standard: alle zurückgehaltenen Tage."
         }
       }
+    },
+    "debug_export": {
+      "name": "Debug-Export",
+      "description": "Holt einige der letzten Tage aus dem Mitgliederportal und schreibt sie mit ersetzten IDs und ohne Namen, Adressen und Tokens in eine JSON-Datei im Konfigurationsordner, für eine Fehlermeldung. Die Datei enthält deine Energie- und Geldwerte: bitte vor dem Teilen prüfen. Statistiken werden nicht verändert.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Eintrag",
+          "description": "Der EG-Austria-Eintrag."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Anzahl der letzten Tage (1-31). Standard: 7."
+        }
+      }
     }
   },
   "exceptions": {
@@ -365,6 +379,9 @@
     },
     "token_expired": {
       "message": "Das EG-Austria-Token ist abgelaufen. Bitte den Eintrag neu authentifizieren."
+    },
+    "export_maintenance": {
+      "message": "Das EG-Austria-Portal hat eine Wartung angekündigt. Den Debug-Export bitte später erneut starten."
     }
   },
   "issues": {

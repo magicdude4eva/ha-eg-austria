@@ -42,8 +42,10 @@ from .exceptions import (
     PortalUnavailableError,
     RateLimitedError,
 )
+from .models import MeteringPointInfo
 from .repairs import EntryRepairs, async_delete_all
 from .services import async_setup_services
+from .snapshot import setup_shape, slug_map
 from .token import TokenKind
 
 CONFIG_SCHEMA: Final = cv.config_entry_only_config_schema(DOMAIN)
@@ -84,13 +86,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) ->
         TokenKind(entry.data[CONF_TOKEN_KIND]),
         token_exp=exp,
     )
-    await _async_check_portal(client, str(entry.data[CONF_MEMBER_NUMBER]))
+    mp_info = await _async_check_portal(client, str(entry.data[CONF_MEMBER_NUMBER]))
     coordinator = EgAustriaCoordinator(
         hass, entry, client, entry_store(hass, entry.entry_id)
     )
     await _async_load_labels(hass, coordinator)
     # Stored dates first: the sensors read them when they are added (#26).
     await coordinator.async_load()
+    if mp_info is not None:
+        # Diagnostics show the setup right after a restart (issue #84).
+        setup = coordinator.entry_setup()
+        coordinator.state.setup = setup_shape(
+            mp_info, setup.location_id, setup.mp_ids, slug_map(setup.communities)
+        )
     entry.runtime_data = coordinator
     entry.async_on_unload(EntryRepairs(hass, entry, coordinator).async_start())
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -119,7 +127,9 @@ async def async_remove_entry(hass: HomeAssistant, entry: EgAustriaConfigEntry) -
     await entry_store(hass, entry.entry_id).async_remove()
 
 
-async def _async_check_portal(client: EgAustriaClient, member: str) -> None:
+async def _async_check_portal(
+    client: EgAustriaClient, member: str
+) -> MeteringPointInfo | None:
     """Test before setup (ADR 0013): one GET of the member's metering points.
 
     Unreachable, 5xx, 429 or an announced maintenance → ``ConfigEntryNotReady``
@@ -132,7 +142,7 @@ async def _async_check_portal(client: EgAustriaClient, member: str) -> None:
     try:
         async with asyncio.timeout(SETUP_CHECK_TIMEOUT):
             try:
-                await client.get_metering_points(member)
+                return await client.get_metering_points(member)
             except ApiChangedError as err:
                 if err.status is not None:
                     raise
@@ -158,7 +168,7 @@ async def _async_check_portal(client: EgAustriaClient, member: str) -> None:
         ) from err
     except EgAustriaError:
         # Changed API or schema: the run raises the api_changed repair.
-        return
+        return None
 
 
 async def _async_load_labels(

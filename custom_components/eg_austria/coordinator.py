@@ -418,6 +418,17 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
     # Triggers
 
     @property
+    def run_lock(self) -> asyncio.Lock:
+        """The lock runs hold; the debug export takes it too (issue #84)."""
+
+        return self._lock
+
+    def entry_setup(self) -> EntrySetup:
+        """Return what a run needs from the entry (also for the debug export)."""
+
+        return self._entry_setup()
+
+    @property
     def running(self) -> bool:
         """Return True while a run holds the lock."""
 

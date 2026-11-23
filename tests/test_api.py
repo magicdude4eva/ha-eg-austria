@@ -200,6 +200,29 @@ async def test_schema_fingerprints_kept(
     assert isinstance(prints["day-completeness"], list)
 
 
+async def test_raw_sink_gets_every_response(
+    client: EgAustriaClient, mock_portal: FakePortal
+) -> None:
+    """Issue #84: the debug export sees template, params and raw body."""
+
+    seen: list[tuple[str, list[tuple[str, str]], object]] = []
+    client.raw_sink = lambda t, p, r: seen.append((t, p, r))
+    add(mock_portal, body=fixture_bytes("analysis_hour_normal_beg.json"))
+    add(mock_portal, body=fixture_bytes("version_a.json"))
+    await client.get_analysis(
+        MEMBER, Aggregation.HOUR, date(2026, 6, 1), date(2026, 6, 7), [BEG], [MP_C]
+    )
+    await client.get_version()
+    assert [t for t, _, _ in seen] == [
+        "/v1/portal/member/{member}/analysis-data",
+        "/v1/version",
+    ]
+    assert ("energyCommunityIds", str(BEG)) in seen[0][1]
+    assert isinstance(seen[0][2], dict)
+    assert "consumptionDataPoints" in seen[0][2]
+    client.raw_sink = None
+
+
 @pytest.mark.parametrize(
     ("member", "communities", "mps", "error"),
     [

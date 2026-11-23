@@ -81,6 +81,9 @@
     },
     "release_held": {
       "service": "mdi:database-check-outline"
+    },
+    "debug_export": {
+      "service": "mdi:file-export-outline"
     }
   }
 }
