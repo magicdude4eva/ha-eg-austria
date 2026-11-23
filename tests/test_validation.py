@@ -70,6 +70,16 @@ def pair(beg: str, eeg: str, start: date = ONE_DAY, end: date = ONE_DAY, **kwarg
     )
 
 
+def pair_raw(beg: dict, eeg: dict) -> ValidationResult:
+    """Validate raw BEG and EEG responses of the NORMAL chunk."""
+
+    return validate_chunk(
+        *NORMAL,
+        {"beg": parse_analysis(beg), "eeg": parse_analysis(eeg)},
+        site=SITE,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 
@@ -128,6 +138,34 @@ def test_site_without_generation_passes_issue_78() -> None:
     )
     assert not result.schema_failed
     assert result.findings == []
+
+
+def test_faulty_meter_zero_is_not_a_p6_difference_issue_78() -> None:
+    """One community reports a faulty 0, the other the reading: no P6 / P4."""
+
+    beg = load_fixture("analysis_hour_normal_beg.json")
+    eeg = load_fixture("analysis_hour_normal_eeg.json")
+    point = eeg["generationDataPoints"][12]
+    assert point["generation"] > 0
+    point["generation"] = 0
+    point["generationFaulty"] = True
+    result = pair_raw(beg, eeg)
+    assert "P6" not in result.rule_ids()
+    assert "P4" not in result.rule_ids()
+    # A real difference (not flagged) still fails.
+    point["generationFaulty"] = False
+    assert "P6" in pair_raw(beg, eeg).rule_ids()
+
+
+def test_p4_meter_from_first_non_faulty_response() -> None:
+    """With the faulty response first, P4 uses the other one's meter."""
+
+    beg = load_fixture("analysis_hour_normal_beg.json")
+    eeg = load_fixture("analysis_hour_normal_eeg.json")
+    point = beg["generationDataPoints"][12]
+    point["generation"] = 0
+    point["generationFaulty"] = True
+    assert "P4" not in pair_raw(beg, eeg).rule_ids()
 
 
 def test_single_community_subset_strict_p4_fails() -> None:

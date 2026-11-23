@@ -501,8 +501,13 @@ def _check_cross(
             first = points[0]
 
             # P6: meter and residual identical in every per-community response.
+            # A meter value flagged faulty is unknown (ADR 0005), not a value
+            # that differs: one community may report a faulty 0 while another
+            # has the reading (issue #78).
             for fld in ("value", "excess"):
-                values = [getattr(p, fld) for p in points]
+                values = [
+                    getattr(p, fld) for p in points if not (fld == "value" and p.faulty)
+                ]
                 known = [v for v in values if v is not None]
                 if len(known) != len(values) and known:
                     differs = True
@@ -514,11 +519,19 @@ def _check_cross(
                     for stat in _statistics(site, direction, fld, None):
                         out.hit("P6", stat, f"{fld} differs between communities", where)
 
-            # P4: sum of community parts + residual = meter.
+            # P4: sum of community parts + residual = meter. The meter comes
+            # from the first response whose meter value isn't faulty, as for
+            # the site statistic (issue #78); all faulty: nothing to check.
             parts = [p.community for p in points]
-            if first.value is None or first.excess is None or None in parts:
+            meter = next((p for p in points if not p.faulty), None)
+            if (
+                meter is None
+                or meter.value is None
+                or first.excess is None
+                or None in parts
+            ):
                 continue
-            expected = first.value
+            expected = meter.value
             actual = math.fsum(v for v in parts if v is not None) + first.excess
             if all_communities:
                 bad = not _close(actual, expected, P4_TOLERANCE_KWH, P4_TOLERANCE_REL)

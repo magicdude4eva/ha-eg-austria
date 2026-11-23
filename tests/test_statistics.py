@@ -825,3 +825,38 @@ async def test_import_window_writes_surplus(hass: HomeAssistant, recorder_mock) 
         partial(get_metadata, hass, statistic_ids={"eg_austria:home_surplus_eur"})
     )
     assert meta["eg_austria:home_surplus_eur"][1]["unit_of_measurement"] == "€"
+
+
+def test_site_meter_from_first_non_faulty_community_issue_78() -> None:
+    """The first community's faulty 0 doesn't hide the other's reading."""
+
+    day = date(2026, 6, 3)
+    h = local_day_start(day) + timedelta(hours=12)
+    defs = [
+        d
+        for d in build_statistic_defs("home", [BEG, EEG], BOTH)
+        if d.key == "home_generation"
+    ]
+    beg = _response(generation={h: 0.0}, faulty={h})
+    eeg = _response(generation={h: 0.031})
+    active = {"beg": {day}, "eeg": {day}}
+    # Day not complete yet: a faulty hour alone would be unknown (rule 4).
+    series = build_series(
+        defs,
+        {"beg": [beg], "eeg": [eeg]},
+        _complete(day, generation=False),
+        day,
+        day,
+        active_days=active,
+    )
+    assert series["home_generation"].values == {h: 0.031}
+    # Both faulty: the first community's hour stays unknown as before.
+    both = build_series(
+        defs,
+        {"beg": [beg], "eeg": [_response(generation={h: 0.0}, faulty={h})]},
+        _complete(day, generation=False),
+        day,
+        day,
+        active_days=active,
+    )
+    assert both["home_generation"].values == {}
