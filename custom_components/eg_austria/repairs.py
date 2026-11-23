@@ -33,12 +33,14 @@ ISSUE_API_CHANGED: Final = "api_changed"
 ISSUE_IMPLAUSIBLE: Final = "implausible_data"
 ISSUE_UNREACHABLE: Final = "portal_unreachable"
 ISSUE_PRICE_MISSING: Final = "price_missing"
+ISSUE_SUPPLIER_PRICE_MISSING: Final = "supplier_price_missing"  # issue #73
 ALL_ISSUES: Final = (
     ISSUE_TOKEN_EXPIRING,
     ISSUE_API_CHANGED,
     ISSUE_IMPLAUSIBLE,
     ISSUE_UNREACHABLE,
     ISSUE_PRICE_MISSING,
+    ISSUE_SUPPLIER_PRICE_MISSING,
 )
 # Translation key of the api_changed issue when the portal said "updated".
 TRANSLATION_STALE_CLIENT: Final = "stale_client"
@@ -50,6 +52,7 @@ LEARN_MORE: Final = {
     ISSUE_IMPLAUSIBLE: f"{README_URL}#held-data",
     ISSUE_UNREACHABLE: f"{README_URL}#portal-unreachable",
     ISSUE_PRICE_MISSING: f"{README_URL}#money",
+    ISSUE_SUPPLIER_PRICE_MISSING: f"{README_URL}#supplier-price",
 }
 
 # ADR 0007: warning period before the stored expiry.
@@ -234,6 +237,15 @@ class EntryRepairs:
             )
         elif hints.price_missing is False:
             self._delete(ISSUE_PRICE_MISSING)
+        if hints.supplier_price_missing is True:
+            missing = summary.supplier_price_missing_from
+            self._create(
+                ISSUE_SUPPLIER_PRICE_MISSING,
+                ir.IssueSeverity.WARNING,
+                {"date": missing.isoformat() if missing else "-"},
+            )
+        elif hints.supplier_price_missing is False:
+            self._delete(ISSUE_SUPPLIER_PRICE_MISSING)
 
     def _create(
         self,

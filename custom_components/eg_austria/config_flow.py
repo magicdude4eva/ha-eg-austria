@@ -67,6 +67,7 @@ from .const import (
     CONF_RETIRED_SLUGS,
     CONF_RUN_MINUTE,
     CONF_SITE_SLUG,
+    CONF_SUPPLIER_PRICE,
     CONF_SURPLUS_PRICE,
     CONF_TOKEN,
     CONF_TOKEN_EXP,
@@ -217,6 +218,9 @@ def _is_active(mp: MeteringPoint, today: date) -> bool:
         act.status == "Active" and (act.active_to is None or act.active_to >= today)
         for act in mp.activations
     )
+
+
+_PRICE_OPTION: Final = {"surplus": CONF_SURPLUS_PRICE, "supplier": CONF_SUPPLIER_PRICE}
 
 
 @dataclass(slots=True)
@@ -1266,7 +1270,13 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
         """Let the user pick which options to change."""
 
         return self.async_show_menu(
-            step_id="init", menu_options=["import_settings", "sources", "surplus_price"]
+            step_id="init",
+            menu_options=[
+                "import_settings",
+                "sources",
+                "surplus_price",
+                "supplier_price",
+            ],
         )
 
     async def async_step_import_settings(
@@ -1341,36 +1351,37 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
         )
 
     # ------------------------------------------------------------------
-    # Surplus price (ADR 0015)
+    # Surplus and supplier price (ADR 0015, issue #73): the same steps for
+    # both, ``kind`` is "surplus" or "supplier".
 
-    def _save_surplus(self, source: PriceSource | None) -> ConfigFlowResult:
+    def _save_price(self, kind: str, source: PriceSource | None) -> ConfigFlowResult:
         options = dict(self.config_entry.options)
         if source is None:
-            options.pop(CONF_SURPLUS_PRICE, None)
+            options.pop(_PRICE_OPTION[kind], None)
         else:
-            options[CONF_SURPLUS_PRICE] = source.as_options()
+            options[_PRICE_OPTION[kind]] = source.as_options()
         return self.async_create_entry(data=options)
 
-    def _current_surplus(self) -> PriceSource | None:
+    def _current_price(self, kind: str) -> PriceSource | None:
         return PriceSource.from_options(
-            self.config_entry.options.get(CONF_SURPLUS_PRICE)
+            self.config_entry.options.get(_PRICE_OPTION[kind])
         )
 
-    async def async_step_surplus_price(
-        self, user_input: dict[str, Any] | None = None
+    async def _price_price(
+        self, kind: str, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Choose how the surplus buyer's price is provided, or none."""
+        """Choose how the price is provided, or none."""
 
         if user_input is not None:
             choice = user_input["source"]
             if choice == SourceType.NUMBER:
-                return await self.async_step_surplus_number()
+                return await self._price_number(kind)
             if choice == SourceType.SENSOR:
-                return await self.async_step_surplus_sensor()
+                return await self._price_sensor(kind)
             if choice == SourceType.TABLE:
-                return await self.async_step_surplus_table()
-            return self._save_surplus(None)
-        current = self._current_surplus()
+                return await self._price_table(kind)
+            return self._save_price(kind, None)
+        current = self._current_price(kind)
         schema = vol.Schema(
             {
                 vol.Required(
@@ -1384,15 +1395,15 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
                 )
             }
         )
-        return self.async_show_form(step_id="surplus_price", data_schema=schema)
+        return self.async_show_form(step_id=f"{kind}_price", data_schema=schema)
 
-    async def async_step_surplus_number(
-        self, user_input: dict[str, Any] | None = None
+    async def _price_number(
+        self, kind: str, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Enter fixed prices in ct/kWh, one ``YYYY-MM-DD: price`` line per period."""
 
         errors: dict[str, str] = {}
-        current = self._current_surplus()
+        current = self._current_price(kind)
         text = (
             format_periods(current.periods)
             if current and current.source is SourceType.NUMBER
@@ -1405,8 +1416,8 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
             except ValueError:
                 errors["periods"] = "bad_periods"
             else:
-                return self._save_surplus(
-                    PriceSource(SourceType.NUMBER, periods=tuple(periods))
+                return self._save_price(
+                    kind, PriceSource(SourceType.NUMBER, periods=tuple(periods))
                 )
         schema = vol.Schema(
             {
@@ -1416,16 +1427,16 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
             }
         )
         return self.async_show_form(
-            step_id="surplus_number", data_schema=schema, errors=errors
+            step_id=f"{kind}_number", data_schema=schema, errors=errors
         )
 
-    async def async_step_surplus_sensor(
-        self, user_input: dict[str, Any] | None = None
+    async def _price_sensor(
+        self, kind: str, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Pick a price sensor with long-term statistics (EUR/kWh or ct/kWh)."""
 
         errors: dict[str, str] = {}
-        current = self._current_surplus()
+        current = self._current_price(kind)
         entity = (
             current.entity if current and current.source is SourceType.SENSOR else None
         )
@@ -1438,7 +1449,9 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
             elif state.attributes.get("state_class") is None:
                 errors["entity"] = "no_price_statistics"
             else:
-                return self._save_surplus(PriceSource(SourceType.SENSOR, entity=entity))
+                return self._save_price(
+                    kind, PriceSource(SourceType.SENSOR, entity=entity)
+                )
         schema = vol.Schema(
             {
                 vol.Required("entity"): EntitySelector(
@@ -1447,20 +1460,20 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
             }
         )
         return self.async_show_form(
-            step_id="surplus_sensor",
+            step_id=f"{kind}_sensor",
             data_schema=self.add_suggested_values_to_schema(
                 schema, {"entity": entity} if entity else {}
             ),
             errors=errors,
         )
 
-    async def async_step_surplus_table(
-        self, user_input: dict[str, Any] | None = None
+    async def _price_table(
+        self, kind: str, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Pick an entity attribute with one price per month (e.g. ha-oemag)."""
 
         errors: dict[str, str] = {}
-        current = self._current_surplus()
+        current = self._current_price(kind)
         values: dict[str, Any] = {
             "attribute": DEFAULT_TABLE_ATTRIBUTE,
             "unit": UNIT_CT,
@@ -1471,7 +1484,7 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
                 "attribute": current.attribute,
                 "unit": current.unit,
             }
-        elif (found := self._find_table_entity()) is not None:
+        elif kind == "surplus" and (found := self._find_table_entity()) is not None:
             values["entity"] = found
         if user_input is not None:
             values = dict(user_input)
@@ -1485,10 +1498,11 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
             if not table:
                 errors["base"] = "bad_price_table"
             else:
-                return self._save_surplus(
+                return self._save_price(
+                    kind,
                     PriceSource(
                         SourceType.TABLE, entity=entity, attribute=attribute, unit=unit
-                    )
+                    ),
                 )
         schema = vol.Schema(
             {
@@ -1502,12 +1516,68 @@ class EgAustriaOptionsFlow(OptionsFlowWithReload):
             }
         )
         return self.async_show_form(
-            step_id="surplus_table",
+            step_id=f"{kind}_table",
             data_schema=self.add_suggested_values_to_schema(
                 schema, {k: v for k, v in values.items() if v}
             ),
             errors=errors,
         )
+
+    async def async_step_surplus_price(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Surplus price: the price step."""
+
+        return await self._price_price("surplus", user_input)
+
+    async def async_step_surplus_number(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Surplus price: the number step."""
+
+        return await self._price_number("surplus", user_input)
+
+    async def async_step_surplus_sensor(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Surplus price: the sensor step."""
+
+        return await self._price_sensor("surplus", user_input)
+
+    async def async_step_surplus_table(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Surplus price: the table step."""
+
+        return await self._price_table("surplus", user_input)
+
+    async def async_step_supplier_price(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Supplier price: the price step."""
+
+        return await self._price_price("supplier", user_input)
+
+    async def async_step_supplier_number(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Supplier price: the number step."""
+
+        return await self._price_number("supplier", user_input)
+
+    async def async_step_supplier_sensor(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Supplier price: the sensor step."""
+
+        return await self._price_sensor("supplier", user_input)
+
+    async def async_step_supplier_table(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Supplier price: the table step."""
+
+        return await self._price_table("supplier", user_input)
 
     def _find_table_entity(self) -> str | None:
         """Return the first entity with a valid default price table attribute."""

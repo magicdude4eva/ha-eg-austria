@@ -246,7 +246,8 @@
         "menu_options": {
           "import_settings": "Import-Einstellungen",
           "sources": "Vergleichsquellen",
-          "surplus_price": "Überschusspreis"
+          "surplus_price": "Überschusspreis",
+          "supplier_price": "Lieferantenpreis"
         }
       },
       "import_settings": {
@@ -321,6 +322,50 @@
           "attribute": "Name des Attributs mit der Monatstabelle, z. B. `preise`.",
           "unit": "Einheit der Preise in der Tabelle."
         }
+      },
+      "supplier_price": {
+        "title": "Lieferantenpreis",
+        "description": "Der Energiepreis deines Stromlieferanten pro kWh, also das, was du für jede kWh aus einer Gemeinschaft sparst. Nur der Energiepreis: ohne Netzentgelte, Abgaben und monatliche Grundgebühren. Mit einem Preis ergänzt die Integration die Ersparnis pro Gemeinschaft und für den Standort (Gemeinschafts-kWh zu diesem Preis minus dem, was die Gemeinschaft verrechnet hat).",
+        "data": {
+          "source": "Preisquelle"
+        },
+        "data_description": {
+          "source": "Kein entfernt den Lieferantenpreis und beendet die Ersparnis-Statistiken (ihr Verlauf bleibt)."
+        }
+      },
+      "supplier_number": {
+        "title": "Lieferantenpreis: fix",
+        "description": "Eine Zeile pro Zeitraum: Startdatum und Energiepreis in ct/kWh, z. B. `2026-01-01: 12.5`. Ein Zeitraum gilt bis zum nächsten; ein Lieferanten- oder Preiswechsel ist also eine neue Zeile.",
+        "data": {
+          "periods": "Zeiträume"
+        },
+        "data_description": {
+          "periods": "Energiepreis in ct/kWh inkl. USt. laut Rechnung, ohne Grundgebühr und Netzentgelte."
+        }
+      },
+      "supplier_sensor": {
+        "title": "Lieferantenpreis: Sensor",
+        "description": "Ein Sensor mit deinem Energiepreis in EUR/kWh oder ct/kWh und Langzeitstatistik, z. B. eines dynamischen Tarifs. Verwendet wird der Stundenmittelwert, weil Gemeinschaftsdaten Wochen später kommen.",
+        "data": {
+          "entity": "Preissensor"
+        },
+        "data_description": {
+          "entity": "Einheit EUR/kWh oder ct/kWh und eine State-Class, damit der Recorder Stundenmittelwerte behält."
+        }
+      },
+      "supplier_table": {
+        "title": "Lieferantenpreis: Monatstabelle",
+        "description": "Ein Attribut einer Entität, das Monate (`YYYY-MM`) auf deinen Energiepreis abbildet, für einen Tarif mit Monatspreis. Monate, die noch nicht in der Tabelle stehen, bleiben leer, bis ihr Preis da ist.",
+        "data": {
+          "entity": "Entität",
+          "attribute": "Attribut",
+          "unit": "Einheit"
+        },
+        "data_description": {
+          "entity": "Die Entität mit der Monatstabelle.",
+          "attribute": "Name des Attributs mit der Monatstabelle.",
+          "unit": "Einheit der Preise in der Tabelle."
+        }
       }
     },
     "error": {
@@ -351,7 +396,9 @@
         "site_surplus_eur": "Überschuss-Ertrag",
         "site_feed_in_total_eur": "Einspeisevergütung",
         "community_feed_in_eur": "Einspeiseertrag",
-        "community_consumption_eur": "Bezugskosten"
+        "community_consumption_eur": "Bezugskosten",
+        "site_import_savings_eur": "Ersparnis beim Bezug",
+        "community_import_savings_eur": "Ersparnis beim Bezug"
       }
     },
     "price_source": {
@@ -471,6 +518,10 @@
     "price_missing": {
       "title": "EG Austria: Überschusspreis fehlt",
       "description": "{title} hat ab {date} Überschuss-kWh ohne Überschusspreis; Überschuss-Ertrag und Einspeisevergütung bleiben für diese Stunden leer. Bitte in den Optionen der Integration (Überschusspreis) einen Zeitraum ergänzen oder die Preisquelle prüfen. Die Meldung verschwindet, sobald ein Lauf für jede fällige Stunde einen Preis findet."
+    },
+    "supplier_price_missing": {
+      "title": "EG Austria: Lieferantenpreis fehlt",
+      "description": "{title} hat ab {date} Gemeinschafts-kWh ohne Lieferantenpreis; die Ersparnis bleibt für diese Stunden leer. Bitte in den Optionen der Integration (Lieferantenpreis) einen Zeitraum ergänzen oder die Preisquelle prüfen. Die Meldung verschwindet, sobald ein Lauf für jede fällige Stunde einen Preis findet."
     }
   },
   "entity": {

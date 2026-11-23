@@ -77,6 +77,7 @@ class Quantity(StrEnum):
     CONSUMPTION_EUR = "consumption_eur"
     SURPLUS_EUR = "surplus_eur"
     FEED_IN_TOTAL_EUR = "feed_in_total_eur"
+    IMPORT_SAVINGS_EUR = "import_savings_eur"  # issue #73
 
 
 # ``attr`` of quantities computed from other statistics, not from a point.
@@ -96,6 +97,8 @@ class QuantityInfo:
     unit_class: str | None = UNIT_CLASS
     # kWh quantities whose held days also hold this one (money, ADR 0008).
     gates: tuple[str, ...] = ()
+    # Derived quantities: which optional price they need (ADR 0015).
+    price: str = "surplus"
 
     @property
     def derived(self) -> bool:
@@ -177,6 +180,19 @@ QUANTITIES: Final[Mapping[Quantity, QuantityInfo]] = {
         None,
         (Quantity.GENERATION_TO_COMMUNITY, Quantity.GENERATION_TO_SURPLUS),
     ),
+    # Issue #73: community kWh at the supplier's energy price minus what the
+    # community charged for them.
+    Quantity.IMPORT_SAVINGS_EUR: QuantityInfo(
+        Direction.CONSUMPTION,
+        DERIVED,
+        True,
+        "Import savings",
+        "Import savings",
+        MONEY_UNIT,
+        None,
+        (Quantity.CONSUMPTION_FROM_COMMUNITY,),
+        "supplier",
+    ),
 }
 
 
@@ -243,6 +259,7 @@ def build_statistic_defs(
     site_label: str = DEFAULT_SITE_LABEL,
     labels: Mapping[str, str] | None = None,
     surplus: bool = False,
+    supplier: bool = False,
 ) -> list[StatisticDef]:
     """Return the statistics of one entry, site statistics first.
 
@@ -250,13 +267,19 @@ def build_statistic_defs(
     quantities of a missing direction are not created. ``site_label`` and
     ``labels`` (keys ``site.<quantity>`` and ``community.<quantity>``) let the
     caller pass translated labels; the defaults are English. ``surplus`` adds
-    the statistics that need a surplus price (ADR 0015).
+    the statistics that need a surplus price, ``supplier`` those that need a
+    supplier price (ADR 0015, issue #73).
     """
+
+    def wanted(info: QuantityInfo) -> bool:
+        if not info.derived:
+            return True
+        return supplier if info.price == "supplier" else surplus
 
     labels = labels or {}
     defs: list[StatisticDef] = []
     for quantity, info in QUANTITIES.items():
-        if info.direction not in directions or (info.derived and not surplus):
+        if info.direction not in directions or not wanted(info):
             continue
         label = labels.get(f"site.{quantity}", info.site_label)
         defs.append(
@@ -268,7 +291,11 @@ def build_statistic_defs(
         )
     for community in communities:
         for quantity, info in QUANTITIES.items():
-            if info.community_label is None or info.direction not in directions:
+            if (
+                info.community_label is None
+                or info.direction not in directions
+                or not wanted(info)
+            ):
                 continue
             label = labels.get(f"community.{quantity}", info.community_label)
             defs.append(
@@ -559,6 +586,7 @@ def derive_series(
     defs: Sequence[StatisticDef],
     series: dict[str, Series],
     prices: Mapping[datetime, float] | None,
+    supplier_prices: Mapping[datetime, float] | None = None,
 ) -> None:
     """Fill the statistics computed from others (ADR 0008, 0015), in place.
 
@@ -570,6 +598,7 @@ def derive_series(
 
     by_quantity = {(d.community, d.quantity): d for d in defs}
     prices = prices or {}
+    _derive_savings(defs, series, supplier_prices or {})
 
     def values(quantity: Quantity) -> dict[datetime, float]:
         sdef = by_quantity.get((None, quantity))
@@ -597,6 +626,36 @@ def derive_series(
                 for h, v in surplus.values.items()
                 if h in community
             }
+        )
+
+
+def _derive_savings(
+    defs: Sequence[StatisticDef],
+    series: dict[str, Series],
+    prices: Mapping[datetime, float],
+) -> None:
+    """Import savings per community and site (issue #73, ADR 0008/0015).
+
+    Per hour: community kWh x supplier energy price - community cost, where
+    all three are known. Settled and Zero-corrected costs (#74, #89) are what
+    this subtracts, so savings follow the invoices too.
+    """
+
+    for sdef in defs:
+        if sdef.quantity is not Quantity.IMPORT_SAVINGS_EUR:
+            continue
+        prefix = sdef.key[: -len(sdef.quantity)]
+        kwh = series.get(prefix + Quantity.CONSUMPTION_FROM_COMMUNITY)
+        cost = series.get(prefix + Quantity.CONSUMPTION_EUR)
+        if kwh is None or cost is None:
+            continue
+        series[sdef.key] = Series(
+            {
+                h: round(v * prices[h] - cost.values[h], MONEY_DIGITS) + 0.0
+                for h, v in kwh.values.items()
+                if h in prices and h in cost.values
+            },
+            unpriced=sorted(h for h in kwh.values if h not in prices),
         )
 
 
@@ -756,12 +815,14 @@ async def async_import_window(
     held_days: Mapping[str, Collection[date]] | None = None,
     active_days: Mapping[str, Collection[date]] | None = None,
     prices: Mapping[datetime, float] | None = None,
+    supplier_prices: Mapping[datetime, float] | None = None,
 ) -> dict[str, WriteResult]:
     """Build and write all statistics for one fetch window (S5 entry point).
 
     ``first_day``/``last_day`` are the window's local dates, both inclusive;
     rows before the local start of ``first_day`` are never touched. ``prices``
-    is the surplus price per UTC hour in EUR/kWh (ADR 0015).
+    is the surplus price per UTC hour in EUR/kWh (ADR 0015),
+    ``supplier_prices`` the supplier energy price (issue #73).
     """
 
     series = build_series(
@@ -774,5 +835,5 @@ async def async_import_window(
         held_days=held_days,
         active_days=active_days,
     )
-    derive_series(defs, series, prices)
+    derive_series(defs, series, prices, supplier_prices)
     return await async_write_statistics(hass, defs, series, local_day_start(first_day))

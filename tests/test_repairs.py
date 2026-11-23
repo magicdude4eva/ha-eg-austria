@@ -21,7 +21,11 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.eg_austria.const import CONF_SURPLUS_PRICE, DOMAIN
+from custom_components.eg_austria.const import (
+    CONF_SUPPLIER_PRICE,
+    CONF_SURPLUS_PRICE,
+    DOMAIN,
+)
 from custom_components.eg_austria.coordinator import RunRequest
 from custom_components.eg_austria.exceptions import (
     AuthError,
@@ -33,6 +37,7 @@ from custom_components.eg_austria.repairs import (
     ISSUE_API_CHANGED,
     ISSUE_IMPLAUSIBLE,
     ISSUE_PRICE_MISSING,
+    ISSUE_SUPPLIER_PRICE_MISSING,
     ISSUE_TOKEN_EXPIRING,
     ISSUE_UNREACHABLE,
     EntryRepairs,
@@ -474,3 +479,37 @@ async def test_price_missing_created_and_cleared(
     summary = await run(loaded)
     assert summary.price_missing_from is None
     assert issue(hass, ISSUE_PRICE_MISSING, loaded) is None
+
+
+async def test_supplier_price_missing_created_and_cleared(
+    hass: HomeAssistant, env: FrozenDateTimeFactory, no_writes: AsyncMock
+) -> None:
+    """Issue #73: community kWh without a supplier price → its own warning."""
+
+    price = {"source": "number", "periods": [["2020-01-01", 12.0]]}
+    loaded = await async_setup_fake_entry(
+        hass,
+        token_exp=int(NOW.timestamp() + 300 * DAY),
+        options={CONF_SUPPLIER_PRICE: price},
+    )
+    hour = datetime(2026, 5, 3, 10, tzinfo=UTC)
+    no_writes.return_value = {
+        "home_import_savings_eur": WriteResult(
+            key="home_import_savings_eur", unpriced=[hour]
+        )
+    }
+    summary = await run(loaded)
+    assert summary.supplier_price_missing_from == date(2026, 5, 3)
+    assert summary.price_missing_from is None
+    found = issue(hass, ISSUE_SUPPLIER_PRICE_MISSING, loaded)
+    assert found is not None
+    assert found.translation_placeholders == {
+        "title": "EG Austria Home",
+        "date": "2026-05-03",
+    }
+    assert issue(hass, ISSUE_PRICE_MISSING, loaded) is None
+    no_writes.return_value = {
+        "home_import_savings_eur": WriteResult(key="home_import_savings_eur")
+    }
+    await run(loaded)
+    assert issue(hass, ISSUE_SUPPLIER_PRICE_MISSING, loaded) is None

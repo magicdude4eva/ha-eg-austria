@@ -54,6 +54,7 @@ from .const import (
     CONF_MP_IDS,
     CONF_RUN_MINUTE,
     CONF_SITE_SLUG,
+    CONF_SUPPLIER_PRICE,
     CONF_SURPLUS_PRICE,
     CONF_TOKEN_EXP,
     DEFAULT_DAILY_WINDOW_DAYS,
@@ -282,6 +283,7 @@ class IssueHints:
     implausible_data: bool | None = None
     portal_unreachable: bool | None = None
     price_missing: bool | None = None
+    supplier_price_missing: bool | None = None  # issue #73
 
 
 @dataclass(slots=True)
@@ -309,6 +311,7 @@ class RunSummary:
     stale_client: bool = False  # api_changed came from a "portal updated" 400
     rescheduled_for: datetime | None = None  # after maintenance
     price_missing_from: date | None = None  # first overdue day without a price
+    supplier_price_missing_from: date | None = None  # the same, supplier price
     settlement: dict[str, Any] | None = None  # value-free summary (issue #74)
     issues: IssueHints = field(default_factory=IssueHints)
 
@@ -594,6 +597,9 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             surplus_price=PriceSource.from_options(
                 self.config_entry.options.get(CONF_SURPLUS_PRICE)
             ),
+            supplier_price=PriceSource.from_options(
+                self.config_entry.options.get(CONF_SUPPLIER_PRICE)
+            ),
         )
 
     def _summary_defs(self) -> list[SummaryDef]:
@@ -864,11 +870,13 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         }
         summary.status = RunStatus.PARTIAL if result.partial else RunStatus.OK
         summary.price_missing_from = result.price_missing
+        summary.supplier_price_missing_from = result.supplier_price_missing
         summary.issues = IssueHints(
             api_changed=False,
             implausible_data=result.partial,
             portal_unreachable=False,
             price_missing=result.price_missing is not None,
+            supplier_price_missing=result.supplier_price_missing is not None,
         )
 
         # 9. Store bookkeeping.
