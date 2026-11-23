@@ -11,7 +11,13 @@ import logging
 from typing import Final
 
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+    callback,
+)
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
@@ -19,12 +25,15 @@ import probatio as vol
 
 from .const import DOMAIN
 from .coordinator import EgAustriaConfigEntry, EgAustriaCoordinator, RunRequest
+from .export import DEFAULT_DAYS, MAX_DAYS, async_write_export
 from .importer import MAX_MANUAL_DAYS, RunType, local_today
 
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_REFETCH: Final = "refetch"
 SERVICE_RELEASE_HELD: Final = "release_held"
+SERVICE_DEBUG_EXPORT: Final = "debug_export"
+ATTR_DAYS: Final = "days"
 ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
 ATTR_START_DATE: Final = "start_date"
 ATTR_END_DATE: Final = "end_date"
@@ -46,6 +55,15 @@ RELEASE_SCHEMA: Final = vol.Schema(
     }
 )
 
+EXPORT_SCHEMA: Final = vol.Schema(
+    {
+        vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(ATTR_DAYS, default=DEFAULT_DAYS): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=MAX_DAYS)
+        ),
+    }
+)
+
 
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
@@ -56,6 +74,13 @@ def async_setup_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_RELEASE_HELD, _async_release_held, schema=RELEASE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DEBUG_EXPORT,
+        _async_debug_export,
+        schema=EXPORT_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
 
@@ -107,3 +132,21 @@ async def _async_release_held(call: ServiceCall) -> None:
         call.data.get(ATTR_STATISTIC_KEY), call.data.get(ATTR_DATE)
     )
     _LOGGER.info("Released %d held day(s)", count)
+
+
+async def _async_debug_export(call: ServiceCall) -> ServiceResponse:
+    """``eg_austria.debug_export``: write the redacted export (issue #84)."""
+
+    coordinator = _coordinator(call.hass, call.data[ATTR_CONFIG_ENTRY_ID])
+    if coordinator.running:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN, translation_key="run_in_progress"
+        )
+    result = await async_write_export(call.hass, coordinator, call.data[ATTR_DAYS])
+    _LOGGER.info(
+        "Debug export written to %s (%d responses, %d failed steps)",
+        result["path"],
+        result["responses"],
+        result["failed_steps"],
+    )
+    return result

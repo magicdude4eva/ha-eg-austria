@@ -566,6 +566,37 @@ data:
 Wähle den Eintrag im UI-Editor der Aktion, oder kopiere seine ID aus der
 Adresszeile der Seite des Eintrags.
 
+### `eg_austria.debug_export`: Debug-Export
+
+Nur wenn ein Maintainer in einem Issue darum bittet. Die Aktion holt einige
+der letzten Tage aus dem Portal und schreibt sie so, wie das Portal sie
+geschickt hat, in eine JSON-Datei im Konfigurationsordner
+(`eg_austria_debug_<site>_<zeit>.json`); die Antwort der Aktion zeigt den
+Pfad. Statistiken werden nicht verändert.
+
+- **Entfernt oder ersetzt:** Tokens, Mitgliedsnummer, Standort-, Zählpunkt- und
+  Gemeinschafts-IDs (ersetzt durch synthetische Werte wie `1001`),
+  Zählpunktnummern, Namen, Adressen, E-Mails.
+- **Enthalten:** deine **Energie- und Geldwerte** dieser Tage, die
+  Gemeinschaftstypen und Aktivierungsdaten. Genau das macht den Export zum
+  Nachstellen eines Problems brauchbar. Bitte sieh dir die Datei an, bevor du
+  sie anhängst.
+
+| Feld | Pflicht | Beschreibung |
+|---|---|---|
+| `config_entry_id` (Eintrag) | ja | Der EG-Austria-Eintrag. |
+| `days` (Tage) | nein | Anzahl der letzten Tage, 1-31. Standard: 7. |
+
+```yaml
+action: eg_austria.debug_export
+data:
+  config_entry_id: 0123456789abcdef0123456789abcdef
+  days: 7
+```
+
+Sie sendet etwa ein Dutzend lesende Anfragen und wird abgelehnt, solange ein
+Import läuft.
+
 ## Beispiele
 
 ### Statistikkarte: wie viel aus der Gemeinschaft kam
@@ -686,7 +717,9 @@ Lauf die Prüfungen wieder besteht; deine Statistiken bleiben also korrekt.
 Bitte lade die Diagnose des Eintrags oder seines Geräts herunter
 (Drei-Punkte-Menü > Diagnose herunterladen; Tokens, IDs, Namen und Werte
 werden entfernt) und hänge sie an ein
-[Issue](https://github.com/magicdude4eva/ha-eg-austria/issues) an.
+[Issue](https://github.com/magicdude4eva/ha-eg-austria/issues) an. Reicht die
+Diagnose nicht, bitten wir eventuell um einen
+[Debug-Export](#eg_austriadebug_export-debug-export).
 
 ### Zurückgehaltene Daten
 

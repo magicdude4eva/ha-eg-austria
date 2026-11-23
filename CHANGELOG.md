@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Debug export (`eg_austria.debug_export`, #84): writes the portal responses
+  of a few recent days to a JSON file in the configuration folder, with ids
+  replaced by synthetic values and names, addresses and tokens removed, for
+  issue reports. Contains energy values; opt-in and only on request.
+- Diagnostics show the setup shape right after a restart, from the startup
+  check (#84).
+
 ### Fixed
 
 - The first import no longer stops with *Portal changed* on a site whose

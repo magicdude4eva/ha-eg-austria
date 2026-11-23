@@ -416,3 +416,16 @@ def test_setup_shape_other_community_and_months() -> None:
     assert setup_shape(info, "no-such-location", mp_ids, {})["location_found"] is (
         False
     )
+
+
+async def test_diagnostics_setup_right_after_setup(
+    hass: HomeAssistant, env: Any
+) -> None:
+    """Issue #84: the startup check fills ``setup`` before any run."""
+
+    loaded = await async_setup_fake_entry(hass, token_exp=int(NOW.timestamp()) + 9e6)
+    assert loaded.coordinator.data is None
+    output = await async_get_config_entry_diagnostics(hass, loaded.entry)
+    assert output["setup"] is not None
+    assert output["setup"]["selected_found"] == 2
+    assert_clean(output, loaded.entry.data["token"])
