@@ -105,9 +105,8 @@ Structural, no setting changes them:
 Not done yet (phases, see [ADR 0010](docs/adr/0010-phasing.md)):
 
 - **Money is provisional until a month is settled.** Settled months match
-  your invoices; the months before that use the portal's standard-rate
-  amounts, and the Zero tariff for them follows
-  ([#89](https://github.com/magicdude4eva/ha-eg-austria/issues/89)).
+  your invoices; the months before that are an estimate (Zero included for
+  an own-site Zero, see [Money](#money)).
 - **One site per entry, sums per site.** Per-metering-point statistics,
   several sites, Zero to other locations and new community models are planned
   for phase 3, with testers from the community. Add one entry per location in
@@ -369,10 +368,14 @@ Statistics in € (unit `€`, hourly, with a running sum), next to the kWh ones
   community so the month total equals the invoice, including the Zero tariff
   and later corrections. Hours and days stay an approximation; months are
   exact.
-- **Before that, provisional:** the portal prices Zero kWh at the standard
-  rate, so for Zero members both directions are too high until the month is
-  settled. A Zero estimate for these months follows
-  ([#89](https://github.com/magicdude4eva/ha-eg-austria/issues/89)).
+- **Before that, an estimate with Zero:** the portal prices Zero kWh at the
+  standard rate. With an own-site Zero (your PV and your consumption on the
+  same Zero plan), the integration estimates each day's Zero kWh (the smaller
+  of what went to and came from the community) and prices them at your Zero
+  rate, which it derives from your settled invoices. So months that aren't
+  billed yet come close to the invoice. Until the first month with Zero is
+  settled, Zero kWh stay at the standard rate. Zero to another site isn't
+  estimated; its invoices still correct each month.
 - **Feed-in compensation** prices community kWh at the community rate and
   only the surplus at the surplus price. It is meant as the compensation of
   your feed-in in the Energy dashboard instead of one that prices all feed-in

@@ -76,6 +76,7 @@ _KEY_KIND: Final = {
     "mpIds": "mp",
 }
 _MP_LIST: Final = "memberMeteringpoints"
+_PLAN_NUMBERS: Final = frozenset(("fromMeteringpointNumber", "toMeteringpointNumber"))
 _ENDPOINTS: Final = {
     "/v1/portal/portal-session": "portal-session",
     "/v1/portal/member/{member}/metering-point": "metering-point",
@@ -140,6 +141,10 @@ def _pseudonymize(value: Any, p: Pseudonyms, parent: str | None = None) -> Any:
                 else:
                     out[k] = _Keep(p.get(kind, v))
             elif k == "number" and parent == _MP_LIST:
+                out[k] = _Keep(p.number(v))
+            elif k in _PLAN_NUMBERS:
+                # Zero plans (issue #89): same synthetic numbers as the
+                # metering points, so own-site plans stay recognisable.
                 out[k] = _Keep(p.number(v))
             else:
                 out[k] = _pseudonymize(v, p, k)

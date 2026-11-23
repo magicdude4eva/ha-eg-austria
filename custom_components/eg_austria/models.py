@@ -501,6 +501,17 @@ class Activation:
 
 
 @dataclass(frozen=True, slots=True)
+class ZeroPlan:
+    """A Zero plan between two metering points (issue #89, ADR 0008)."""
+
+    from_number: str = field(repr=False)
+    to_number: str = field(repr=False)
+    active_from: date
+    active_to: date | None
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
 class MeteringPoint:
     """One metering point of a location."""
 
@@ -513,6 +524,9 @@ class MeteringPoint:
     number: str = field(default="", repr=False)
     name: str | None = field(default=None, repr=False)
     source_of_production: str | None = field(default=None, repr=False)
+    # Zero plans this point sends or receives (issue #89); unreadable plans
+    # are left out, since they only affect the Zero estimate.
+    zero_plans: tuple[ZeroPlan, ...] = field(default=(), repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -584,6 +598,31 @@ def _parse_activation(raw: Any, path: str) -> Activation:
     )
 
 
+def _parse_zero_plans(obj: Mapping[str, Any]) -> tuple[ZeroPlan, ...]:
+    plans = []
+    for key in ("sendingZeroPlans", "receivingZeroPlans"):
+        items = obj.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            try:
+                plan = _require_dict(item, key)
+                plans.append(
+                    ZeroPlan(
+                        from_number=_str(
+                            _get(plan, "fromMeteringpointNumber", key), key
+                        ),
+                        to_number=_str(_get(plan, "toMeteringpointNumber", key), key),
+                        active_from=_date(_get(plan, "begin", key), key),
+                        active_to=_opt_date(plan.get("end"), key),
+                        status=_str(plan.get("status") or "", key),
+                    )
+                )
+            except SchemaError:
+                continue
+    return tuple(plans)
+
+
 def _parse_metering_point(raw: Any, path: str) -> MeteringPoint:
     obj = _require_dict(raw, path)
     direction_raw = _str(
@@ -612,6 +651,7 @@ def _parse_metering_point(raw: Any, path: str) -> MeteringPoint:
             for i, a in enumerate(activations)
         ),
         extra=_extra(obj, _MP_KEYS),
+        zero_plans=_parse_zero_plans(obj),
     )
 
 

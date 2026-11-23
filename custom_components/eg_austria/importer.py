@@ -69,6 +69,15 @@ from .validation import (
     validate_chunk,
     validate_completeness,
 )
+from .zero import (
+    ZeroEstimate,
+    ZeroRate,
+    derive_rates,
+    estimate,
+    latest_rates,
+    rate_lookup,
+    reprice,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -328,6 +337,14 @@ class SiteInfo:
     # points, for every community they are or were in (selected or not).
     # Empty: no activation data (tests); every community counts as active.
     activations: Mapping[int, tuple[DateRange, ...]] = field(default_factory=dict)
+    # Issue #89: days with an own-site Zero plan (sending and receiving point
+    # both selected), merged. Empty: no Zero estimate.
+    zero_ranges: tuple[DateRange, ...] = ()
+
+    def own_zero_on(self, day: date) -> bool:
+        """Return True when an own-site Zero plan is active on ``day``."""
+
+        return _in_ranges(self.zero_ranges, day)
 
     def active_on(self, community_id: int, day: date) -> bool:
         """Return True when the community is active on ``day`` (spec 03)."""
@@ -383,7 +400,18 @@ def site_info(
             if act.community_id in selected:
                 names[act.community_id] = act.community_name
                 starts.append(act.active_from)
+    numbers = {mp.number for mp in points if mp.number}
+    zero = [
+        (plan.active_from, plan.active_to)
+        for mp in points
+        for plan in mp.zero_plans
+        if plan.from_number in numbers
+        and plan.to_number in numbers
+        and plan.from_number != plan.to_number
+        and (plan.active_to is None or plan.active_to >= plan.active_from)
+    ]
     return SiteInfo(
+        zero_ranges=merge_ranges(zero) if zero else (),
         directions=directions,
         earliest_activation=min(starts) if starts else None,
         names=names,
@@ -523,6 +551,10 @@ class ImportResult:
     price_missing: date | None = None  # first overdue day without surplus price
     # Issue #74: how each settled community, direction and month was scaled.
     settlement: dict[Key, MonthFactor] = field(default_factory=dict)
+    # Issue #89: latest derived Zero rate per community and direction, and the
+    # months with an estimated Zero (no kWh).
+    zero_rates: dict[tuple[str, Direction], ZeroRate] = field(default_factory=dict)
+    zero_months: list[str] = field(default_factory=list)
 
     @property
     def partial(self) -> bool:
@@ -566,6 +598,7 @@ async def async_import(
     validation: ValidationResult | None = None,
     check_stop: Callable[[], None] = lambda: None,
     settlements: Settlements | None = None,
+    zero_rates: Mapping[tuple[str, Direction], ZeroRate] | None = None,
 ) -> ImportResult:
     """Fetch, validate and write ``start..end`` (local dates, inclusive).
 
@@ -655,6 +688,18 @@ async def async_import(
     # Issue #74: settled months' amounts scaled to the invoices, per
     # community and direction, before anything is written (site sums and the
     # total compensation follow from the scaled community values).
+    # Issue #89: own-site Zero estimate per day, Zero rates derived from the
+    # settled months (from the portal's amounts, before any repricing), then
+    # each hour's Zero kWh repriced to the Zero rate.
+    zero = (
+        estimate(hourly, site.own_zero_on) if site.zero_ranges else ZeroEstimate({}, {})
+    )
+    derived = derive_rates(hourly, zero, settlements) if settlements else {}
+    rates = latest_rates(zero_rates or {}, derived)
+    lookup = rate_lookup(derived, rates)
+    hourly = reprice(hourly, zero, lookup)
+    day_values = reprice(day_values, zero, lookup)
+
     factors: dict[Key, MonthFactor] = {}
     if settlements is not None:
         factors = month_factors(hourly, settlements)
@@ -697,4 +742,8 @@ async def async_import(
         blocked=blocked,
         price_missing=price_missing,
         settlement=factors,
+        zero_rates=rates,
+        zero_months=sorted(
+            f"{slug}/{y:04d}-{m:02d}" for slug, (y, m) in zero.month_kwh
+        ),
     )

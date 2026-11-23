@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Zero estimate for months not billed yet (#89): with an own-site Zero plan,
+  each day's Zero kWh (the smaller of feed-in to and consumption from the
+  community) are priced at a Zero rate derived from the settled invoices, so
+  provisional months come close to the invoice.
 - Settlement from the portal's invoices (`billing/transactions`, #74): once a
   month is billed, its € statistics per community are scaled so the month
   equals the invoice, including the Zero tariff, reversals and rebills. A
@@ -16,8 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   request per run.
 - Money statistics in € (#72, phase 2 of #55): feed-in income and cost of
   consumption per community and site, taken from the portal's hourly amounts;
-  no tariffs to enter. Unsettled months don't consider the Zero tariff yet
-  (#89).
+  no tariffs to enter.
 - Optional surplus price (fixed periods, price sensor or monthly price table
   such as the ÖMAG integration's) for *Surplus income* and *Feed-in
   compensation*, and a *price missing* repair.
@@ -32,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No *price missing* repair for hours before the price source's first
   price, such as a history import older than a price table that only keeps
   the running year (#90).
+- Diagnostics list the surplus and feed-in compensation statistics too, and
+  the debug export keeps Zero plan numbers recognisable (synthetic, same as
+  the metering points).
 
 ## [0.1.4.3] - 2026-11-23
 

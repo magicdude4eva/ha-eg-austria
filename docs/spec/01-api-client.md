@@ -143,6 +143,10 @@ locations[]:
 
 Zero plans and the other participation factors go into `extra` only (snapshot values, never configuration); `activePartFactor` is also parsed for the metering point labels (issue #19) and never stored. `address`, `number`, `name`, `*Name` and `memberId` are sensitive and redacted (spec 06).
 
+### Zero plans (issue #89)
+
+`MeteringPoint.zero_plans`: every entry of `sendingZeroPlans` and `receivingZeroPlans` as `ZeroPlan(from_number, to_number, active_from, active_to, status)` (`fromMeteringpointNumber`, `toMeteringpointNumber`, `begin`, `end`). The lists are optional, and an entry that doesn't parse is skipped: Zero plans only feed the Zero estimate (spec 04), so a change there must not stop the kWh import. Numbers are excluded from `repr`.
+
 ### `Transaction` (issue #74)
 
 `parse_transactions()`: a JSON list (else S1); per row `amount` a number (S2 if missing, S3 if null or not a number), `date` an ISO date or timestamp (the first 10 characters are the local settlement date), `description` a string, `energyCommunityShortName` a string or null. Only these are kept (`Transaction(date, amount, description, community_name)`); `document` (its `fileName` holds the member's name), `invoiceNumber` and the status fields are dropped and never logged. Grouping and matching live in `settlement.py` (spec 04 "Settlement").

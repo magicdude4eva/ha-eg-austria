@@ -111,9 +111,8 @@ Grundsätzlich, keine Einstellung ändert sie:
 Noch nicht umgesetzt (Phasen, siehe [ADR 0010](docs/adr/0010-phasing.md)):
 
 - **Geld ist vorläufig, bis ein Monat abgerechnet ist.** Abgerechnete Monate
-  stimmen mit deinen Rechnungen überein; davor gelten die Beträge des Portals
-  zum Standardtarif, der Zero-Tarif dafür folgt
-  ([#89](https://github.com/magicdude4eva/ha-eg-austria/issues/89)).
+  stimmen mit deinen Rechnungen überein; davor ist es eine Schätzung (mit Zero
+  bei eigenem Zero, siehe [Geld](#geld)).
 - **Ein Standort pro Eintrag, Summen pro Standort.** Statistiken pro Zählpunkt,
   mehrere Standorte, Zero an andere Standorte und neue Gemeinschaftsmodelle
   sind für Phase 3 geplant, mit Testern aus der Community. Bis dahin: ein
@@ -399,10 +398,15 @@ Statistiken in € (Einheit `€`, stündlich, mit laufender Summe), neben den k
   und skaliert die Stunden dieses Monats pro Gemeinschaft so, dass die
   Monatssumme der Rechnung entspricht, inklusive Zero-Tarif und späterer
   Korrekturen. Stunden und Tage bleiben eine Näherung, Monate sind exakt.
-- **Davor vorläufig:** das Portal bewertet Zero-kWh zum Standardtarif, für
-  Zero-Mitglieder sind beide Richtungen bis zur Abrechnung also zu hoch. Eine
-  Zero-Schätzung für diese Monate folgt
-  ([#89](https://github.com/magicdude4eva/ha-eg-austria/issues/89)).
+- **Davor eine Schätzung mit Zero:** das Portal bewertet Zero-kWh zum
+  Standardtarif. Bei eigenem Zero (deine PV und dein Verbrauch im selben
+  Zero-Plan) schätzt die Integration die Zero-kWh jedes Tages (das Kleinere
+  aus an und von der Gemeinschaft) und bewertet sie mit deinem Zero-Tarif,
+  den sie aus deinen abgerechneten Rechnungen ableitet. Noch nicht
+  abgerechnete Monate liegen so nahe an der Rechnung. Bis der erste Monat mit
+  Zero abgerechnet ist, bleiben Zero-kWh beim Standardtarif. Zero an einen
+  anderen Standort wird nicht geschätzt; die Rechnungen korrigieren ihn
+  trotzdem pro Monat.
 - **Die Einspeisevergütung** bewertet Gemeinschafts-kWh zum
   Gemeinschaftstarif und nur den Überschuss zum Überschusspreis. Sie ist als
   Vergütung deiner Einspeisung im Energie-Dashboard gedacht, statt einer, die
