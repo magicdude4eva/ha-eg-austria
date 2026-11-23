@@ -31,7 +31,7 @@ Metadata for every phase 1 statistic:
 
 ## Mapping
 
-Scope: `site` = the whole location; `c` = only community c. Every value comes from the per-community responses (spec 03): `site` meter and residual fields (`consumption`, `generation`, `*InExcess`) from the first community's response (they are identical in all of them, rule P6), `site` community fields as the sum over the selected communities, `c` fields from community c's response. Only communities active on the day count (issue #16, spec 03 step 6): meter and residual come from the first active community in entry order, the sum covers the active ones, and `c` has no values before its activation `begin` or after its `end`.
+Scope: `site` = the whole location; `c` = only community c. Every value comes from the per-community responses (spec 03): `site` meter and residual fields (`consumption`, `generation`, `*InExcess`) from the first community's response (they are identical in all of them, rule P6), `site` community fields as the sum over the selected communities, `c` fields from community c's response. Only communities active on the day count (issue #16, spec 03 step 6): meter and residual come from the first active community in entry order (for the meter value: the first active one whose hour isn't flagged faulty, issue #78), the sum covers the active ones, and `c` has no values before its activation `begin` or after its `end`.
 
 | Quantity key | Label | Scope | Point list | Field | Completeness side |
 |---|---|---|---|---|---|

@@ -467,13 +467,14 @@ def build_series(
             chosen = sources
             if active is not None:
                 chosen = [s for s in sources if d in active[s]]
-            return chosen[:1] if first_only else chosen
+            return chosen
 
         reader = _Reader(
             sdef,
             {s: points[s][sdef.info.direction] for s in sources},
             {s: days[s][sdef.info.direction] for s in sources},
             pick,
+            first_only,
         )
         series = Series()
         held_here = set(held.get(sdef.key, ()))
@@ -493,6 +494,27 @@ class _Reader:
     hours: dict[str, dict[datetime, EnergyPoint]]  # per source community
     days: dict[str, dict[date, EnergyPoint]]  # per source community (Day responses)
     sources: Callable[[date], list[str]]  # source communities active on a day
+    # Site meter and residual: one community's value, not a sum (spec 04).
+    first_only: bool = False
+
+    def _slugs(self, h: datetime) -> list[str]:
+        """Source communities for hour ``h``.
+
+        For site meter and residual values only one community counts: the
+        first active one in entry order whose meter point isn't flagged
+        faulty (issue #78: one community can report a faulty 0 while another
+        has the value), else the first active one.
+        """
+
+        slugs = self.sources(local_date(h))
+        if not self.first_only or not slugs:
+            return slugs
+        if self.sdef.info.attr == "value":
+            for slug in slugs:
+                point = self.hours[slug].get(h)
+                if point is not None and not point.faulty:
+                    return [slug]
+        return slugs[:1]
 
     @staticmethod
     def _sum(points: Iterable[EnergyPoint | None], attr: str) -> float | None:
@@ -507,7 +529,7 @@ class _Reader:
     def hour(self, h: datetime) -> float | None:
         """Return the hour's raw field value, None if any source lacks it."""
 
-        slugs = self.sources(local_date(h))
+        slugs = self._slugs(h)
         if not slugs:
             return None
         return self._sum((self.hours[s].get(h) for s in slugs), self.sdef.info.attr)
@@ -516,6 +538,8 @@ class _Reader:
         """Return the ``Day`` field value, None if any source lacks it."""
 
         slugs = self.sources(d)
+        if self.first_only:
+            slugs = slugs[:1]
         if not slugs:
             return None
         return self._sum((self.days[s].get(d) for s in slugs), self.sdef.info.attr)
@@ -535,7 +559,7 @@ class _Reader:
         side_complete = entry is not None and entry.complete(info.direction)
         if d in held:  # rule 5
             return None
-        slugs = self.sources(d)
+        slugs = self._slugs(h)
         if not slugs:  # no source community active that day: unknown
             return None
         point = self.hours[slugs[0]].get(h)
