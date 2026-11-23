@@ -387,7 +387,7 @@ async def test_diagnostics_after_restart_keep_setup_and_shapes(
             assert act["community"] in {"beg", "eeg", "other"}
             assert act["from"] is None or len(act["from"]) == 7  # YYYY-MM
     # Not repeated inside the store section.
-    for key in ("last_run", "setup", "schema_fingerprints"):
+    for key in ("last_run", "setup", "schema_fingerprints", "settlement_digests"):
         assert key not in output["store"]
     assert "Example" not in text
 

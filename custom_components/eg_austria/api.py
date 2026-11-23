@@ -51,11 +51,13 @@ from .models import (
     MeteringPointInfo,
     PortalVersion,
     SessionInfo,
+    Transaction,
     parse_analysis,
     parse_day_completeness,
     parse_maintenance,
     parse_metering_points,
     parse_session,
+    parse_transactions,
     parse_version,
 )
 from .redact import redact_text, schema_fingerprint
@@ -84,6 +86,8 @@ PATH_DAY_COMPLETENESS: Final = (
 PATH_MAINTENANCE: Final = "/v1/portal/maintenance"
 PATH_VERSION: Final = "/v1/version"
 PATH_SESSION: Final = "/v1/portal/portal-session"
+# ADR 0008, issue #74: settled amounts per community, direction and month.
+PATH_TRANSACTIONS: Final = "/v1/portal/member/{member}/billing/transactions"
 _FINGERPRINTED: Final = {
     PATH_ANALYSIS: "analysis-data",
     PATH_DAY_COMPLETENESS: "day-completeness",
@@ -100,6 +104,7 @@ WHITELIST: Final[frozenset[tuple[str, str]]] = frozenset(
         PATH_MAINTENANCE,
         PATH_VERSION,
         PATH_SESSION,
+        PATH_TRANSACTIONS,
     )
 )
 _METHOD: Final = "GET"
@@ -279,6 +284,11 @@ class EgAustriaClient:
         windows = parse_maintenance(await self._get(PATH_MAINTENANCE, allow_empty=True))
         self._maintenance = windows
         return windows
+
+    async def get_transactions(self, member: str) -> list[Transaction]:
+        """``GET billing/transactions``: every settled amount (ADR 0008)."""
+
+        return parse_transactions(await self._get(PATH_TRANSACTIONS, member=member))
 
     async def get_version(self) -> PortalVersion:
         """``GET version``."""

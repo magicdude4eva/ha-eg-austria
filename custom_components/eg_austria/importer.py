@@ -42,6 +42,13 @@ from .models import (
     MeteringPointInfo,
 )
 from .prices import PriceSource, async_hourly_prices, first_unpriced
+from .settlement import (
+    Key,
+    MonthFactor,
+    Settlements,
+    apply_settlements,
+    month_factors,
+)
 from .statistics import (
     PORTAL_TZ,
     CommunityRef,
@@ -215,11 +222,12 @@ def request_count(
     plan: Sequence[PlannedChunk] | Sequence[tuple[date, date]],
     communities: int | None = None,
     *,
-    fixed: int = 4,
+    fixed: int = 5,
 ) -> int:
     """Return the request count of a run (spec 03 "Run sequence").
 
-    Maintenance, version, metering-point and completeness, then one ``Hour``
+    Maintenance, version, metering-point, transactions (issue #74) and
+    completeness, then one ``Hour``
     per planned chunk and community active in it, and one ``Day`` per autumn
     DST day and community active on it.
 
@@ -513,6 +521,8 @@ class ImportResult:
     chunks: int
     blocked: dict[str, list[date]]  # every day held back per statistic key
     price_missing: date | None = None  # first overdue day without surplus price
+    # Issue #74: how each settled community, direction and month was scaled.
+    settlement: dict[Key, MonthFactor] = field(default_factory=dict)
 
     @property
     def partial(self) -> bool:
@@ -555,6 +565,7 @@ async def async_import(
     released: Iterable[tuple[str, date]] = (),
     validation: ValidationResult | None = None,
     check_stop: Callable[[], None] = lambda: None,
+    settlements: Settlements | None = None,
 ) -> ImportResult:
     """Fetch, validate and write ``start..end`` (local dates, inclusive).
 
@@ -641,6 +652,15 @@ async def async_import(
         if days:
             blocked[sdef.key] = days
 
+    # Issue #74: settled months' amounts scaled to the invoices, per
+    # community and direction, before anything is written (site sums and the
+    # total compensation follow from the scaled community values).
+    factors: dict[Key, MonthFactor] = {}
+    if settlements is not None:
+        factors = month_factors(hourly, settlements)
+        hourly = apply_settlements(hourly, factors)
+        day_values = apply_settlements(day_values, factors)
+
     prices: dict[datetime, float] | None = None
     if setup.surplus_price is not None:
         hours = [h for d in window for h in day_hours(d)]
@@ -674,4 +694,5 @@ async def async_import(
         chunks=len(plan),
         blocked=blocked,
         price_missing=price_missing,
+        settlement=factors,
     )

@@ -110,9 +110,10 @@ Grundsätzlich, keine Einstellung ändert sie:
 
 Noch nicht umgesetzt (Phasen, siehe [ADR 0010](docs/adr/0010-phasing.md)):
 
-- **Geld ist vorläufig.** Die €-Statistiken verwenden die Beträge des Portals
-  zum Standardtarif; Zero-Tarif und Monatsrechnungen folgen
-  ([#55](https://github.com/magicdude4eva/ha-eg-austria/issues/55)).
+- **Geld ist vorläufig, bis ein Monat abgerechnet ist.** Abgerechnete Monate
+  stimmen mit deinen Rechnungen überein; davor gelten die Beträge des Portals
+  zum Standardtarif, der Zero-Tarif dafür folgt
+  ([#89](https://github.com/magicdude4eva/ha-eg-austria/issues/89)).
 - **Ein Standort pro Eintrag, Summen pro Standort.** Statistiken pro Zählpunkt,
   mehrere Standorte, Zero an andere Standorte und neue Gemeinschaftsmodelle
   sind für Phase 3 geplant, mit Testern aus der Community. Bis dahin: ein
@@ -392,10 +393,16 @@ Statistiken in € (Einheit `€`, stündlich, mit laufender Summe), neben den k
   Beträge, die das Portal selbst zeigt (`earnings`, `spendings`); sie enthalten
   bereits Servicegebühr und USt. bzw. MAT und folgen der Preisänderung der
   EG Austria jeweils am 1. Jänner.
-- **Noch nicht berücksichtigt:** der Zero-Tarif (das Portal bewertet Zero-kWh
-  zum Standardtarif, für Zero-Mitglieder sind beide Richtungen also etwas zu
-  hoch) und die Monatsrechnungen. Beides kommt mit der Abrechnung aus den
-  Portalrechnungen ([#74](https://github.com/magicdude4eva/ha-eg-austria/issues/74)).
+- **Abgerechnete Monate stimmen mit deinen Rechnungen.** Sobald die
+  EG Austria einen Monat abgerechnet hat (meist 3 bis 5 Wochen später,
+  manchmal Monate), liest die Integration die Rechnungsbeträge aus dem Portal
+  und skaliert die Stunden dieses Monats pro Gemeinschaft so, dass die
+  Monatssumme der Rechnung entspricht, inklusive Zero-Tarif und späterer
+  Korrekturen. Stunden und Tage bleiben eine Näherung, Monate sind exakt.
+- **Davor vorläufig:** das Portal bewertet Zero-kWh zum Standardtarif, für
+  Zero-Mitglieder sind beide Richtungen bis zur Abrechnung also zu hoch. Eine
+  Zero-Schätzung für diese Monate folgt
+  ([#89](https://github.com/magicdude4eva/ha-eg-austria/issues/89)).
 - **Die Einspeisevergütung** bewertet Gemeinschafts-kWh zum
   Gemeinschaftstarif und nur den Überschuss zum Überschusspreis. Sie ist als
   Vergütung deiner Einspeisung im Energie-Dashboard gedacht, statt einer, die

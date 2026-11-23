@@ -43,6 +43,9 @@ if TYPE_CHECKING:
 
 
 _SNAPSHOT_KEYS = ("last_run", "setup", "schema_fingerprints")
+# Never in diagnostics: short hashes of settled amounts could be brute-forced
+# back to the amounts (issue #74).
+_HIDDEN_STORE_KEYS = ("settlement_digests",)
 
 
 def _iso(value: date | datetime | None) -> str | None:
@@ -171,7 +174,7 @@ async def async_get_config_entry_diagnostics(
     store = state.as_dict() if state is not None else None
     if store is not None:
         # Shown as their own sections below, not twice.
-        for key in _SNAPSHOT_KEYS:
+        for key in (*_SNAPSHOT_KEYS, *_HIDDEN_STORE_KEYS):
             store.pop(key, None)
     # Live values from this run, else the snapshots stored by the last run
     # (issue #78: diagnostics taken after a restart still show them).

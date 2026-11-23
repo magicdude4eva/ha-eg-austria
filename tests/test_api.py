@@ -368,7 +368,7 @@ def test_user_agent_has_no_personal_data() -> None:
 
 
 def test_whitelist_is_get_only_and_exact() -> None:
-    """The whitelist holds the six phase-1 GET paths and nothing else."""
+    """The whitelist holds the six phase-1 GET paths plus transactions (#74)."""
 
     assert {m for m, _ in WHITELIST} == {"GET"}
     assert {p for _, p in WHITELIST} == {
@@ -378,6 +378,7 @@ def test_whitelist_is_get_only_and_exact() -> None:
         "/v1/portal/maintenance",
         "/v1/version",
         "/v1/portal/portal-session",
+        "/v1/portal/member/{member}/billing/transactions",
     }
     assert isinstance(WHITELIST, frozenset)
 
@@ -395,6 +396,7 @@ def test_no_non_get_reachable() -> None:
         "get_metering_points",
         "get_analysis",
         "get_day_completeness",
+        "get_transactions",
         "get_maintenance",
         "get_version",
         "maintenance_active",
@@ -410,7 +412,8 @@ def test_no_non_get_reachable() -> None:
     "template",
     [
         "/v1/portal/portal-session/token",
-        "/v1/portal/member/{member}/billing/transactions",
+        "/v1/portal/member/{member}/billing/pending-invoices",
+        "/v1/portal/member/{member}/billing/transactions/1/download",
         "/v1/portal/member/{member}/metering-point/",
         "/v1/portal/member/{member}/part-factor-changes",
     ],

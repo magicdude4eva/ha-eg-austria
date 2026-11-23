@@ -500,8 +500,8 @@ def test_chunking() -> None:
     assert autumn_dst_days(date(2026, 1, 9), date(2027, 2, 8)) == [date(2026, 10, 25)]
     assert autumn_dst_days(date(2026, 10, 1), date(2026, 10, 24)) == []
     # Spec 03: 2 communities, 62-day window.
-    assert request_count(chunks, 2) == 10
-    assert request_count(chunk_window(date(2026, 10, 1), date(2026, 10, 31)), 2) == 8
+    assert request_count(chunks, 2) == 11
+    assert request_count(chunk_window(date(2026, 10, 1), date(2026, 10, 31)), 2) == 9
 
 
 @pytest.mark.usefixtures("no_writes")
@@ -513,7 +513,7 @@ async def test_request_count_daily(hass: HomeAssistant, env: Any) -> None:
     assert summary is not None
     assert summary.window == (date(2026, 4, 7), TODAY)
     assert summary.chunks == 3
-    assert summary.requests == 10 == client.request_count
+    assert summary.requests == 11 == client.request_count
     hour_calls = client.analysis_calls("Hour")
     assert len(hour_calls) == 6
     assert {tuple(c[4]) for c in hour_calls} == {(2001,), (2002,)}
@@ -912,7 +912,7 @@ def test_plan_chunks_cut_at_activation() -> None:
     ]
     assert all(c.all_communities for c in plan)
     # 4 fixed + 6 BEG + 2 EEG Hour requests.
-    assert request_count(plan) == 12
+    assert request_count(plan) == 13
 
     # Only the EEG selected: nothing before its begin or after its end, and
     # P4 is one-sided because the unselected BEG is active there too.
@@ -935,7 +935,7 @@ def test_plan_chunks_cut_at_activation() -> None:
         date(2026, 10, 1),
         date(2026, 10, 31),
     )
-    assert request_count(autumn) == 4 + 2 * 2
+    assert request_count(autumn) == 5 + 2 * 2
 
 
 @pytest.mark.usefixtures("no_writes")
@@ -968,7 +968,7 @@ async def test_initial_run_communities_start_on_different_dates(
     assert (date(2026, 4, 1), date(2026, 4, 15)) in beg
     assert (EEG_BEGIN, date(2026, 4, 30)) in beg
     assert len(beg) == summary.chunks == 7
-    assert summary.requests == 4 + 7 + 3 == client.request_count
+    assert summary.requests == 5 + 7 + 3 == client.request_count
 
 
 async def test_site_totals_before_second_activation(

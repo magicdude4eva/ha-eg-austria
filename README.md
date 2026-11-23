@@ -104,9 +104,10 @@ Structural, no setting changes them:
 
 Not done yet (phases, see [ADR 0010](docs/adr/0010-phasing.md)):
 
-- **Money is provisional.** The € statistics use the portal's standard-rate
-  amounts; the Zero tariff and the monthly invoices follow
-  ([#55](https://github.com/magicdude4eva/ha-eg-austria/issues/55)).
+- **Money is provisional until a month is settled.** Settled months match
+  your invoices; the months before that use the portal's standard-rate
+  amounts, and the Zero tariff for them follows
+  ([#89](https://github.com/magicdude4eva/ha-eg-austria/issues/89)).
 - **One site per entry, sums per site.** Per-metering-point statistics,
   several sites, Zero to other locations and new community models are planned
   for phase 3, with testers from the community. Add one entry per location in
@@ -362,10 +363,16 @@ Statistics in € (unit `€`, hourly, with a running sum), next to the kWh ones
   portal itself shows (`earnings`, `spendings`); they already contain the
   service fee and VAT or levy, and follow EG Austria's price change every
   1 January.
-- **Not yet considered:** the Zero tariff (the portal prices Zero kWh at the
-  standard rate, so both directions are a little too high for Zero members)
-  and the monthly invoices. Both come with the settlement from the portal's
-  invoices ([#74](https://github.com/magicdude4eva/ha-eg-austria/issues/74)).
+- **Settled months match your invoices.** Once EG Austria has billed a
+  month (usually 3 to 5 weeks later, sometimes months), the integration reads
+  the invoice amounts from the portal and scales that month's hours per
+  community so the month total equals the invoice, including the Zero tariff
+  and later corrections. Hours and days stay an approximation; months are
+  exact.
+- **Before that, provisional:** the portal prices Zero kWh at the standard
+  rate, so for Zero members both directions are too high until the month is
+  settled. A Zero estimate for these months follows
+  ([#89](https://github.com/magicdude4eva/ha-eg-austria/issues/89)).
 - **Feed-in compensation** prices community kWh at the community rate and
   only the surplus at the surplus price. It is meant as the compensation of
   your feed-in in the Energy dashboard instead of one that prices all feed-in

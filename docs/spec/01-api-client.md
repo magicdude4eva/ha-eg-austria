@@ -29,6 +29,7 @@ Arrays are sent as repeated keys: `energyCommunityIds=1&energyCommunityIds=2&mpI
 | `get_maintenance()` | `/v1/portal/maintenance` | none | `list[Maintenance]` |
 | `get_version()` | `/v1/version` | none | `PortalVersion` |
 | `get_session()` | `/v1/portal/portal-session` | none | `SessionInfo` (config flow only, spec 02) |
+| `get_transactions(member)` | `/v1/portal/member/{member}/billing/transactions` | none | `list[Transaction]` (phase 2, ADR 0008, issue #74) |
 
 - `aggregation`: enum `Month, Week, Day, Hour, FifteenMinutes`; phase 1 uses `Hour`, plus `Day` for the autumn DST day (spec 04). An unknown value returns 400 `Validation failed (enum string is expected)`.
 - `startDate`, `endDate`: `YYYY-MM-DD`, Austrian local dates; **both inclusive** (G1: `startDate = endDate` returns that one local day; 31 days return 31 × 24 hours, first point at local 00:00 of `startDate`, last at local 23:00 of `endDate`). The client enforces `end − start ≤ 30 days` for `Hour` and `FifteenMinutes` and raises `ValueError` before any request (a caller bug, not a portal error). `community_ids` and `mp_ids` must be non-empty lists of ints; the member number must be digits.
@@ -142,6 +143,10 @@ locations[]:
 
 Zero plans and the other participation factors go into `extra` only (snapshot values, never configuration); `activePartFactor` is also parsed for the metering point labels (issue #19) and never stored. `address`, `number`, `name`, `*Name` and `memberId` are sensitive and redacted (spec 06).
 
+### `Transaction` (issue #74)
+
+`parse_transactions()`: a JSON list (else S1); per row `amount` a number (S2 if missing, S3 if null or not a number), `date` an ISO date or timestamp (the first 10 characters are the local settlement date), `description` a string, `energyCommunityShortName` a string or null. Only these are kept (`Transaction(date, amount, description, community_name)`); `document` (its `fileName` holds the member's name), `invoiceNumber` and the status fields are dropped and never logged. Grouping and matching live in `settlement.py` (spec 04 "Settlement").
+
 ### `SessionInfo`
 
 `GET /v1/portal/portal-session` → `{email: str, members: [{memberId: str, displayName: str, mustAcceptPlatformTerms: bool}]}`. `memberId` is the `{member}` path value (an int is accepted and converted to text). The model drops `email` at parse time and keeps `memberId`, `mustAcceptPlatformTerms` and `displayName`; `displayName` is only the label of the config-flow select when there are several members (spec 02), excluded from `repr`, never stored, logged or put into diagnostics. The JWT `sub` claim is **not** the member number; never derive it from the token.
@@ -189,4 +194,4 @@ Module `token_api.py`, class `PortalTokenClient(session, cookie)`. Only `config_
 
 ## Not in phase 1
 
-`billing/*`, `energy-flow`, `average-day`, `part-factor-changes`, listing tokens (`GET portal-session/token`) and every other `portal-session/*` path except `portal-session` itself and the two token calls above, any document download.
+`billing/*` other than `billing/transactions`, `energy-flow`, `average-day`, `part-factor-changes`, listing tokens (`GET portal-session/token`) and every other `portal-session/*` path except `portal-session` itself and the two token calls above, any document download.

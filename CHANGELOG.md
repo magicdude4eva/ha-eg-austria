@@ -9,10 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Settlement from the portal's invoices (`billing/transactions`, #74): once a
+  month is billed, its € statistics per community are scaled so the month
+  equals the invoice, including the Zero tariff, reversals and rebills. A
+  month whose invoice changes later is fetched again. One more read-only
+  request per run.
 - Money statistics in € (#72, phase 2 of #55): feed-in income and cost of
   consumption per community and site, taken from the portal's hourly amounts;
-  no tariffs to enter. The Zero tariff and the monthly invoices are not
-  considered yet (#74).
+  no tariffs to enter. Unsettled months don't consider the Zero tariff yet
+  (#89).
 - Optional surplus price (fixed periods, price sensor or monthly price table
   such as the ÖMAG integration's) for *Surplus income* and *Feed-in
   compensation*, and a *price missing* repair.
