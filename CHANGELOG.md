@@ -7,43 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-23
+
+Phase 2: money in € (#55). Community income and cost come from the portal and
+your invoices; no tariffs to enter. **Requires Home Assistant 2026.11.0 or
+later.**
+
+### Upgrade
+
+- No configuration changes are needed. The new € statistics appear with the
+  next run.
+- The first run after the update reads your invoices and re-fetches once from
+  your earliest settled month (up to your earliest activation), so it takes
+  a little longer and sends more requests than a daily run.
+- Optional: set a *Surplus price* and a *Supplier price* in the options to get
+  surplus income, feed-in compensation and import savings.
+
 ### Added
 
-- Import savings against your supplier's energy price (#73): optional
-  *Supplier price* (fixed periods, price sensor or monthly table) gives
-  *Import savings* per community and for the site, community kWh at that price
-  minus what the community charged, and a *supplier price missing* repair.
-  Grid-fee and levy reductions are not included yet (#76).
-
-- Zero estimate for months not billed yet (#89): with an own-site Zero plan,
-  each day's Zero kWh (the smaller of feed-in to and consumption from the
-  community) are priced at a Zero rate derived from the settled invoices, so
-  provisional months come close to the invoice.
+- Money statistics in € (#72): feed-in income and cost of consumption per
+  community and for the site, from the portal's hourly amounts.
 - Settlement from the portal's invoices (`billing/transactions`, #74): once a
   month is billed, its € statistics per community are scaled so the month
   equals the invoice, including the Zero tariff, reversals and rebills. A
   month whose invoice changes later is fetched again. One more read-only
   request per run.
-- Money statistics in € (#72, phase 2 of #55): feed-in income and cost of
-  consumption per community and site, taken from the portal's hourly amounts;
-  no tariffs to enter.
+- Zero estimate for months not billed yet (#89): with an own-site Zero plan,
+  each day's Zero kWh (the smaller of feed-in to and consumption from the
+  community) are priced at a Zero rate derived from the settled invoices, so
+  provisional months come close to the invoice.
 - Optional surplus price (fixed periods, price sensor or monthly price table
   such as the ÖMAG integration's) for *Surplus income* and *Feed-in
   compensation*, and a *price missing* repair.
+- Optional supplier price (#73, same sources) for *Import savings* per
+  community and for the site (community kWh at your supplier's energy price
+  minus what the community charged), and a *supplier price missing* repair.
+  Grid-fee and levy reductions are not included yet (#76).
+
+### Fixed
+
+- No *price missing* repair for hours before the price source's first price,
+  such as a history import older than a price table that only keeps the
+  running year (#90).
+- Diagnostics list the surplus, feed-in compensation and savings statistics,
+  and the debug export keeps Zero plan numbers recognisable (synthetic, the
+  same as the metering points).
 
 ### Documentation
 
 - README: My Home Assistant buttons to open the repository in the Marketplace
-  and to start the setup.
-
-### Fixed
-
-- No *price missing* repair for hours before the price source's first
-  price, such as a history import older than a price table that only keeps
-  the running year (#90).
-- Diagnostics list the surplus and feed-in compensation statistics too, and
-  the debug export keeps Zero plan numbers recognisable (synthetic, same as
-  the metering points).
+  and to start the setup; money, surplus and supplier price sections.
 
 ## [0.1.4.3] - 2026-11-23
 
@@ -212,7 +225,8 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.3...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.3...0.2.0
 [0.1.4.3]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.2...0.1.4.3
 [0.1.4.2]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.1...0.1.4.2
 [0.1.4.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4...0.1.4.1
