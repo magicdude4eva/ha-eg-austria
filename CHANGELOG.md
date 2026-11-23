@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1.1] - 2026-11-23
+
+Fix for *Data complete until* after the 0.2.0 re-fetch (#97, #98).
+
 ### Fixed
 
 - *Data complete until* stuck at the day before the earliest activation
@@ -281,7 +285,8 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1.1...HEAD
+[0.2.1.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1...0.2.1.1
 [0.2.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.0.1...0.2.1
 [0.2.0.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.0...0.2.0.1
 [0.2.0]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.1.4.3...0.2.0
