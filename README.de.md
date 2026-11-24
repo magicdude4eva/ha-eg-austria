@@ -135,10 +135,7 @@ Noch nicht umgesetzt (Phasen, siehe [ADR 0010](docs/adr/0010-phasing.md)):
 
 **Stand:** veröffentlicht (siehe das
 [neueste Release](https://github.com/magicdude4eva/ha-eg-austria/releases/latest)).
-Die Aufnahme in den Home Assistant
-Marketplace (früher HACS) ist beantragt
-([#38](https://github.com/magicdude4eva/ha-eg-austria/issues/38)); bis sie
-gelistet ist, installierst du sie per Link als benutzerdefiniertes Repository.
+EG Austria ist im Home Assistant Marketplace (früher HACS) gelistet.
 
 **Mit den Buttons** (sie öffnen dein eigenes Home Assistant über
 [My Home Assistant](https://my.home-assistant.io/)):
@@ -146,25 +143,21 @@ gelistet ist, installierst du sie per Link als benutzerdefiniertes Repository.
 [![In Home Assistant öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=magicdude4eva&repository=ha-eg-austria&category=integration)
 [![Integration hinzufügen](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=eg_austria)
 
-Der erste öffnet EG Austria in deinem Marketplace (Schritte 1-3 unten); nach
+Der erste öffnet EG Austria in deinem Marketplace (Schritte 1-2 unten); nach
 dem Herunterladen und einem Neustart startet der zweite die Einrichtung
-(Schritt 5).
+(Schritt 4).
 
 **Von Hand:**
 
 1. Öffne den **Marketplace** in Home Assistant.
-2. Drei-Punkte-Menü → **Benutzerdefinierte Repositories**,
-   `https://github.com/magicdude4eva/ha-eg-austria` mit dem Typ
-   **Integration** eintragen und **Hinzufügen** wählen.
-3. Suche nach **EG Austria**, öffne den Eintrag und wähle **Herunterladen**.
-4. Starte Home Assistant neu.
-5. Gehe zu **Einstellungen → Geräte & Dienste → Integration hinzufügen → EG
+2. Suche nach **EG Austria**, öffne den Eintrag und wähle **Herunterladen**.
+3. Starte Home Assistant neu.
+4. Gehe zu **Einstellungen → Geräte & Dienste → Integration hinzufügen → EG
    Austria**.
 
 > [!NOTE]
-> **Sobald die Integration gelistet ist**, entfällt Schritt 2: such im
-> Marketplace direkt nach **EG Austria**. Ein bereits hinzugefügtes
-> benutzerdefiniertes Repository funktioniert weiter.
+> Hast du EG Austria vor der Aufnahme als benutzerdefiniertes Repository
+> hinzugefügt, funktioniert das weiter.
 
 Was sich in jedem Release geändert hat, steht im
 [Changelog](CHANGELOG.md) (englisch).

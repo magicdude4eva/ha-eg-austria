@@ -127,10 +127,7 @@ Not done yet (phases, see [ADR 0010](docs/adr/0010-phasing.md)):
 
 **Status:** released (see the
 [latest release](https://github.com/magicdude4eva/ha-eg-austria/releases/latest)).
-The listing in the Home Assistant Marketplace
-(formerly HACS) is pending
-([#38](https://github.com/magicdude4eva/ha-eg-austria/issues/38)); until it
-is live, install it as a custom repository by link.
+EG Austria is listed in the Home Assistant Marketplace (formerly HACS).
 
 **With the buttons** (they open your own Home Assistant via
 [My Home Assistant](https://my.home-assistant.io/)):
@@ -138,22 +135,19 @@ is live, install it as a custom repository by link.
 [![Open in Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=magicdude4eva&repository=ha-eg-austria&category=integration)
 [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=eg_austria)
 
-The first opens EG Austria in your Marketplace (steps 1-3 below); after the
-download and a restart, the second starts the setup (step 5).
+The first opens EG Austria in your Marketplace (steps 1-2 below); after the
+download and a restart, the second starts the setup (step 4).
 
 **By hand:**
 
 1. Open the **Marketplace** in Home Assistant.
-2. Open the three-dot menu → **Custom repositories**, enter
-   `https://github.com/magicdude4eva/ha-eg-austria` with the type
-   **Integration**, and select **Add**.
-3. Search for **EG Austria**, open it and select **Download**.
-4. Restart Home Assistant.
-5. Go to **Settings → Devices & services → Add integration → EG Austria**.
+2. Search for **EG Austria**, open it and select **Download**.
+3. Restart Home Assistant.
+4. Go to **Settings → Devices & services → Add integration → EG Austria**.
 
 > [!NOTE]
-> **Once the listing is live**, skip step 2: search for **EG Austria** in the
-> Marketplace directly. A custom repository you added before keeps working.
+> If you added EG Austria as a custom repository before it was listed, it keeps
+> working.
 
 See the [changelog](CHANGELOG.md) for what changed in each release.
 
