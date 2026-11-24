@@ -370,7 +370,8 @@ Statistics in € (unit `€`, hourly, with a running sum), next to the kWh ones
   the invoice amounts from the portal and scales that month's hours per
   community so the month total equals the invoice, including the Zero tariff
   and later corrections. Hours and days stay an approximation; months are
-  exact.
+  exact. A reversed invoice makes the month provisional again until the new
+  one arrives.
 - **Before that, an estimate with Zero:** the portal prices Zero kWh at the
   standard rate. With an own-site Zero (your PV and your consumption on the
   same Zero plan), the integration estimates each day's Zero kWh (the smaller
