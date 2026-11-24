@@ -749,6 +749,8 @@ def test_jwt_expiry_reads_exp_only() -> None:
 @pytest.mark.parametrize(
     "value",
     ["not-a-jwt", "a.b", "a.!!!.c", "eyJ.e30.c", personal_token()],
+    # Fixed ids: the random token must not differ between pytest-xdist workers.
+    ids=["no-dots", "two-parts", "not-json", "no-exp", "personal-token"],
 )
 def test_jwt_expiry_rejects_bad_tokens(value: str) -> None:
     """Non-JWTs, bad payloads and missing ``exp`` raise TokenFormatError."""
