@@ -401,6 +401,8 @@ Statistiken in € (Einheit `€`, stündlich, mit laufender Summe), neben den k
   und skaliert die Stunden dieses Monats pro Gemeinschaft so, dass die
   Monatssumme der Rechnung entspricht, inklusive Zero-Tarif und späterer
   Korrekturen. Stunden und Tage bleiben eine Näherung, Monate sind exakt.
+  Wird eine Rechnung storniert, ist der Monat bis zur neuen Rechnung wieder
+  vorläufig.
 - **Davor eine Schätzung mit Zero:** das Portal bewertet Zero-kWh zum
   Standardtarif. Bei eigenem Zero (deine PV und dein Verbrauch im selben
   Zero-Plan) schätzt die Integration die Zero-kWh jedes Tages (das Kleinere

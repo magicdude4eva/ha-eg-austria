@@ -184,6 +184,64 @@ def test_reversal_and_rebill_net_to_the_rebill() -> None:
     assert not result.unmatched
 
 
+def test_reversed_direction_is_unsettled_until_rebilled() -> None:
+    """Reversed, not billed again yet: provisional, not settled with 0 (#103)."""
+
+    feed_in = tx("2026-09-20", 12.50, "Einspeisevergütung August 2026", "Example BEG")
+    drawn = tx("2026-09-20", -3.40, "Strombezug August 2026", "Example BEG")
+    undo_feed_in = tx(
+        "2026-10-15", -12.50, "Energierechnungskorrektur August 2026", "Example BEG"
+    )
+    undo_drawn = tx(
+        "2026-10-15", 3.40, "Energierechnungskorrektur August 2026", "Example BEG"
+    )
+    billed = build_settlements(rows(feed_in, drawn), NAMES)
+
+    both = build_settlements(rows(feed_in, drawn, undo_feed_in, undo_drawn), NAMES)
+    assert both.amounts == {}
+    assert not both.unmatched
+    assert settled_months(both, {}) == {}
+    # The vanished settlement is a change, so the month is fetched again.
+    assert changed_months(billed.digests(), both.digests()) == {(2026, 8)}
+
+    one = build_settlements(rows(feed_in, drawn, undo_drawn), NAMES)
+    assert one.settled(("beg", G, (2026, 8))) == pytest.approx(12.50)
+    assert one.settled(("beg", C, (2026, 8))) is None
+
+
+def test_rebill_with_the_same_amount_is_settled() -> None:
+    """One of two equal invoices reversed: the other one stays."""
+
+    invoice = "Einspeisevergütung August 2026"
+    correction = "Energierechnungskorrektur August 2026"
+    result = build_settlements(
+        rows(
+            tx("2026-09-20", 12.50, invoice, "Example BEG"),
+            tx("2026-10-15", -12.50, correction, "Example BEG"),
+            tx("2026-11-05", 12.50, invoice, "Example BEG"),
+        ),
+        NAMES,
+    )
+    assert result.settled(("beg", G, (2026, 8))) == pytest.approx(12.50)
+    assert not result.unmatched
+
+
+def test_zero_correction_is_ignored() -> None:
+    """0.00 invoices both ways and a 0.00 correction: still settled (#103)."""
+
+    result = build_settlements(
+        rows(
+            tx("2026-09-20", 0, "Einspeisevergütung August 2026", "Example BEG"),
+            tx("2026-09-20", 0, "Strombezug August 2026", "Example BEG"),
+            tx("2026-10-15", 0, "Energierechnungskorrektur August 2026", "Example BEG"),
+        ),
+        NAMES,
+    )
+    assert result.settled(("beg", G, (2026, 8))) == 0
+    assert result.settled(("beg", C, (2026, 8))) == 0
+    assert not result.unmatched
+
+
 def test_unmatched_correction_leaves_month_unsettled() -> None:
     """A correction that negates no row: both directions stay provisional."""
 

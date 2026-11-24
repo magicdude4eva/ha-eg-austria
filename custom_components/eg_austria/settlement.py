@@ -16,8 +16,9 @@ Rows:
   a correction may follow;
 * ``Energierechnungskorrektur <Monat Jahr>`` has no direction: it negates an
   earlier row of the same community and month exactly and takes that row's
-  direction. A correction that matches no row leaves the month (both
-  directions) unsettled;
+  direction. A direction whose rows are all reversed is unsettled until it is
+  billed again; a 0.00 correction is ignored. A correction that matches no
+  row leaves the month (both directions) unsettled;
 * rows without a community (``Mitgliedsbeitrag``, ``Einzahlung``) and rows of
   communities the entry doesn't select are ignored; other descriptions are
   counted as unknown and ignored.
@@ -167,7 +168,7 @@ def build_settlements(
         cents = round(tx.amount * _CENT)
         if kind in _KIND:
             rows[slug, month].append((_KIND[kind], cents))
-        else:
+        elif cents:  # a 0.00 correction changes nothing (#103)
             corrections.append((slug, month, cents))
     for slug, month, cents in corrections:
         candidates = [d for d, c in rows[slug, month] if c == -cents]
@@ -175,7 +176,9 @@ def build_settlements(
             # No row, or both directions with that amount: can't assign it.
             result.unmatched.add((slug, month))
             continue
-        rows[slug, month].append((candidates[0], cents))
+        # The reversed row is gone. A direction without any row left is
+        # unsettled until the new invoice arrives, not settled with 0 (#103).
+        rows[slug, month].remove((candidates[0], -cents))
     for (slug, month), entries in rows.items():
         totals: dict[Direction, int] = defaultdict(int)
         for direction, cents in entries:
