@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1.2] - 2026-11-24
+
+Fix for months with a reversed invoice (#103).
+
 ### Fixed
 
 - A month whose invoice was reversed and not billed again yet was written as
@@ -292,7 +296,8 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1.1...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1.2...HEAD
+[0.2.1.2]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1.1...0.2.1.2
 [0.2.1.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1...0.2.1.1
 [0.2.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.0.1...0.2.1
 [0.2.0.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.0...0.2.0.1
