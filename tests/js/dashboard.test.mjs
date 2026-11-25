@@ -393,6 +393,32 @@ test("one view per entry, entry_id filter, empty state", () => {
   assert.equal(empty.views[0].cards[0].type, "markdown");
 });
 
+test("no loaded entry while Home Assistant starts", () => {
+  const content = (state, language = "en") =>
+    buildDashboard([], {}, { ...hass(language), config: { state } }).views[0].cards[0].content;
+  for (const state of ["NOT_RUNNING", "STARTING"]) {
+    assert.match(content(state), /still starting/);
+    assert.match(content(state, "de"), /startet noch/);
+  }
+  assert.match(content("RUNNING"), /Set up the integration first/);
+  const starting = { ...EN, config: { state: "STARTING" } };
+  assert.deepEqual(
+    buildDashboard([entry()], {}, starting).views.map((v) => v.path),
+    buildDashboard([entry()], {}, EN).views.map((v) => v.path),
+  );
+  const other = buildDashboard([entry()], { entry_id: "missing" }, starting);
+  assert.match(other.views[0].cards[0].content, /still starting/);
+});
+
+test("generate before the integration is set up", async () => {
+  const run = (state, code) =>
+    generate({}, { ...EN, config: { state }, callWS: async () => { throw { code }; } });
+  const dashboard = await run("NOT_RUNNING", "unknown_command");
+  assert.match(dashboard.views[0].cards[0].content, /still starting/);
+  await assert.rejects(run("RUNNING", "unknown_command"), { code: "unknown_command" });
+  await assert.rejects(run("STARTING", "unknown_error"), { code: "unknown_error" });
+});
+
 test("generate asks the websocket command", async () => {
   const calls = [];
   const h = {

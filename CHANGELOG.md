@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- While Home Assistant is starting and no entry is loaded yet, the dashboard
+  says so instead of asking you to set up the integration, and appears once
+  startup is finished. A page opened before the integration is set up still
+  shows a *Timeout waiting for strategy element* error; reload it (#110).
+
 ## [0.2.1.2] - 2026-11-24
 
 Fix for months with a reversed invoice (#103).

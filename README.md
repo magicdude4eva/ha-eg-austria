@@ -572,6 +572,10 @@ every load, so a new source or community shows up without editing it. To
 change it by hand, use *Take control* in the dashboard menu; from then on it
 stays as you edited it.
 
+**After a restart:** a page opened before the integration is set up shows
+*Timeout waiting for strategy element ll-strategy-dashboard-eg-austria*.
+Reload it once Home Assistant has started (a minute or two).
+
 The dialog suggests the title *Energy community* and the icon
 `mdi:home-group`; change them as you like.
 
