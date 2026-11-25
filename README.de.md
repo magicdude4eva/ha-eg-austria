@@ -617,6 +617,11 @@ wird bei jedem Laden neu aufgebaut; eine neue Quelle oder Gemeinschaft
 erscheint also ohne Bearbeiten. Um es von Hand zu ändern, im Dashboard-Menü
 *Kontrolle übernehmen* wählen; danach bleibt es so, wie du es bearbeitet hast.
 
+**Nach einem Neustart:** Eine Seite, die vor dem Einrichten der Integration
+geöffnet wurde, zeigt *Timeout waiting for strategy element
+ll-strategy-dashboard-eg-austria*. Lade sie neu, sobald Home Assistant
+gestartet ist (nach ein bis zwei Minuten).
+
 Der Dialog schlägt den Titel *Energiegemeinschaft* und das Symbol
 `mdi:home-group` vor; beides lässt sich ändern.
 

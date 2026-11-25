@@ -40,6 +40,7 @@ const TEXT = {
     description:
       "Community shares, feed-in and import split, and the import status of the EG Austria integration.",
     none: "No EG Austria entry is loaded. Set up the integration first.",
+    starting: "Home Assistant is still starting. This dashboard appears once startup is finished.",
     dateFormat: "%-d %b %Y",
     delaysCommunity: "Community shares are complete until <b>{date}</b>",
     delaysMeter: ", meter values until <b>{date}</b>",
@@ -105,6 +106,7 @@ const TEXT = {
     description:
       "Gemeinschaftsanteile, Aufteilung von Einspeisung und Bezug und der Importstatus der EG-Austria-Integration.",
     none: "Kein EG-Austria-Eintrag ist geladen. Richte zuerst die Integration ein.",
+    starting: "Home Assistant startet noch. Dieses Dashboard erscheint, sobald der Start abgeschlossen ist.",
     dateFormat: "%-d.%-m.%Y",
     delaysCommunity: "Gemeinschaftsanteile sind vollständig bis <b>{date}</b>",
     delaysMeter: ", Zählerwerte bis <b>{date}</b>",
@@ -1316,6 +1318,10 @@ export const buildView = (entry, hass) => {
   };
 };
 
+// The frontend builds the dashboard again when the state changes to RUNNING.
+const isStarting = (hass) =>
+  ["NOT_RUNNING", "STARTING"].includes(hass && hass.config && hass.config.state);
+
 export const buildDashboard = (entries, config, hass) => {
   const t = text(hass);
   const picked =
@@ -1327,7 +1333,7 @@ export const buildDashboard = (entries, config, hass) => {
       views: [
         {
           title: t.name,
-          cards: [{ type: "markdown", content: t.none }],
+          cards: [{ type: "markdown", content: isStarting(hass) ? t.starting : t.none }],
         },
       ],
     };
@@ -1336,7 +1342,15 @@ export const buildDashboard = (entries, config, hass) => {
 };
 
 export const generate = async (config, hass) => {
-  const result = await hass.callWS({ type: "eg_austria/dashboard_config" });
+  let result;
+  try {
+    result = await hass.callWS({ type: "eg_austria/dashboard_config" });
+  } catch (err) {
+    // A page open since before a restart has this script, but the integration
+    // may not be set up again yet.
+    if (!(isStarting(hass) && err && err.code === "unknown_command")) throw err;
+    result = { entries: [] };
+  }
   const dashboard = buildDashboard(result.entries || [], config, hass);
   for (const entry of result.entries || []) seedDefaultPeriod(collectionKey(entry));
   return dashboard;
