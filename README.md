@@ -366,6 +366,13 @@ Statistics in € (unit `€`, hourly, with a running sum), next to the kWh ones
   and later corrections. Hours and days stay an approximation; months are
   exact. A reversed invoice makes the month provisional again until the new
   one arrives.
+- **Several locations or metering points in one community:** EG Austria
+  sends one invoice per member, community and direction, for all your
+  metering points together. If another of your metering points (another
+  location, or one this entry doesn't select) is in the same community in
+  that month, the invoice can't be split per entry, so that community and
+  direction stay **provisional** for the month. Diagnostics list them under
+  `other_points`.
 - **Before that, an estimate with Zero:** the portal prices Zero kWh at the
   standard rate. With an own-site Zero (your PV and your consumption on the
   same Zero plan), the integration estimates each day's Zero kWh (the smaller

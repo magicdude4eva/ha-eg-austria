@@ -25,12 +25,18 @@ Rows:
 
 Communities are matched by name (``energyCommunityShortName`` equals the
 community name of ``metering-point``); the transactions carry no id.
+
+Invoices are per member, community and direction, and carry no metering
+point. When another metering point of the member in that direction (at any
+location) is active in the community during the month and the entry doesn't
+select it, the invoice covers it too: such a month stays provisional
+(``other_points``, issue #104).
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
 from enum import StrEnum
@@ -38,7 +44,13 @@ import hashlib
 import re
 from typing import Final
 
-from .models import AnalysisData, Direction, EnergyPoint, Transaction
+from .models import (
+    AnalysisData,
+    Direction,
+    EnergyPoint,
+    MeteringPointInfo,
+    Transaction,
+)
 from .statistics import local_date
 
 MONTHS: Final = {
@@ -78,6 +90,7 @@ class MonthState(StrEnum):
     SETTLED = "settled"
     UNMATCHED_CORRECTION = "unmatched_correction"
     ZERO_PROVISIONAL = "zero_provisional"  # settled, but nothing to scale
+    OTHER_POINTS = "other_points"  # invoice also covers unselected points
 
 
 Month = tuple[int, int]  # (year, month)
@@ -90,6 +103,8 @@ class Settlements:
 
     amounts: dict[Key, float] = field(default_factory=dict)
     unmatched: set[tuple[str, Month]] = field(default_factory=set)
+    # Keys whose invoice also covers metering points the entry doesn't select.
+    shared: set[Key] = field(default_factory=set)
     unknown_rows: int = 0
     ignored_rows: int = 0
 
@@ -97,7 +112,7 @@ class Settlements:
         """Return the settled total, or None while the month is unsettled."""
 
         slug, _, month = key
-        if (slug, month) in self.unmatched:
+        if (slug, month) in self.unmatched or key in self.shared:
             return None
         return self.amounts.get(key)
 
@@ -114,7 +129,11 @@ class Settlements:
             self.amounts.items(), key=lambda kv: (kv[0][0], kv[0][1].value, kv[0][2])
         ):
             unmatched = (slug, (year, month)) in self.unmatched
-            text = f"{round(amount * _CENT)}{'u' if unmatched else ''}"
+            shared = (slug, direction, (year, month)) in self.shared
+            text = (
+                f"{round(amount * _CENT)}{'u' if unmatched else ''}"
+                f"{'s' if shared else ''}"
+            )
             out[f"{slug}/{direction.value}/{year:04d}-{month:02d}"] = hashlib.sha256(
                 text.encode()
             ).hexdigest()[:12]
@@ -190,6 +209,45 @@ def build_settlements(
     return result
 
 
+def mark_other_points(
+    settlements: Settlements,
+    info: MeteringPointInfo,
+    mp_ids: Collection[int],
+    slugs: Mapping[int, str],
+) -> None:
+    """Flag settled keys whose invoice covers unselected points (issue #104).
+
+    ``slugs`` maps the selected community ids to their slugs. A point counts
+    when the entry doesn't select it, it has the key's direction and one of
+    its activations in that community overlaps the month (any location of
+    the member; a withdrawn activation, ending before it starts, doesn't).
+    """
+
+    selected = set(mp_ids)
+    ranges: dict[tuple[str, Direction], list[tuple[date, date | None]]] = defaultdict(
+        list
+    )
+    for loc in info.locations:
+        for mp in loc.metering_points:
+            if mp.id in selected:
+                continue
+            for act in mp.activations:
+                slug = slugs.get(act.community_id)
+                if slug is None:
+                    continue
+                if act.active_to is not None and act.active_to < act.active_from:
+                    continue
+                ranges[slug, mp.direction].append((act.active_from, act.active_to))
+    for key in settlements.amounts:
+        slug, direction, month = key
+        begin, end = first_day(month), _month_end(month)
+        if any(
+            start <= end and (stop is None or stop >= begin)
+            for start, stop in ranges.get((slug, direction), ())
+        ):
+            settlements.shared.add(key)
+
+
 def _month(point: EnergyPoint) -> Month:
     day = local_date(point.start)
     return day.year, day.month
@@ -223,6 +281,9 @@ def month_factors(
         slug, _, month = key
         if (slug, month) in settlements.unmatched:
             result[key] = MonthFactor(MonthState.UNMATCHED_CORRECTION, None)
+            continue
+        if key in settlements.shared:
+            result[key] = MonthFactor(MonthState.OTHER_POINTS, None)
             continue
         settled = settlements.amounts.get(key)
         if settled is None:
@@ -348,6 +409,10 @@ def diagnostics(
             f"{slug}/{year:04d}-{month:02d}"
             for slug, (year, month) in settlements.unmatched
         ),
+        "other_points": sorted(
+            f"{slug}/{direction.value}/{year:04d}-{month:02d}"
+            for slug, direction, (year, month) in settlements.shared
+        ),
     }
 
 
@@ -356,8 +421,9 @@ def settled_months(
 ) -> dict[str, list[str]]:
     """Settled months per ``"<slug>/<direction>"`` (issue #75), value-free.
 
-    A month counts as settled when it has a settlement and no unmatched
-    correction, and this run didn't find it without provisional amounts to
+    A month counts as settled when it has a settlement, no unmatched
+    correction and no unselected metering point it covers (issue #104), and
+    this run didn't find it without provisional amounts to
     scale (``zero_provisional``: its money stays provisional). The dashboard
     and the € summary sensors use it for the settled / provisional marker.
     """
@@ -366,6 +432,8 @@ def settled_months(
     for key in settlements.amounts:
         slug, direction, (year, month) = key
         if (slug, (year, month)) in settlements.unmatched:
+            continue
+        if key in settlements.shared:
             continue
         factor = factors.get(key)
         if factor is not None and factor.state is not MonthState.SETTLED:

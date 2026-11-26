@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- With several locations or metering points of yours in one community, each
+  entry was scaled to the member's whole invoice, and the month was marked
+  settled with a wrong Zero rate. Such a month now stays provisional for that
+  community and direction; diagnostics list it under `other_points`. Affected
+  months are fetched again on the next run (#104).
+
 ## [0.2.1.3] - 2026-11-26
 
 Dashboard message while Home Assistant starts (#110).
