@@ -370,9 +370,14 @@ Statistics in € (unit `€`, hourly, with a running sum), next to the kWh ones
   sends one invoice per member, community and direction, for all your
   metering points together. If another of your metering points (another
   location, or one this entry doesn't select) is in the same community in
-  that month, the invoice can't be split per entry, so that community and
-  direction stay **provisional** for the month. Diagnostics list them under
-  `other_points`.
+  that month, the integration asks the portal for your provisional total
+  over all those metering points (one extra request per community and run)
+  and gives this entry its share of the invoice, in proportion to its
+  provisional amounts; the entries of all your locations then add up to the
+  invoice. The month is marked **settled** (`settled_shared` in
+  diagnostics). If the portal doesn't return that total, the month stays
+  **provisional**. Diagnostics list these months under `other_points`. No
+  Zero rate is derived from such a month.
 - **Before that, an estimate with Zero:** the portal prices Zero kWh at the
   standard rate. With an own-site Zero (your PV and your consumption on the
   same Zero plan), the integration estimates each day's Zero kWh (the smaller

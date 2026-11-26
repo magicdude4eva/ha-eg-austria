@@ -33,7 +33,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.recorder import get_instance
 from homeassistant.util import dt as dt_util
 
-from .exceptions import ApiChangedError, SchemaError
+from .exceptions import ApiChangedError, EgAustriaError, SchemaError
 from .models import (
     Aggregation,
     AnalysisData,
@@ -45,9 +45,12 @@ from .prices import PriceSource, async_hourly_prices, first_unpriced
 from .settlement import (
     Key,
     MonthFactor,
+    MonthTotal,
     Settlements,
     apply_settlements,
+    member_totals,
     month_factors,
+    shared_requests,
 )
 from .statistics import (
     PORTAL_TZ,
@@ -596,6 +599,8 @@ class ImportResult:
     # months with an estimated Zero (no kWh).
     zero_rates: dict[tuple[str, Direction], ZeroRate] = field(default_factory=dict)
     zero_months: list[str] = field(default_factory=list)
+    # Issue #115: member-total requests for shared months (ok / failed).
+    shared_requests: dict[str, int] = field(default_factory=dict)
 
     @property
     def partial(self) -> bool:
@@ -732,6 +737,7 @@ async def async_import(
     # Issue #89: own-site Zero estimate per day, Zero rates derived from the
     # settled months (from the portal's amounts, before any repricing), then
     # each hour's Zero kWh repriced to the Zero rate.
+    portal_hourly = hourly
     zero = (
         estimate(hourly, site.own_zero_on) if site.zero_ranges else ZeroEstimate({}, {})
     )
@@ -742,8 +748,36 @@ async def async_import(
     day_values = reprice(day_values, zero, lookup)
 
     factors: dict[Key, MonthFactor] = {}
+    shared: dict[str, int] = {}
     if settlements is not None:
-        factors = month_factors(hourly, settlements)
+        # Issue #115: a month whose invoice also covers unselected metering
+        # points is scaled by the member's total over all of them, one
+        # ``Month`` request per community. A failed request (the portal may
+        # refuse points of another location) leaves those months provisional.
+        totals: dict[Key, MonthTotal] = {}
+        ids = {c.slug: c.id for c in setup.communities}
+        for req in shared_requests(settlements, portal_hourly, setup.mp_ids):
+            check_stop()
+            try:
+                data = await client.get_analysis(
+                    setup.member,
+                    Aggregation.MONTH,
+                    req.first,
+                    req.last,
+                    [ids[req.slug]],
+                    list(req.mp_ids),
+                )
+            except EgAustriaError as err:
+                _LOGGER.info(
+                    "Member total for a shared month not available (%s); "
+                    "it stays provisional",
+                    type(err).__name__,
+                )
+                shared["failed"] = shared.get("failed", 0) + 1
+                continue
+            shared["ok"] = shared.get("ok", 0) + 1
+            totals.update(member_totals(req.slug, data))
+        factors = month_factors(hourly, settlements, totals, portal_hourly)
         hourly = apply_settlements(hourly, factors)
         day_values = apply_settlements(day_values, factors)
 
@@ -806,6 +840,7 @@ async def async_import(
         price_missing=price_missing,
         supplier_price_missing=supplier_missing,
         settlement=factors,
+        shared_requests=shared,
         zero_rates=rates,
         zero_months=sorted(
             f"{slug}/{y:04d}-{m:02d}" for slug, (y, m) in zero.month_kwh

@@ -400,9 +400,15 @@ Statistiken in € (Einheit `€`, stündlich, mit laufender Summe), neben den k
   stellt eine Rechnung pro Mitglied, Gemeinschaft und Richtung, für alle
   deine Zählpunkte zusammen. Ist ein anderer deiner Zählpunkte (ein anderer
   Standort oder einer, den dieser Eintrag nicht auswählt) im selben Monat in
-  derselben Gemeinschaft, lässt sich die Rechnung nicht pro Eintrag aufteilen;
-  diese Gemeinschaft und Richtung bleiben für den Monat **vorläufig**. Die
-  Diagnose listet sie unter `other_points`.
+  derselben Gemeinschaft, holt die Integration deine vorläufige Summe über
+  all diese Zählpunkte vom Portal (eine zusätzliche Anfrage pro Gemeinschaft
+  und Lauf) und gibt diesem Eintrag seinen Anteil an der Rechnung, im
+  Verhältnis zu seinen vorläufigen Beträgen; die Einträge all deiner
+  Standorte ergeben zusammen die Rechnung. Der Monat gilt als
+  **abgerechnet** (`settled_shared` in der Diagnose). Liefert das Portal
+  diese Summe nicht, bleibt der Monat **vorläufig**. Die Diagnose listet
+  diese Monate unter `other_points`. Aus so einem Monat wird kein Zero-Tarif
+  abgeleitet.
 - **Davor eine Schätzung mit Zero:** das Portal bewertet Zero-kWh zum
   Standardtarif. Bei eigenem Zero (deine PV und dein Verbrauch im selben
   Zero-Plan) schätzt die Integration die Zero-kWh jedes Tages (das Kleinere
