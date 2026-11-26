@@ -16,7 +16,10 @@ from homeassistant.core import HomeAssistant
 import pytest
 
 from custom_components.eg_austria.coordinator import RunRequest
-from custom_components.eg_austria.exceptions import SchemaError
+from custom_components.eg_austria.exceptions import (
+    ForbiddenError,
+    SchemaError,
+)
 from custom_components.eg_austria.importer import RunStatus, RunType
 from custom_components.eg_austria.models import (
     Activation,
@@ -31,6 +34,7 @@ from custom_components.eg_austria.models import (
 from custom_components.eg_austria.settlement import (
     MonthFactor,
     MonthState,
+    MonthTotal,
     Settlements,
     apply_settlements,
     billed_month,
@@ -41,6 +45,7 @@ from custom_components.eg_austria.settlement import (
     month_factors,
     settled_months,
     settled_window_start,
+    shared_requests,
 )
 from custom_components.eg_austria.statistics import local_date
 
@@ -682,10 +687,17 @@ def test_shared_month_changes_its_digest() -> None:
 async def test_run_with_another_location_keeps_the_month_provisional(
     hass: HomeAssistant, env: Any
 ) -> None:
-    """End to end: the other location's point leaves BEG consumption provisional."""
+    """End to end: the member total is refused, BEG consumption stays provisional."""
 
     coordinator, _, client = make(hass, options={"daily_window_days": 7})
     client.mp_raw = load_fixture("metering_point_two_locations.json")
+
+    def refuse(raw: Any, aggregation: str, *_: Any) -> Any:
+        if aggregation == "Month":
+            raise ForbiddenError("HTTP 403")
+        return raw
+
+    client.mutate = refuse
     client.transactions_raw = list(
         reversed(
             [
@@ -705,8 +717,238 @@ async def test_run_with_another_location_keeps_the_month_provisional(
     }
     assert months["eeg/Consumption/2026-06"]["state"] == "settled"
     assert summary.settlement["other_points"] == ["beg/Consumption/2026-06"]
+    assert summary.settlement["shared_requests"] == {"failed": 1}
     assert coordinator.state.settled_months == {"eeg/Consumption": ["2026-06"]}
     # Provisional amounts are written as they are, not the 1.23 invoice.
     beg = await _month_sum(hass, "home_beg_consumption_eur", (2026, 6))
     assert beg > 0
     assert beg != pytest.approx(1.23, abs=1e-4)
+
+
+# Issue #115: a shared month scaled by the member's total.
+
+
+def _own(
+    data: Any, direction: Direction, month: tuple[int, int]
+) -> tuple[float, float]:
+    kwh = math.fsum(
+        p.value or 0
+        for p in data.points(direction)
+        if (local_date(p.start).year, local_date(p.start).month) == month
+    )
+    return kwh, _month_total(data, direction, month)
+
+
+@pytest.mark.parametrize("points", [2, 3], ids=["two-locations", "one-of-three"])
+def test_shared_month_gets_its_share_of_the_invoice(points: int) -> None:
+    """Each entry's month = invoice * own portal € / member portal €."""
+
+    data = _june()
+    month = (2026, 6)
+    key = ("beg", C, month)
+    settlements = _june_invoices()
+    others = tuple(_point(1003 + i, C, (2001, JAN, None)) for i in range(points - 1))
+    mark_other_points(settlements, _info((OWN,), others), (1001,), SLUGS)
+    assert settlements.others[key] == {1003 + i for i in range(points - 1)}
+    kwh, money = _own(data, C, month)
+    # The other points draw as much as this one.
+    totals = {key: MonthTotal(kwh * points, money * points)}
+    factors = month_factors({"beg": [data]}, settlements, totals)
+    assert factors[key].state is MonthState.SETTLED_SHARED
+    scaled = apply_settlements({"beg": [data]}, factors)["beg"][0]
+    assert _month_total(scaled, C, month) == pytest.approx(34.88 / points)
+    assert settled_months(settlements, factors)["beg/Consumption"] == ["2026-06"]
+    assert (
+        diagnostics(factors, settlements)["months"]["beg/Consumption/2026-06"]["state"]
+        == "settled_shared"
+    )
+    # Still no Zero rate from a shared month.
+    assert settlements.settled(key) is None
+
+
+def test_two_entries_add_up_to_the_invoice() -> None:
+    """Two locations with a 2:1 split: their months sum to the invoice."""
+
+    data = _june()
+    month = (2026, 6)
+    key = ("beg", C, month)
+    kwh, money = _own(data, C, month)
+    total = MonthTotal(kwh * 3, money * 3)  # the other site draws twice as much
+    mine = _june_invoices()
+    mark_other_points(
+        mine, _info((OWN,), (_point(1003, C, (2001, JAN, None)),)), (1001,), SLUGS
+    )
+    first = _month_total(
+        apply_settlements(
+            {"beg": [data]}, month_factors({"beg": [data]}, mine, {key: total})
+        )["beg"][0],
+        C,
+        month,
+    )
+    # The other entry: same hours at twice the amounts.
+    other = apply_settlements(
+        {"beg": [data]}, {key: MonthFactor(MonthState.SETTLED, 2.0)}
+    )
+    theirs = _june_invoices()
+    mark_other_points(
+        theirs, _info((OWN,), (_point(1003, C, (2001, JAN, None)),)), (1003,), SLUGS
+    )
+    second = _month_total(
+        apply_settlements(other, month_factors(other, theirs, {key: total}))["beg"][0],
+        C,
+        month,
+    )
+    assert first == pytest.approx(34.88 / 3)
+    assert second == pytest.approx(34.88 * 2 / 3)
+    assert first + second == pytest.approx(34.88)
+
+
+def test_shared_share_ignores_the_zero_repricing() -> None:
+    """The share follows the portal amounts, whatever the repriced hours are."""
+
+    data = _june()
+    month = (2026, 6)
+    key = ("beg", C, month)
+    settlements = _june_invoices()
+    mark_other_points(
+        settlements,
+        _info((OWN,), (_point(1003, C, (2001, JAN, None)),)),
+        (1001,),
+        SLUGS,
+    )
+    kwh, money = _own(data, C, month)
+    repriced = apply_settlements(
+        {"beg": [data]}, {key: MonthFactor(MonthState.SETTLED, 0.7)}
+    )
+    factors = month_factors(
+        repriced, settlements, {key: MonthTotal(kwh * 2, money * 2)}, {"beg": [data]}
+    )
+    scaled = apply_settlements(repriced, factors)["beg"][0]
+    assert _month_total(scaled, C, month) == pytest.approx(34.88 / 2)
+
+
+@pytest.mark.parametrize(
+    "scale",
+    [1.0, 0.5],
+    ids=["others-dropped", "total-below-own"],
+)
+def test_shared_total_that_cant_be_right_stays_provisional(scale: float) -> None:
+    """A total without the other points must never bring back the whole invoice."""
+
+    data = _june()
+    month = (2026, 6)
+    key = ("beg", C, month)
+    settlements = _june_invoices()
+    mark_other_points(
+        settlements,
+        _info((OWN,), (_point(1003, C, (2001, JAN, None)),)),
+        (1001,),
+        SLUGS,
+    )
+    kwh, money = _own(data, C, month)
+    factors = month_factors(
+        {"beg": [data]}, settlements, {key: MonthTotal(kwh * scale, money * scale)}
+    )
+    assert factors[key] == MonthFactor(MonthState.OTHER_POINTS, None)
+    assert "beg/Consumption" not in settled_months(settlements, factors)
+
+
+def test_shared_requests_one_per_community() -> None:
+    """Only fetched shared months; one range per community; ids merged."""
+
+    data = _june()
+    settlements = build_settlements(
+        rows(
+            tx("2026-07-20", -34.88, "Strombezug Juni 2026", "Example BEG"),
+            tx("2026-07-20", 5.0, "Einspeisevergütung Juni 2026", "Example BEG"),
+            tx("2026-06-20", -9.0, "Strombezug Mai 2026", "Example BEG"),
+            tx("2026-07-20", -3.0, "Strombezug Juni 2026", "Example EEG"),
+        ),
+        NAMES,
+    )
+    mark_other_points(
+        settlements,
+        _info(
+            (OWN,),
+            (
+                _point(1003, C, (2001, JAN, None)),
+                _point(1004, G, (2001, JAN, None)),
+            ),
+        ),
+        (1001,),
+        SLUGS,
+    )
+    # May is shared but not in this run's hours: not requested.
+    assert ("beg", C, (2026, 5)) in settlements.shared
+    plan = shared_requests(settlements, {"beg": [data], "eeg": []}, (1001,))
+    assert len(plan) == 1
+    req = plan[0]
+    assert (req.slug, req.first, req.last) == (
+        "beg",
+        date(2026, 6, 1),
+        date(2026, 6, 30),
+    )
+    assert req.mp_ids == (1001, 1003, 1004)
+    # An unmatched correction: nothing to scale, nothing to request.
+    settlements.unmatched.add(("beg", (2026, 6)))
+    assert shared_requests(settlements, {"beg": [data]}, (1001,)) == []
+
+
+def test_shared_month_outside_the_window_stays_settled() -> None:
+    """A shared month scaled in an earlier run keeps its settled marker."""
+
+    settlements = _june_invoices()
+    mark_other_points(
+        settlements,
+        _info((OWN,), (_point(1003, C, (2001, JAN, None)),)),
+        (1001,),
+        SLUGS,
+    )
+    previous = {"beg/Consumption": ["2026-06"]}
+    assert settled_months(settlements, {}, previous)["beg/Consumption"] == ["2026-06"]
+    assert "beg/Consumption" not in settled_months(settlements, {})
+
+
+async def test_run_scales_a_shared_month_by_the_member_total(
+    hass: HomeAssistant, env: Any
+) -> None:
+    """End to end: one Month request, the month = invoice * own / member total."""
+
+    coordinator, _, client = make(hass, options={"daily_window_days": 7})
+    client.mp_raw = load_fixture("metering_point_two_locations.json")
+    client.transactions_raw = list(
+        reversed(
+            [
+                tx("2026-06-08", -1.23, "Strombezug Juni 2026", "Example BEG"),
+                tx("2026-06-08", 0, "Strombezug Juni 2026", "Example EEG"),
+            ]
+        )
+    )
+    seen: dict[str, list[Any]] = {"Hour": [], "Month": []}
+
+    def capture(raw: Any, aggregation: str, start: Any, end: Any, cid: int) -> Any:
+        if cid == 2001 and aggregation in seen:
+            seen[aggregation].append(parse_analysis(raw))
+        return raw
+
+    client.mutate = capture
+    summary = await coordinator.async_run(RunRequest(RunType.DAILY))
+    assert summary is not None
+    assert summary.status is RunStatus.OK
+    assert summary.settlement is not None
+    assert summary.settlement["months"]["beg/Consumption/2026-06"]["state"] == (
+        "settled_shared"
+    )
+    assert summary.settlement["shared_requests"] == {"ok": 1}
+    month_calls = client.analysis_calls("Month")
+    assert len(month_calls) == 1
+    assert month_calls[0][2:] == (date(2026, 6, 1), date(2026, 6, 30), [2001])
+    assert coordinator.state.settled_months == {
+        "beg/Consumption": ["2026-06"],
+        "eeg/Consumption": ["2026-06"],
+    }
+    own = math.fsum(_month_total(d, C, (2026, 6)) for d in seen["Hour"])
+    member = math.fsum(_month_total(d, C, (2026, 6)) for d in seen["Month"])
+    assert 0 < own < member
+    beg = await _month_sum(hass, "home_beg_consumption_eur", (2026, 6))
+    assert beg == pytest.approx(1.23 * own / member, abs=1e-4)

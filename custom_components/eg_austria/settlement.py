@@ -29,8 +29,11 @@ community name of ``metering-point``); the transactions carry no id.
 Invoices are per member, community and direction, and carry no metering
 point. When another metering point of the member in that direction (at any
 location) is active in the community during the month and the entry doesn't
-select it, the invoice covers it too: such a month stays provisional
-(``other_points``, issue #104).
+select it, the invoice covers it too (``other_points``, issue #104). Such
+a month is scaled by the member's provisional total over all those points
+instead (``member_totals()``, one extra ``Month`` request per community,
+issue #115): the entry gets its share of the invoice, in proportion to its
+portal amounts. Without that total the month stays provisional.
 """
 
 from __future__ import annotations
@@ -91,6 +94,8 @@ class MonthState(StrEnum):
     UNMATCHED_CORRECTION = "unmatched_correction"
     ZERO_PROVISIONAL = "zero_provisional"  # settled, but nothing to scale
     OTHER_POINTS = "other_points"  # invoice also covers unselected points
+    # Shared invoice, scaled by the member's total over all points (#115).
+    SETTLED_SHARED = "settled_shared"
 
 
 Month = tuple[int, int]  # (year, month)
@@ -105,6 +110,8 @@ class Settlements:
     unmatched: set[tuple[str, Month]] = field(default_factory=set)
     # Keys whose invoice also covers metering points the entry doesn't select.
     shared: set[Key] = field(default_factory=set)
+    # Those unselected metering point ids per shared key (issue #115).
+    others: dict[Key, set[int]] = field(default_factory=dict)
     unknown_rows: int = 0
     ignored_rows: int = 0
 
@@ -224,8 +231,8 @@ def mark_other_points(
     """
 
     selected = set(mp_ids)
-    ranges: dict[tuple[str, Direction], list[tuple[date, date | None]]] = defaultdict(
-        list
+    ranges: dict[tuple[str, Direction], list[tuple[date, date | None, int]]] = (
+        defaultdict(list)
     )
     for loc in info.locations:
         for mp in loc.metering_points:
@@ -237,15 +244,87 @@ def mark_other_points(
                     continue
                 if act.active_to is not None and act.active_to < act.active_from:
                     continue
-                ranges[slug, mp.direction].append((act.active_from, act.active_to))
+                ranges[slug, mp.direction].append(
+                    (act.active_from, act.active_to, mp.id)
+                )
     for key in settlements.amounts:
         slug, direction, month = key
         begin, end = first_day(month), _month_end(month)
-        if any(
-            start <= end and (stop is None or stop >= begin)
-            for start, stop in ranges.get((slug, direction), ())
-        ):
+        ids = {
+            mp_id
+            for start, stop, mp_id in ranges.get((slug, direction), ())
+            if start <= end and (stop is None or stop >= begin)
+        }
+        if ids:
             settlements.shared.add(key)
+            settlements.others[key] = ids
+
+
+@dataclass(frozen=True, slots=True)
+class SharedRequest:
+    """One ``Month`` request for the member's total in a community (#115)."""
+
+    slug: str
+    first: date
+    last: date
+    mp_ids: tuple[int, ...]  # the entry's points plus the unselected ones
+
+
+def shared_requests(
+    settlements: Settlements,
+    hourly: Mapping[str, Iterable[AnalysisData]],
+    mp_ids: Collection[int],
+) -> list[SharedRequest]:
+    """Plan one request per community with a shared month in ``hourly``.
+
+    Only months this run fetched count (the window holds whole settled
+    months). A request spans the first to the last such month of the
+    community; months in between that aren't shared are ignored.
+    """
+
+    seen: set[tuple[str, Month]] = set()
+    for slug, responses in hourly.items():
+        for data in responses:
+            for direction in Direction:
+                seen.update((slug, _month(p)) for p in data.points(direction))
+    months: dict[str, list[Month]] = defaultdict(list)
+    ids: dict[str, set[int]] = defaultdict(set)
+    for key in settlements.shared:
+        slug, _, month = key
+        if (slug, month) not in seen or (slug, month) in settlements.unmatched:
+            continue
+        months[slug].append(month)
+        ids[slug] |= settlements.others.get(key, set())
+    return [
+        SharedRequest(
+            slug,
+            first_day(min(items)),
+            _month_end(max(items)),
+            tuple(sorted(set(mp_ids) | ids[slug])),
+        )
+        for slug, items in sorted(months.items())
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class MonthTotal:
+    """Provisional kWh and € of one community, direction and month."""
+
+    kwh: float
+    money: float
+
+
+def member_totals(slug: str, data: AnalysisData) -> dict[Key, MonthTotal]:
+    """Sum a response per direction and local month (any aggregation)."""
+
+    kwh: dict[Key, float] = defaultdict(float)
+    money: dict[Key, float] = defaultdict(float)
+    for direction in Direction:
+        for point in data.points(direction):
+            key = (slug, direction, _month(point))
+            kwh[key] += point.value or 0.0
+            money[key] += point.money or 0.0
+    return {key: MonthTotal(kwh[key], money[key]) for key in kwh}
 
 
 def _month(point: EnergyPoint) -> Month:
@@ -261,12 +340,11 @@ class MonthFactor:
     factor: float | None
 
 
-def month_factors(
-    hourly: Mapping[str, Iterable[AnalysisData]], settlements: Settlements
-) -> dict[Key, MonthFactor]:
-    """Scale factor per settled key from the provisional hourly amounts."""
-
-    provisional: dict[Key, float] = defaultdict(float)
+def _month_sums(
+    hourly: Mapping[str, Iterable[AnalysisData]],
+) -> tuple[dict[Key, float], dict[Key, float], set[Key]]:
+    money: dict[Key, float] = defaultdict(float)
+    kwh: dict[Key, float] = defaultdict(float)
     seen: set[Key] = set()
     for slug, responses in hourly.items():
         for data in responses:
@@ -275,18 +353,79 @@ def month_factors(
                     key = (slug, direction, _month(point))
                     seen.add(key)
                     if point.money is not None:
-                        provisional[key] += point.money
+                        money[key] += point.money
+                    kwh[key] += point.value or 0.0
+    return money, kwh, seen
+
+
+# Below this, "no difference" (kWh and EUR, summed over a month).
+_EPS: Final = 1e-6
+
+
+def _shared_factor(
+    settled: float,
+    own_portal: float,
+    own_kwh: float,
+    own_scaled: float,
+    total: MonthTotal | None,
+) -> MonthFactor:
+    """Scale a shared month to the entry's share of the invoice (#115).
+
+    share = invoice * own portal € / member portal €; the factor applies to
+    the entry's hours as they are now (after Zero repricing), so the month
+    ends at that share. Stays provisional without a member total, or when
+    the other points add nothing to it (a portal that dropped them must
+    never bring back the whole invoice, #104).
+    """
+
+    if total is None:
+        return MonthFactor(MonthState.OTHER_POINTS, None)
+    if total.kwh <= own_kwh + _EPS or abs(own_portal) > abs(total.money) + _EPS:
+        return MonthFactor(MonthState.OTHER_POINTS, None)
+    if abs(total.money) < 1e-9:
+        if abs(settled) < 1e-9:
+            return MonthFactor(MonthState.SETTLED_SHARED, 1.0)
+        return MonthFactor(MonthState.ZERO_PROVISIONAL, None)
+    share = settled * own_portal / total.money
+    if abs(own_scaled) < 1e-9:
+        if abs(share) < 1e-9:
+            return MonthFactor(MonthState.SETTLED_SHARED, 1.0)
+        return MonthFactor(MonthState.ZERO_PROVISIONAL, None)
+    return MonthFactor(MonthState.SETTLED_SHARED, share / own_scaled)
+
+
+def month_factors(
+    hourly: Mapping[str, Iterable[AnalysisData]],
+    settlements: Settlements,
+    totals: Mapping[Key, MonthTotal] | None = None,
+    portal: Mapping[str, Iterable[AnalysisData]] | None = None,
+) -> dict[Key, MonthFactor]:
+    """Scale factor per settled key from the provisional hourly amounts.
+
+    ``totals`` are the member's provisional totals of shared months
+    (``member_totals()``, #115); ``portal`` the entry's hours with the
+    portal's amounts (before Zero repricing), default ``hourly``.
+    """
+
+    provisional, _, seen = _month_sums(hourly)
+    own_portal, own_kwh, _ = _month_sums(portal if portal is not None else hourly)
     result: dict[Key, MonthFactor] = {}
     for key in seen:
         slug, _, month = key
         if (slug, month) in settlements.unmatched:
             result[key] = MonthFactor(MonthState.UNMATCHED_CORRECTION, None)
             continue
-        if key in settlements.shared:
-            result[key] = MonthFactor(MonthState.OTHER_POINTS, None)
-            continue
         settled = settlements.amounts.get(key)
         if settled is None:
+            continue
+        if key in settlements.shared:
+            result[key] = _shared_factor(
+                settled,
+                own_portal.get(key, 0.0),
+                own_kwh.get(key, 0.0),
+                provisional.get(key, 0.0),
+                (totals or {}).get(key),
+            )
             continue
         total = provisional.get(key, 0.0)
         if abs(total) < 1e-9:
@@ -417,26 +556,38 @@ def diagnostics(
 
 
 def settled_months(
-    settlements: Settlements, factors: Mapping[Key, MonthFactor]
+    settlements: Settlements,
+    factors: Mapping[Key, MonthFactor],
+    previous: Mapping[str, Iterable[str]] | None = None,
 ) -> dict[str, list[str]]:
     """Settled months per ``"<slug>/<direction>"`` (issue #75), value-free.
 
     A month counts as settled when it has a settlement, no unmatched
-    correction and no unselected metering point it covers (issue #104), and
-    this run didn't find it without provisional amounts to
-    scale (``zero_provisional``: its money stays provisional). The dashboard
-    and the € summary sensors use it for the settled / provisional marker.
+    correction, and this run didn't find it without provisional amounts to
+    scale (``zero_provisional``: its money stays provisional). A month whose
+    invoice also covers unselected metering points (#104) counts only once
+    it was scaled by the member's total (``settled_shared``, #115): in this
+    run, or, outside this run's window, in an earlier one (``previous``, the
+    stored result). The dashboard and the € summary sensors use it for the
+    settled / provisional marker.
     """
 
+    before = {k: set(v) for k, v in (previous or {}).items()}
     out: dict[str, set[str]] = defaultdict(set)
     for key in settlements.amounts:
         slug, direction, (year, month) = key
         if (slug, (year, month)) in settlements.unmatched:
             continue
-        if key in settlements.shared:
-            continue
+        name, label = f"{slug}/{direction.value}", f"{year:04d}-{month:02d}"
         factor = factors.get(key)
-        if factor is not None and factor.state is not MonthState.SETTLED:
+        if key in settlements.shared:
+            if factor is None:
+                if label in before.get(name, set()):
+                    out[name].add(label)
+                continue
+            if factor.state is not MonthState.SETTLED_SHARED:
+                continue
+        elif factor is not None and factor.state is not MonthState.SETTLED:
             continue
-        out[f"{slug}/{direction.value}"].add(f"{year:04d}-{month:02d}")
+        out[name].add(label)
     return {k: sorted(v) for k, v in sorted(out.items())}

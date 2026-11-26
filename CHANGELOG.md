@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A month whose invoice also covers your other locations or metering points
+  is now scaled by your provisional total over all of them (one extra
+  `Month` request per community and run, only for such months in the
+  window): each entry gets its share of the invoice and the month counts as
+  settled (`settled_shared`). If the portal doesn't return that total, the
+  month stays provisional as before (#115).
+
 ## [0.2.1.4] - 2026-11-26
 
 Fix for several locations or metering points in one community (#104).

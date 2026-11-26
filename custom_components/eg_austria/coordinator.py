@@ -912,6 +912,7 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
             **settlement_diagnostics(result.settlement, settlements),
             "zero_rates": rates_to_store(result.zero_rates),
             "zero_months": result.zero_months,
+            "shared_requests": result.shared_requests,
         }
         summary.chunks = result.chunks
         summary.validation = result.validation
@@ -934,7 +935,9 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         # 9. Store bookkeeping.
         self.state.settlement_digests = digests
         self.state.zero_rates = rates_to_store(result.zero_rates)
-        self.state.settled_months = settled_months(settlements, result.settlement)
+        self.state.settled_months = settled_months(
+            settlements, result.settlement, self.state.settled_months
+        )
         window = set(days_between(start, end))
         held = {
             k: [d for d in days if d not in window]
