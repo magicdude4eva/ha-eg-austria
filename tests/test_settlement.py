@@ -19,7 +19,11 @@ from custom_components.eg_austria.coordinator import RunRequest
 from custom_components.eg_austria.exceptions import SchemaError
 from custom_components.eg_austria.importer import RunStatus, RunType
 from custom_components.eg_austria.models import (
+    Activation,
     Direction,
+    Location,
+    MeteringPoint,
+    MeteringPointInfo,
     Transaction,
     parse_analysis,
     parse_transactions,
@@ -32,6 +36,8 @@ from custom_components.eg_austria.settlement import (
     billed_month,
     build_settlements,
     changed_months,
+    diagnostics,
+    mark_other_points,
     month_factors,
     settled_months,
     settled_window_start,
@@ -529,3 +535,178 @@ def test_settled_months() -> None:
         "eeg/Generation": ["2026-01"],
     }
     assert settled_months(Settlements(), {}) == {}
+
+
+# ---------------------------------------------------------------------------
+# Invoices that cover unselected metering points (issue #104)
+
+SLUGS = {2001: "beg", 2002: "eeg"}
+
+
+def _point(
+    mp_id: int,
+    direction: Direction,
+    *acts: tuple[int, date, date | None],
+) -> MeteringPoint:
+    return MeteringPoint(
+        id=mp_id,
+        direction=direction,
+        activations=tuple(
+            Activation(
+                community_id=cid,
+                community_type="CC",
+                active_from=begin,
+                active_to=end,
+                status="Active",
+                community_name="Example",
+            )
+            for cid, begin, end in acts
+        ),
+        number_tail=f"{mp_id:04d}",
+    )
+
+
+def _info(*locations: tuple[MeteringPoint, ...]) -> MeteringPointInfo:
+    return MeteringPointInfo(
+        locations=tuple(
+            Location(id=f"{5001 + i}", metering_points=points, label="Example")
+            for i, points in enumerate(locations)
+        )
+    )
+
+
+JAN = date(2026, 1, 1)
+OWN = _point(1001, C, (2001, JAN, None), (2002, JAN, None))
+
+
+def _june_invoices() -> Settlements:
+    return build_settlements(
+        rows(
+            tx("2026-07-20", -34.88, "Strombezug Juni 2026", "Example BEG"),
+            tx("2026-07-20", 5.0, "Einspeisevergütung Juni 2026", "Example BEG"),
+            tx("2026-07-20", -3.0, "Strombezug Juni 2026", "Example EEG"),
+        ),
+        NAMES,
+    )
+
+
+def test_other_location_in_the_community_keeps_the_month_provisional() -> None:
+    """Two locations in one community: the invoice covers both (#104)."""
+
+    data = _june()
+    months = {
+        (local_date(p.start).year, local_date(p.start).month) for p in data.consumption
+    }
+    month = max(months)
+    assert month == (2026, 6)
+    settlements = _june_invoices()
+    other = _point(1003, C, (2001, date(2026, 3, 1), None))
+    mark_other_points(settlements, _info((OWN,), (other,)), (1001,), SLUGS)
+    key = ("beg", C, month)
+    assert settlements.shared == {key}
+    # No Zero rate can come from it, and it isn't scaled.
+    assert settlements.settled(key) is None
+    assert settlements.settled(("eeg", C, month)) == pytest.approx(3.0)
+    factors = month_factors({"beg": [data]}, settlements)
+    assert factors[key] == MonthFactor(MonthState.OTHER_POINTS, None)
+    scaled = apply_settlements({"beg": [data]}, factors)["beg"][0]
+    assert _month_total(scaled, C, month) == pytest.approx(_month_total(data, C, month))
+    # Feed-in: no other generation point, still settled.
+    assert factors[("beg", G, month)].state is MonthState.SETTLED
+    assert settled_months(settlements, factors) == {
+        "beg/Generation": ["2026-06"],
+        "eeg/Consumption": ["2026-06"],
+    }
+    assert diagnostics(factors, settlements)["other_points"] == [
+        "beg/Consumption/2026-06"
+    ]
+
+
+def test_unselected_point_at_the_same_location() -> None:
+    """A subset of one location's points: the others share the invoice."""
+
+    settlements = _june_invoices()
+    second = _point(1002, C, (2002, JAN, None))
+    mark_other_points(settlements, _info((OWN, second)), (1001,), SLUGS)
+    assert settlements.shared == {("eeg", C, (2026, 6))}
+    # Selected, it is part of the entry: nothing shared.
+    settlements = _june_invoices()
+    mark_other_points(settlements, _info((OWN, second)), (1001, 1002), SLUGS)
+    assert settlements.shared == set()
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        # Active only before or after the month.
+        _point(1003, C, (2001, JAN, date(2026, 5, 31))),
+        _point(1003, C, (2001, date(2026, 7, 1), None)),
+        # Withdrawn before it started.
+        _point(1003, C, (2001, date(2026, 6, 10), date(2026, 6, 1))),
+        # Another community, or one the entry doesn't select.
+        _point(1003, C, (2003, JAN, None)),
+        # Another direction (the feed-in invoice is checked against
+        # generation points only).
+        _point(1003, G, (2002, JAN, None)),
+    ],
+    ids=["ended-before", "starts-after", "withdrawn", "other-community", "generation"],
+)
+def test_other_points_that_dont_share_the_invoice(other: MeteringPoint) -> None:
+    """Points outside the month, community or direction change nothing."""
+
+    settlements = _june_invoices()
+    mark_other_points(settlements, _info((OWN,), (other,)), (1001,), SLUGS)
+    assert settlements.shared == set()
+
+
+def test_point_active_for_part_of_the_month_shares_it() -> None:
+    """One day of overlap is enough: the invoice covers that day."""
+
+    settlements = _june_invoices()
+    other = _point(1003, C, (2001, date(2026, 6, 30), None))
+    mark_other_points(settlements, _info((OWN,), (other,)), (1001,), SLUGS)
+    assert settlements.shared == {("beg", C, (2026, 6))}
+
+
+def test_shared_month_changes_its_digest() -> None:
+    """Becoming shared (or no longer) fetches the month again."""
+
+    plain = _june_invoices()
+    shared = _june_invoices()
+    other = _point(1003, C, (2001, JAN, None))
+    mark_other_points(shared, _info((OWN,), (other,)), (1001,), SLUGS)
+    assert changed_months(plain.digests(), shared.digests()) == {(2026, 6)}
+    assert set(plain.digests()) == set(shared.digests())
+
+
+async def test_run_with_another_location_keeps_the_month_provisional(
+    hass: HomeAssistant, env: Any
+) -> None:
+    """End to end: the other location's point leaves BEG consumption provisional."""
+
+    coordinator, _, client = make(hass, options={"daily_window_days": 7})
+    client.mp_raw = load_fixture("metering_point_two_locations.json")
+    client.transactions_raw = list(
+        reversed(
+            [
+                tx("2026-06-08", -1.23, "Strombezug Juni 2026", "Example BEG"),
+                tx("2026-06-08", 0, "Strombezug Juni 2026", "Example EEG"),
+            ]
+        )
+    )
+    summary = await coordinator.async_run(RunRequest(RunType.DAILY))
+    assert summary is not None
+    assert summary.status is RunStatus.OK
+    assert summary.settlement is not None
+    months = summary.settlement["months"]
+    assert months["beg/Consumption/2026-06"] == {
+        "state": "other_points",
+        "factor": None,
+    }
+    assert months["eeg/Consumption/2026-06"]["state"] == "settled"
+    assert summary.settlement["other_points"] == ["beg/Consumption/2026-06"]
+    assert coordinator.state.settled_months == {"eeg/Consumption": ["2026-06"]}
+    # Provisional amounts are written as they are, not the 1.23 invoice.
+    beg = await _month_sum(hass, "home_beg_consumption_eur", (2026, 6))
+    assert beg > 0
+    assert beg != pytest.approx(1.23, abs=1e-4)

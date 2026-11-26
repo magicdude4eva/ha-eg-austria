@@ -396,6 +396,13 @@ Statistiken in € (Einheit `€`, stündlich, mit laufender Summe), neben den k
   Korrekturen. Stunden und Tage bleiben eine Näherung, Monate sind exakt.
   Wird eine Rechnung storniert, ist der Monat bis zur neuen Rechnung wieder
   vorläufig.
+- **Mehrere Standorte oder Zählpunkte in einer Gemeinschaft:** Die EG Austria
+  stellt eine Rechnung pro Mitglied, Gemeinschaft und Richtung, für alle
+  deine Zählpunkte zusammen. Ist ein anderer deiner Zählpunkte (ein anderer
+  Standort oder einer, den dieser Eintrag nicht auswählt) im selben Monat in
+  derselben Gemeinschaft, lässt sich die Rechnung nicht pro Eintrag aufteilen;
+  diese Gemeinschaft und Richtung bleiben für den Monat **vorläufig**. Die
+  Diagnose listet sie unter `other_points`.
 - **Davor eine Schätzung mit Zero:** das Portal bewertet Zero-kWh zum
   Standardtarif. Bei eigenem Zero (deine PV und dein Verbrauch im selben
   Zero-Plan) schätzt die Integration die Zero-kWh jedes Tages (das Kleinere

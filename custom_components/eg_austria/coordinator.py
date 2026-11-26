@@ -98,6 +98,7 @@ from .settlement import (
     build_settlements,
     changed_months,
     diagnostics as settlement_diagnostics,
+    mark_other_points,
     settled_months,
     settled_window_start,
 )
@@ -847,6 +848,12 @@ class EgAustriaCoordinator(DataUpdateCoordinator[RunSummary | None]):
         names = {c.slug: site.names.get(c.id) or c.name for c in setup.communities}
         settlements = build_settlements(
             await client.get_transactions(setup.member), names
+        )
+        mark_other_points(
+            settlements,
+            mp_info,
+            setup.mp_ids,
+            {c.id: c.slug for c in setup.communities},
         )
         digests = settlements.digests()
         changed = changed_months(self.state.settlement_digests, digests)
