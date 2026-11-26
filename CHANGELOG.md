@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1.4] - 2026-11-26
+
+Fix for several locations or metering points in one community (#104).
+
 ### Fixed
 
 - With several locations or metering points of yours in one community, each
@@ -315,7 +319,8 @@ First release. Requires Home Assistant 2026.11.0 or later.
   data updates, troubleshooting, removal), a German README and a privacy
   statement ([PRIVACY.md](PRIVACY.md)).
 
-[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1.3...HEAD
+[Unreleased]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1.4...HEAD
+[0.2.1.4]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1.3...0.2.1.4
 [0.2.1.3]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1.2...0.2.1.3
 [0.2.1.2]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1.1...0.2.1.2
 [0.2.1.1]: https://github.com/magicdude4eva/ha-eg-austria/compare/0.2.1...0.2.1.1
